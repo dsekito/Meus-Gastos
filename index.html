@@ -1281,6 +1281,7 @@
       }
 
       function toggleSelection(id) {
+        console.log("toggle", id, state.selectedEntries.size);
         if (state.selectedEntries.has(id)) {
           state.selectedEntries.delete(id);
         } else {
@@ -1461,6 +1462,7 @@
       });
 
       rows.onclick = (e) => {
+        console.log("rows click", state.selectionMode);
         if (longPressTriggered) {
           longPressTriggered = false;
           return;
@@ -1562,11 +1564,9 @@
           closeContextMenu();
         }
 
-        if (
-          state.selectionMode &&
-          !rows.contains(e.target) &&
-          !selectionActions.contains(e.target)
-        ) {
+        const panel = document.querySelector(".panel");
+
+        if (state.selectionMode && !panel.contains(e.target)) {
           exitSelectionMode();
         }
       });
