@@ -207,6 +207,7 @@
         opacity: 0.8;
       }
 
+      /* CSS legado da tabela - remover na Fase 3 */
       .table-wrap {
         overflow: auto;
       }
@@ -229,17 +230,7 @@
         border-top: 1px solid var(--line);
         font-size: 14px;
       }
-      .select-cell {
-        width: 1%;
-        padding-right: 0;
-      }
-      .select-entry,
-      .select-all {
-        width: auto;
-        padding: 0;
-        accent-color: var(--brand);
-        cursor: pointer;
-      }
+
       .category {
         font-weight: 700;
       }
@@ -265,14 +256,6 @@
 
         letter-spacing: 0.4px;
       }
-      .paid {
-        color: var(--brand);
-        font-weight: 700;
-      }
-      .pending {
-        color: #b54708;
-        font-weight: 700;
-      }
       .status-button {
         border: 0;
         background: none;
@@ -281,31 +264,22 @@
         font-weight: 700;
       }
 
+      /* CSS legado da tabela - remover na Fase 3 */
+
+      .paid {
+        color: var(--brand);
+        font-weight: 700;
+      }
+      .pending {
+        color: #b54708;
+        font-weight: 700;
+      }
       .status-button:hover {
         text-decoration: underline;
       }
-
-      .edit {
-        background: none;
-        border: 0;
-        color: #126b5b;
-        cursor: pointer;
-        font-size: 17px;
-        margin-right: 8px;
-      }
-
       .edit:hover {
         opacity: 0.7;
       }
-
-      .delete {
-        background: none;
-        border: 0;
-        color: #98a6b5;
-        cursor: pointer;
-        font-size: 17px;
-      }
-
       .empty {
         padding: 42px 24px;
         text-align: center;
@@ -321,7 +295,6 @@
       dialog::backdrop {
         background: rgba(16, 42, 67, 0.45);
       }
-
       .modal {
         padding: 22px;
       }
@@ -434,6 +407,150 @@
         color: var(--muted);
         font-size: 12px;
         line-height: 1.45;
+      }
+
+      /* =======================================================
+      NOVA LISTA DE LANÇAMENTOS (FASE 1)
+      ======================================================= */
+      .entries {
+        display: flex;
+        flex-direction: column;
+        background: #fff;
+      }
+
+      .entry {
+        display: flex;
+        gap: 14px;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--line);
+        background: #fff;
+        transition: background 0.15s ease;
+      }
+
+      .entry:last-child {
+        border-bottom: 0;
+      }
+
+      .entry:active {
+        background: #f8fafc;
+      }
+
+      .entry-date {
+        width: 42px;
+        flex-shrink: 0;
+        text-align: center;
+      }
+
+      .entry-day {
+        display: block;
+        font-size: 24px;
+        font-weight: 700;
+        line-height: 1;
+      }
+
+      .entry-month {
+        display: block;
+        margin-top: 2px;
+        font-size: 11px;
+        color: var(--muted);
+        text-transform: uppercase;
+      }
+
+      .entry-content {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .entry-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+      }
+
+      .entry-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 15px;
+        font-weight: 700;
+      }
+
+      .entry-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+
+      .entry-value {
+        white-space: nowrap;
+        font-size: 16px;
+        font-weight: 700;
+      }
+
+      .entry-description {
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .entry-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 6px;
+      }
+
+      .entry-meta {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 12px;
+      }
+
+      .entry-menu {
+        border: 0;
+        background: none;
+        color: #64748b;
+        font-size: 20px;
+        padding: 0;
+        cursor: pointer;
+      }
+
+      /* =======================================================
+      MENU CONTEXTUAL
+      ======================================================= */
+      .context-menu {
+        position: fixed;
+        width: 220px;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+        z-index: 999;
+      }
+
+      .context-menu.hidden {
+        display: none;
+      }
+
+      .context-menu button {
+        width: 100%;
+        border: 0;
+        background: #fff;
+        padding: 14px 16px;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .context-menu button:hover {
+        background: #f8fafc;
+      }
+
+      .context-menu .danger {
+        color: var(--danger);
       }
 
       /* =======================================================
@@ -639,40 +756,7 @@
           </select>
         </div>
 
-        <div class="bulk-actions">
-          <span id="selectedCount">0 selecionados</span>
-
-          <select id="bulkStatus" aria-label="Novo status">
-            <option value="">Alterar status...</option>
-            <option value="paid">Marcar como pago</option>
-            <option value="pending">Marcar como em aberto</option>
-          </select>
-
-          <button id="applyBulkStatus" type="button" disabled>Atualizar</button>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th class="select-cell">
-                  <input
-                    class="select-all"
-                    id="selectAll"
-                    type="checkbox"
-                    aria-label="Selecionar todos os lançamentos exibidos"
-                  />
-                </th>
-                <th>Data</th>
-                <th>Categoria</th>
-                <th>Descrição</th>
-                <th>Valor</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="rows"></tbody>
-          </table>
-        </div>
+        <div class="entries" id="rows"></div>
       </section>
     </main>
     <dialog id="entryDialog">
@@ -746,6 +830,15 @@
         </div>
       </form>
     </dialog>
+
+    <div id="contextMenu" class="context-menu hidden">
+      <button data-action="edit">✏ Editar</button>
+
+      <button data-action="toggle-status">✔ Alterar status</button>
+
+      <button data-action="delete" class="danger">🗑 Excluir</button>
+    </div>
+
     <div class="toast" id="toast"></div>
     <script src="./dados-importados.js"></script>
     <script>
@@ -787,16 +880,18 @@
         "FRAN",
         "RECORRENTE",
       ];
+
       const state = {
         types:
           JSON.parse(localStorage.getItem("mg-types") || "null") ||
           defaultTypes,
+
         descriptions:
           JSON.parse(localStorage.getItem("mg-desc") || "null") ||
           defaultDescriptions,
+
         entries: JSON.parse(localStorage.getItem("mg-entries") || "[]"),
-        selectedIds: new Set(),
-        editingId: null,
+        activeEntry: null,
       };
 
       const money = (n) =>
@@ -804,6 +899,7 @@
           style: "currency",
           currency: "BRL",
         }).format(n);
+
       const esc = (s) =>
         String(s).replace(
           /[&<>"']/g,
@@ -851,131 +947,71 @@
           values.map((x) => `<option>${esc(x)}</option>`).join("") +
           '<option value="__new__">＋ Adicionar nova opção…</option>';
       }
-      function renderNormalRow(e) {
+      function formatDay(date) {
+        return new Date(date + "T12:00").toLocaleDateString("pt-BR", {
+          day: "2-digit",
+        });
+      }
+
+      function formatMonth(date) {
+        return new Date(date + "T12:00")
+          .toLocaleDateString("pt-BR", {
+            month: "short",
+          })
+          .replace(".", "")
+          .toUpperCase();
+      }
+      function renderEntry(e) {
         return `
-        <tr>
-            <td class="select-cell">
-                <input
-                    class="select-entry"
-                    type="checkbox"
-                    data-select-entry="${esc(e.id)}"
-                    ${state.selectedIds.has(e.id) ? "checked" : ""}
-                >
-            </td>
-
-            <td>${new Date(e.date + "T12:00").toLocaleDateString("pt-BR")}</td>
-
-            <td>
-              <span class="tag" style="background:${categoryColor(e.type)}">
-                ${esc(e.type)}
+      <div class="entry">
+          <div class="entry-date">
+              <span class="entry-day">
+                  ${formatDay(e.date)}
               </span>
-            </td>
-
-            <td>
-                <div class="category">
-                    ${esc(e.description)}
-                    ${
-                      e.installment
-                        ? `<span class="tag" style="margin-left:8px">${e.installment.current}/${e.installment.total}</span>`
-                        : ""
-                    }
-                </div>
-                ${e.detail ? `<div class="detail">${esc(e.detail)}</div>` : ""}
-            </td>
-
-            <td>${money(e.value)}</td>
-
-            <td>
-                <button
-                    class="status-button ${e.paid ? "paid" : "pending"}"
-                    data-toggle-status="${e.id}">
-                    ${e.paid ? "Pago" : "Em aberto"}
-                </button>
-            </td>
-
-            <td>
-
-                <button
-                    class="edit"
-                    data-edit="${e.id}">
-                    ✏️
-                </button>
-
-                <button
-                    class="delete"
-                    data-delete="${e.id}">
-                    🗑️
-                </button>
-
-            </td>
-
-        </tr>`;
+              <span class="entry-month">
+                  ${formatMonth(e.date)}
+              </span>
+          </div>
+          <div class="entry-content">
+              <div class="entry-header">
+                  <div class="entry-title">
+                      <span
+                          class="entry-dot"
+                          style="background:${categoryColor(e.type)}">
+                      </span>
+                      ${esc(e.type)}
+                  </div>
+                  <div class="entry-value">
+                      ${money(e.value)}
+                  </div>
+              </div>
+              <div class="entry-description">
+                  ${esc(e.description)}
+              </div>
+              <div class="entry-footer">
+                  <div class="entry-meta">
+                      <button
+                          class="status-button ${e.paid ? "paid" : "pending"}"
+                          data-toggle-status="${e.id}">
+                          ${e.paid ? "✔ Pago" : "○ Em aberto"}
+                      </button>
+                      ${
+                        e.installment
+                          ? `<span>${e.installment.current}/${e.installment.total}</span>`
+                          : ""
+                      }
+                  </div>
+                  <button
+                      class="entry-menu"
+                      data-edit="${e.id}">
+                      ⋮
+                  </button>
+              </div>
+          </div>
+      </div>
+      `;
       }
-      function renderEditRow(e) {
-        return `
-        <tr>
 
-        <td></td>
-
-        <td>
-        <input type="date" data-date="${e.id}" value="${e.date}">
-        </td>
-
-        <td>
-        <select data-type="${e.id}">
-          ${state.types
-            .map(
-              (t) => `<option ${t === e.type ? "selected" : ""}>${t}</option>`,
-            )
-            .join("")}
-        </select>
-        </td>
-
-        <td>
-        <select data-description="${e.id}">
-        ${state.descriptions
-          .map(
-            (d) =>
-              `<option ${d === e.description ? "selected" : ""}>${d}</option>`,
-          )
-          .join("")}
-        </select>
-
-        <input
-            type="text"
-            data-detail="${e.id}"
-            value="${esc(e.detail || "")}"
-            placeholder="Detalhe"
-            style="margin-top:6px;">
-        </td>
-
-        <td>
-        <input type="number" data-value="${e.id}" value="${e.value}">
-        </td>
-
-        <td>
-        <input type="checkbox" data-paid="${e.id}" ${e.paid ? "checked" : ""}>
-        </td>
-
-        <td>
-        <button
-          type="button"
-          class="primary"
-          data-save="${e.id}">
-          💾
-        </button>
-
-        <button
-          type="button"
-          class="secondary"
-          data-cancel="${e.id}">
-          ✖
-        </button>
-        </td>
-
-        </tr>
-        `;
-      }
       function render() {
         fill(type, state.types, "Selecione");
         fill(desc, state.descriptions, "Selecione");
@@ -1009,31 +1045,14 @@
               (!ft || e.type === ft) && (!fs || (fs === "paid") === e.paid),
           )
           .sort((a, b) => a.date.localeCompare(b.date));
-        const visibleIds = new Set(list.map((e) => e.id));
-        state.selectedIds = new Set(
-          [...state.selectedIds].filter((id) => visibleIds.has(id)),
-        );
-        const selectedCount = state.selectedIds.size;
         document.querySelector("#count").textContent =
           `${list.length} lançamento${list.length === 1 ? "" : "s"}`;
-        document.querySelector("#selectedCount").textContent =
-          `${selectedCount} selecionado${selectedCount === 1 ? "" : "s"}`;
-        document.querySelector("#selectAll").checked =
-          list.length > 0 && selectedCount === list.length;
-        document.querySelector("#applyBulkStatus").disabled =
-          !selectedCount || !document.querySelector("#bulkStatus").value;
-        document.querySelector("#rows").innerHTML = list.length
-          ? list
-              .map((e) => {
-                if (state.editingId === e.id) {
-                  return renderEditRow(e);
-                }
 
-                return renderNormalRow(e);
-              })
-              .join("")
-          : '<tr><td class="empty" colspan="7">Nenhum lançamento encontrado.</td></tr>';
+        document.querySelector("#rows").innerHTML = list.length
+          ? list.map(renderEntry).join("")
+          : '<div class="empty">Nenhum lançamento encontrado.</div>';
       }
+
       function openNew() {
         form.reset();
         installmentsField.style.display = "none";
@@ -1069,6 +1088,22 @@
         t.classList.add("show");
         setTimeout(() => t.classList.remove("show"), 2400);
       }
+
+      const rows = document.querySelector("#rows");
+      const contextMenu = document.querySelector("#contextMenu");
+
+      function openContextMenu(button, id) {
+        state.activeEntry = id;
+        const rect = button.getBoundingClientRect();
+        contextMenu.style.left = `${Math.min(rect.right - 220, window.innerWidth - 230)}px`;
+        contextMenu.style.top = `${rect.bottom + 6}px`;
+        contextMenu.classList.remove("hidden");
+      }
+
+      function closeContextMenu() {
+        contextMenu.classList.add("hidden");
+      }
+
       document.querySelector("#openModal").onclick = openNew;
       document
         .querySelectorAll("[data-close]")
@@ -1083,52 +1118,25 @@
         document.querySelector("#filterMonth"),
         document.querySelector("#filterType"),
         document.querySelector("#filterStatus"),
-      ].forEach(
-        (control) =>
-          (control.onchange = () => {
-            state.selectedIds.clear();
-            render();
-          }),
-      );
-      document.querySelector("#bulkStatus").onchange = render;
-      document.querySelector("#selectAll").onchange = (e) => {
-        document
-          .querySelectorAll("[data-select-entry]")
-          .forEach((input) =>
-            e.target.checked
-              ? state.selectedIds.add(input.dataset.selectEntry)
-              : state.selectedIds.delete(input.dataset.selectEntry),
-          );
-        render();
+      ].forEach((control) => {
+        control.onchange = render;
+      });
+
+      rows.onclick = (e) => {
+        const menuButton = e.target.closest("[data-edit]");
+        if (menuButton) {
+          openContextMenu(menuButton, menuButton.dataset.edit);
+          return;
+        }
       };
-      document.querySelector("#applyBulkStatus").onclick = () => {
-        const paid = document.querySelector("#bulkStatus").value === "paid",
-          total = state.selectedIds.size;
-        if (!total) return;
-        state.entries.forEach((entry) => {
-          if (state.selectedIds.has(entry.id)) entry.paid = paid;
-        });
-        state.selectedIds.clear();
-        document.querySelector("#bulkStatus").value = "";
-        save();
-        render();
-        show(
-          `${total} lançamento${total === 1 ? "" : "s"} atualizado${total === 1 ? "" : "s"}.`,
-        );
-      };
+
       form.onsubmit = (e) => {
         e.preventDefault();
-
         const mode = recurrence.value;
-
         const date = document.querySelector("#date").value;
-
         const totalValue = Number(document.querySelector("#value").value);
-
         const detail = document.querySelector("#detail").value.trim();
-
         const paid = document.querySelector("#paid").checked;
-
         if (mode === "single") {
           state.entries.push({
             id: crypto.randomUUID(),
@@ -1147,120 +1155,45 @@
           });
         } else {
           const qty = Math.max(2, Number(installments.value));
-
           const installmentValue = Math.floor((totalValue / qty) * 100) / 100;
-
           let remaining = totalValue;
-
           for (let i = 0; i < qty; i++) {
             const value =
               i === qty - 1 ? Number(remaining.toFixed(2)) : installmentValue;
-
             remaining -= value;
-
             state.entries.push({
               id: crypto.randomUUID(),
-
               date: addMonths(date, i),
-
               value,
-
               type: type.value,
-
               description: desc.value,
-
               detail,
-
               installment: {
                 current: i + 1,
                 total: qty,
                 original: totalValue,
               },
-
               paid: false,
             });
           }
         }
-
         save();
-
         dialog.close();
-
         render();
-
         show("Lançamento salvo.");
       };
-      document.querySelector("#rows").onchange = (e) => {
-        const checkbox = e.target.closest("[data-select-entry]");
-        if (!checkbox) return;
-        checkbox.checked
-          ? state.selectedIds.add(checkbox.dataset.selectEntry)
-          : state.selectedIds.delete(checkbox.dataset.selectEntry);
-        render();
-      };
-      document.querySelector("#rows").onclick = (e) => {
-        const button = e.target.closest("button");
-        if (!button) return;
-        const editId = button.dataset.edit,
-          saveId = button.dataset.save,
-          cancelId = button.dataset.cancel,
-          deleteId = button.dataset.delete,
-          statusId = button.dataset.toggleStatus;
-        if (editId) {
-          state.editingId = editId;
-          render();
-          return;
+
+      document.addEventListener("click", (e) => {
+        if (
+          !e.target.closest(".entry-menu") &&
+          !e.target.closest("#contextMenu")
+        ) {
+          closeContextMenu();
         }
-        if (cancelId) {
-          state.editingId = null;
-          render();
-          return;
-        }
-        if (saveId) {
-          const entry = state.entries.find((x) => x.id === saveId);
-          if (!entry) return;
-          entry.date = document.querySelector(`[data-date="${saveId}"]`).value;
-          entry.type = document.querySelector(`[data-type="${saveId}"]`).value;
-          entry.description = document.querySelector(
-            `[data-description="${saveId}"]`,
-          ).value;
-          entry.detail = document
-            .querySelector(`[data-detail="${saveId}"]`)
-            .value.trim();
-          entry.value = Number(
-            document.querySelector(`[data-value="${saveId}"]`).value,
-          );
-          entry.paid = document.querySelector(
-            `[data-paid="${saveId}"]`,
-          ).checked;
-          state.editingId = null;
-          save();
-          render();
-          show("Lançamento atualizado.");
-          return;
-        }
-        if (deleteId) {
-          state.entries = state.entries.filter((x) => x.id !== deleteId);
-          state.selectedIds.delete(deleteId);
-          save();
-          render();
-          show("Lançamento excluído.");
-          return;
-        }
-        if (statusId) {
-          const entry = state.entries.find((x) => x.id === statusId);
-          if (!entry) return;
-          entry.paid = !entry.paid;
-          save();
-          render();
-          show(
-            entry.paid
-              ? "Lançamento marcado como pago."
-              : "Lançamento marcado como em aberto.",
-          );
-        }
-      };
+      });
+
       render();
+
       window.MEUS_GASTOS_IMPORT?.then((entries) => {
         if (localStorage.getItem("mg-imported") === "1") return;
         state.entries = entries;
