@@ -102,7 +102,7 @@
         background: var(--paper);
         border: 1px solid var(--line);
         border-radius: 15px;
-        padding: 20px;
+        padding: 18px;
         box-shadow: 0 3px 12px rgba(16, 42, 67, 0.025);
       }
       .card .label {
@@ -110,7 +110,7 @@
         font-size: 13px;
       }
       .amount {
-        font-size: 27px;
+        font-size: 24px;
         font-weight: 750;
         letter-spacing: -1px;
         margin-top: 7px;
@@ -217,7 +217,7 @@
       }
       th {
         text-align: left;
-        padding: 13px 24px;
+        padding: 12px 24px;
         color: var(--muted);
         font-size: 11px;
         letter-spacing: 0.07em;
@@ -225,7 +225,7 @@
         background: #fbfcfe;
       }
       td {
-        padding: 16px 24px;
+        padding: 14px 24px;
         border-top: 1px solid var(--line);
         font-size: 14px;
       }
@@ -323,7 +323,7 @@
       }
 
       .modal {
-        padding: 26px;
+        padding: 22px;
       }
       .modal-head {
         display: flex;
@@ -351,7 +351,7 @@
       .form-grid {
         display: grid;
         grid-template-columns: 0.95fr 1.05fr;
-        gap: 18px;
+        gap: 14px;
         align-items: start;
       }
       .field {
@@ -373,7 +373,7 @@
         width: 100%;
         border: 1px solid #cbd5e1;
         border-radius: 9px;
-        padding: 11px 12px;
+        padding: 10px 12px;
         background: #fff;
         color: var(--ink);
       }
@@ -437,15 +437,6 @@
       }
 
       /* =======================================================
-     NOTEBOOK
-    ======================================================= */
-      @media (max-width: 1200px) {
-        .shell {
-          padding: 25px 20px 50px;
-        }
-      }
-
-      /* =======================================================
        TABLET
     ======================================================= */
       @media (max-width: 992px) {
@@ -465,6 +456,10 @@
       ======================================================= */
 
       @media (max-width: 768px) {
+        .shell {
+          padding: 18px;
+        }
+
         .top {
           flex-direction: column;
           align-items: stretch;
@@ -472,6 +467,7 @@
 
         .brand {
           justify-content: center;
+          text-align: center;
         }
 
         .top .primary {
@@ -482,40 +478,42 @@
           grid-template-columns: 1fr;
         }
 
-        .panel-head {
-          padding: 18px;
+        .panel-head,
+        .filters,
+        .bulk-actions {
+          padding: 16px;
         }
 
-        .filters {
-          padding: 18px;
-        }
-
-        .filters > * {
+        .filters > *,
+        .bulk-actions select,
+        .bulk-actions button {
+          width: 100%;
           flex: 1 1 100%;
         }
 
         .bulk-actions {
           flex-direction: column;
           align-items: stretch;
-          padding: 18px;
+          gap: 12px;
         }
 
         .bulk-actions span {
           text-align: center;
         }
 
-        .bulk-actions select,
-        .bulk-actions button {
-          width: 100%;
+        dialog {
+          width: calc(100% - 16px);
+          margin: 8px;
+          border-radius: 14px;
+        }
+
+        .modal {
+          padding: 16px;
         }
 
         .form-grid {
           grid-template-columns: 1fr;
-        }
-
-        dialog {
-          width: calc(100% - 20px);
-          margin: 10px;
+          gap: 14px;
         }
       }
 
@@ -525,12 +523,7 @@
 
       @media (max-width: 576px) {
         .shell {
-          padding: 16px;
-        }
-
-        .brand {
-          flex-direction: column;
-          text-align: center;
+          padding: 14px;
         }
 
         .brand h1 {
@@ -542,49 +535,59 @@
         }
 
         .amount {
-          font-size: 24px;
+          font-size: 22px;
         }
 
         th,
         td {
-          padding: 12px;
+          padding: 10px;
         }
 
         .modal {
-          padding: 18px;
+          padding: 14px;
+        }
+
+        .modal h2 {
+          font-size: 19px;
+        }
+
+        .modal p {
+          font-size: 12px;
+        }
+
+        label {
+          font-size: 12px;
+        }
+
+        input,
+        select,
+        textarea {
+          padding: 10px;
+          font-size: 16px;
+        }
+
+        textarea {
+          min-height: 60px;
         }
 
         .modal-foot {
           flex-direction: column;
+          gap: 8px;
         }
 
         .modal-foot button {
           width: 100%;
         }
 
+        .primary,
+        .secondary {
+          padding: 10px 14px;
+        }
+
         .toast {
-          left: 12px;
-          right: 12px;
-          bottom: 12px;
-        }
-      }
-
-      /* =======================================================
-       CELULAR PEQUENO
-    ======================================================= */
-
-      @media (max-width: 400px) {
-        .brand h1 {
-          font-size: 18px;
-        }
-
-        .amount {
-          font-size: 22px;
-        }
-
-        .primary {
-          padding: 10px;
-          font-size: 14px;
+          left: 10px;
+          right: 10px;
+          bottom: 10px;
         }
       }
     </style>
@@ -717,9 +720,8 @@
           </div>
 
           <div class="field">
-            <label for="description">Descrição</label
-            ><select id="description" required></select>
-            <p class="hint">Também pode criar uma nova descrição.</p>
+            <label for="description">Descrição</label>
+            <select id="description" required></select>
           </div>
           <div class="field wide">
             <label for="detail">Detalhe (opcional)</label
