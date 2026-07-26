@@ -1190,24 +1190,21 @@
       }
 
       function selectAllFiltered() {
+        console.log("SELECT ALL");
+
         const list = getFilteredEntries(
           getMonthlyEntries(filterMonth.value),
           filterType.value,
           filterStatus.value,
         );
 
-        const allSelected =
-          list.length > 0 &&
-          list.every((entry) => state.selectedEntries.has(entry.id));
-
-        if (allSelected) {
-          exitSelectionMode();
-          return;
-        }
+        console.log(list.length);
 
         list.forEach((entry) => {
           state.selectedEntries.add(entry.id);
         });
+
+        console.log(state.selectedEntries.size);
 
         render();
       }
