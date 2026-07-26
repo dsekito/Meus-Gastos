@@ -315,7 +315,7 @@
         border: 0;
         padding: 0;
         border-radius: 18px;
-        width: min(570px, calc(100% - 28px));
+        width: min(700px, calc(100% - 32px));
         box-shadow: 0 25px 80px rgba(16, 42, 67, 0.3);
       }
       dialog::backdrop {
@@ -350,12 +350,15 @@
       }
       .form-grid {
         display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 15px;
+        grid-template-columns: 0.95fr 1.05fr;
+        gap: 18px;
+        align-items: start;
       }
       .field {
-        display: grid;
+        display: flex;
+        flex-direction: column;
         gap: 7px;
+        align-self: start;
       }
       .field.wide {
         grid-column: 1/-1;
@@ -396,7 +399,12 @@
       .hint {
         font-size: 12px;
         color: var(--muted);
-        margin: 0;
+        margin-top: 6px;
+        line-height: 1.35;
+        min-height: 32px;
+      }
+      #installmentsField {
+        align-self: start;
       }
       .toast {
         position: fixed;
@@ -416,6 +424,18 @@
         opacity: 1;
         transform: none;
       }
+
+      .form-hint {
+        margin-top: 16px;
+        padding: 12px 14px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
       /* =======================================================
      NOTEBOOK
     ======================================================= */
@@ -692,10 +712,11 @@
           </div>
 
           <div class="field">
-            <label for="type">Tipo</label
-            ><select id="type" required></select>
-            <p class="hint">
-              Escolha “Adicionar nova opção…” para incluir um tipo.
+            <label for="type">Tipo</label>
+            <select id="type" required></select>
+            <p class="hint form-hint">
+              Dica: selecione <strong>"Adicionar nova opção..."</strong> para
+              criar novos tipos ou descrições.
             </p>
           </div>
 
