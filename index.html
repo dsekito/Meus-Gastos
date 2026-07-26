@@ -1104,6 +1104,25 @@
         contextMenu.classList.add("hidden");
       }
 
+      function handleMenuAction(action) {
+        closeContextMenu();
+        switch (action) {
+          case "edit":
+            console.log(getActiveEntry());
+            break;
+          case "toggle-status":
+            show("Alterar status: " + state.activeEntry);
+            break;
+          case "delete":
+            show("Excluir: " + state.activeEntry);
+            break;
+        }
+      }
+
+      function getActiveEntry() {
+        return state.entries.find((e) => e.id === state.activeEntry);
+      }
+
       document.querySelector("#openModal").onclick = openNew;
       document
         .querySelectorAll("[data-close]")
@@ -1128,6 +1147,12 @@
           openContextMenu(menuButton, menuButton.dataset.edit);
           return;
         }
+      };
+
+      contextMenu.onclick = (e) => {
+        const button = e.target.closest("[data-action]");
+        if (!button) return;
+        handleMenuAction(button.dataset.action);
       };
 
       form.onsubmit = (e) => {
