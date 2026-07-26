@@ -1282,13 +1282,15 @@
       }
 
       function toggleSelection(id) {
-        console.log("toggle", id);
-        console.log([...state.selectedEntries]);
+        console.log("ANTES", [...state.selectedEntries]);
+
         if (state.selectedEntries.has(id)) {
           state.selectedEntries.delete(id);
         } else {
           state.selectedEntries.add(id);
         }
+
+        console.log("DEPOIS", [...state.selectedEntries]);
 
         if (state.selectedEntries.size === 0) {
           exitSelectionMode();
