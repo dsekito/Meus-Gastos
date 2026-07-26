@@ -959,7 +959,7 @@
                       </button>
                       `
                       }
-                          
+
                       ${
                         e.installment
                           ? `<span>${e.installment.current}/${e.installment.total}</span>`
@@ -1029,6 +1029,17 @@
         rows.innerHTML = entries.length
           ? entries.map(renderEntry).join("")
           : '<div class="empty">Nenhum lançamento encontrado.</div>';
+      }
+
+      function updateSelectionUI() {
+        document.querySelectorAll(".entry").forEach((card) => {
+          card.classList.toggle(
+            "selected",
+            state.selectedEntries.has(card.dataset.entry),
+          );
+        });
+
+        panelTitle.textContent = `${state.selectedEntries.size} selecionado${state.selectedEntries.size > 1 ? "s" : ""}`;
       }
 
       function render() {
@@ -1264,15 +1275,13 @@
       }
 
       let longPressTimer = null;
-      let longPressTriggered = false;
+      let suppressNextClick = false;
 
       function enterSelectionMode(id) {
         console.log("ENTER", id);
         closeContextMenu();
 
         state.selectionMode = true;
-
-        longPressTriggered = true;
 
         state.selectedEntries.clear();
         state.selectedEntries.add(id);
@@ -1289,15 +1298,11 @@
       }
 
       function toggleSelection(id) {
-        console.log("ANTES", [...state.selectedEntries]);
-
         if (state.selectedEntries.has(id)) {
           state.selectedEntries.delete(id);
         } else {
           state.selectedEntries.add(id);
         }
-
-        console.log("DEPOIS", [...state.selectedEntries]);
 
         if (state.selectedEntries.size === 0) {
           exitSelectionMode();
@@ -1305,13 +1310,6 @@
         }
 
         render();
-
-        setTimeout(() => {
-          console.log(
-            "DOM selecionados:",
-            document.querySelectorAll(".entry.selected").length,
-          );
-        }, 0);
       }
 
       function cancelLongPress() {
@@ -1480,9 +1478,8 @@
       });
 
       rows.onclick = (e) => {
-        console.log("rows click", state.selectionMode);
-        if (longPressTriggered) {
-          longPressTriggered = false;
+        if (suppressNextClick) {
+          suppressNextClick = false;
           return;
         }
 
@@ -1529,9 +1526,8 @@
 
         if (!card) return;
 
-        longPressTriggered = false;
-
         longPressTimer = setTimeout(() => {
+          suppressNextClick = true;
           enterSelectionMode(card.dataset.entry);
         }, 500);
       });
@@ -1574,19 +1570,12 @@
         show(editing ? "Lançamento atualizado." : "Lançamento salvo.");
       };
 
-      document.addEventListener("click", (e) => {
-        if (
-          !e.target.closest(".entry-menu") &&
-          !e.target.closest("#contextMenu")
-        ) {
-          closeContextMenu();
-        }
+      document.addEventListener("pointerdown", (e) => {
+        if (!state.selectionMode) return;
 
-        const panel = document.querySelector(".panel");
+        if (e.target.closest(".panel")) return;
 
-        if (state.selectionMode && !panel.contains(e.target)) {
-          exitSelectionMode();
-        }
+        exitSelectionMode();
       });
 
       render();
