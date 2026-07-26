@@ -864,6 +864,8 @@
         contextMenu = document.querySelector("#contextMenu");
 
       selectionActions.onclick = (e) => {
+        e.stopPropagation();
+
         if (e.target.closest("#exitSelection")) {
           exitSelectionMode();
           return;
@@ -1030,6 +1032,7 @@
       }
 
       function render() {
+        console.log("RENDER NOVO 999");
         fill(type, state.types, "Selecione");
         fill(desc, state.descriptions, "Selecione");
 
@@ -1190,8 +1193,6 @@
       }
 
       function selectAllFiltered() {
-        console.log("SELECT ALL");
-
         const list = getFilteredEntries(
           getMonthlyEntries(filterMonth.value),
           filterType.value,
@@ -1549,8 +1550,8 @@
 
         if (
           state.selectionMode &&
-          !e.target.closest("[data-entry]") &&
-          !e.target.closest("#selectionActions")
+          !rows.contains(e.target) &&
+          !selectionActions.contains(e.target)
         ) {
           exitSelectionMode();
         }
