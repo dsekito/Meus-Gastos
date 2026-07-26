@@ -168,31 +168,45 @@
 
       .bulk-actions {
         display: flex;
-        flex-wrap: wrap;
         align-items: center;
-        gap: 10px;
-        margin-left: auto;
+        gap: 16px;
+        padding: 14px 24px;
+        border-bottom: 1px solid var(--line);
+        background: #fafbfd;
       }
+
       .bulk-actions span {
-        font-size: 12px;
-        color: var(--muted);
+        flex: 0 0 auto;
         white-space: nowrap;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 600;
       }
+
+      .bulk-actions select {
+        flex: 1;
+        min-width: 240px;
+      }
+
       .bulk-actions button {
+        flex: 0 0 auto;
+        min-width: 120px;
         border: 0;
         border-radius: 8px;
-        padding: 10px 14px;
+        padding: 10px 18px;
         background: var(--brand);
         color: #fff;
         font-weight: 700;
         cursor: pointer;
       }
+
       .bulk-actions button:disabled {
         background: #cbd5e1;
         color: #64748b;
         cursor: not-allowed;
         opacity: 0.8;
       }
+
       .table-wrap {
         overflow: auto;
       }
@@ -439,11 +453,17 @@
         }
 
         .bulk-actions {
-          width: 100%;
-          margin-left: 0;
+          flex-direction: column;
+          align-items: stretch;
+          padding: 18px;
         }
 
-        .bulk-actions > * {
+        .bulk-actions span {
+          text-align: center;
+        }
+
+        .bulk-actions select,
+        .bulk-actions button {
           width: 100%;
         }
 
@@ -561,27 +581,29 @@
           </div>
         </div>
         <div class="filters">
-          <input
-            id="filterMonth"
-            type="month"
-            aria-label="Filtrar por mês"
-          /><select id="filterType">
-            <option value="">Todos os tipos</option></select
-          ><select id="filterStatus">
+          <input id="filterMonth" type="month" aria-label="Filtrar por mês" />
+
+          <select id="filterType">
+            <option value="">Todos os tipos</option>
+          </select>
+
+          <select id="filterStatus">
             <option value="">Todos os status</option>
             <option value="paid">Pagos</option>
             <option value="pending">Em aberto</option>
           </select>
-          <div class="bulk-actions">
-            <span id="selectedCount">0 selecionados</span
-            ><select id="bulkStatus" aria-label="Novo status">
-              <option value="">Alterar status...</option>
-              <option value="paid">Marcar como pago</option>
-              <option value="pending">Marcar como em aberto</option></select
-            ><button id="applyBulkStatus" type="button" disabled>
-              Atualizar
-            </button>
-          </div>
+        </div>
+
+        <div class="bulk-actions">
+          <span id="selectedCount">0 selecionados</span>
+
+          <select id="bulkStatus" aria-label="Novo status">
+            <option value="">Alterar status...</option>
+            <option value="paid">Marcar como pago</option>
+            <option value="pending">Marcar como em aberto</option>
+          </select>
+
+          <button id="applyBulkStatus" type="button" disabled>Atualizar</button>
         </div>
         <div class="table-wrap">
           <table>
