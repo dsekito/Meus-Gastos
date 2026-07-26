@@ -869,6 +869,11 @@
           return;
         }
 
+        if (e.target.closest("#selectAll")) {
+          selectAllFiltered();
+          return;
+        }
+
         if (e.target.closest("#deleteSelection")) {
           deleteSelectedEntries();
           return;
@@ -876,6 +881,12 @@
 
         if (e.target.closest("#markPaidSelection")) {
           markSelectedAsPaid();
+          return;
+        }
+
+        if (e.target.closest("#markPendingSelection")) {
+          markSelectedAsPending();
+          return;
         }
       };
 
@@ -1057,22 +1068,68 @@
 
         selectionActions.innerHTML = state.selectionMode
           ? `
-              <div class="selection-actions">
-                  <button id="exitSelection" class="icon-button" title="Cancelar seleção">
-                      ←
+          <div class="selection-actions">
+
+              <button
+                  id="exitSelection"
+                  class="icon-button"
+                  title="Cancelar seleção">
+                  ←
+              </button>
+              ${
+                list.length === 0
+                  ? ""
+                  : list.every((entry) => state.selectedEntries.has(entry.id))
+                    ? `
+                              <button
+                                  id="selectAll"
+                                  class="icon-button"
+                                  title="Desmarcar todos">
+                                  ☒
+                              </button>
+                          `
+                    : `
+                              <button
+                                  id="selectAll"
+                                  class="icon-button"
+                                  title="Selecionar todos">
+                                  ☑
+                              </button>
+                          `
+              }
+              <div class="selection-toolbar">
+
+                  ${
+                    hasPendingSelection
+                      ? `
+                      <button
+                          id="markPaidSelection"
+                          class="icon-button"
+                          title="Marcar como pago">
+                          ✔
+                      </button>
+                      `
+                      : `
+                      <button
+                          id="markPendingSelection"
+                          class="icon-button"
+                          title="Marcar como pendente">
+                          ↺
+                      </button>
+                      `
+                  }
+
+                  <button
+                      id="deleteSelection"
+                      class="icon-button"
+                      title="Excluir selecionados">
+                      🗑
                   </button>
 
-                  <div class="selection-toolbar">
-                      <button
-                        id="markPaidSelection"
-                        class="icon-button"
-                        title="Marcar como pago"
-                        ${hasPendingSelection ? "" : "disabled"}>
-                        ✔
-                    </button>
-                  </div>
               </div>
-            `
+
+          </div>
+          `
           : "";
 
         renderEntries(list);
@@ -1103,6 +1160,56 @@
             ? "Os lançamentos selecionados já estavam pagos."
             : `${changed} lançamento${changed !== 1 ? "s" : ""} marcado${changed !== 1 ? "s" : ""} como pago.`,
         );
+      }
+
+      function markSelectedAsPending() {
+        let changed = 0;
+
+        for (const entry of state.entries) {
+          if (!state.selectedEntries.has(entry.id)) {
+            continue;
+          }
+
+          if (entry.paid) {
+            entry.paid = false;
+            changed++;
+          }
+        }
+
+        if (changed > 0) {
+          save();
+        }
+
+        exitSelectionMode();
+
+        show(
+          changed === 0
+            ? "Os lançamentos selecionados já estavam pendentes."
+            : `${changed} lançamento${changed !== 1 ? "s" : ""} marcado${changed !== 1 ? "s" : ""} como pendente.`,
+        );
+      }
+
+      function selectAllFiltered() {
+        const list = getFilteredEntries(
+          getMonthlyEntries(filterMonth.value),
+          filterType.value,
+          filterStatus.value,
+        );
+
+        const allSelected =
+          list.length > 0 &&
+          list.every((entry) => state.selectedEntries.has(entry.id));
+
+        if (allSelected) {
+          exitSelectionMode();
+          return;
+        }
+
+        list.forEach((entry) => {
+          state.selectedEntries.add(entry.id);
+        });
+
+        render();
       }
 
       function openNew() {
