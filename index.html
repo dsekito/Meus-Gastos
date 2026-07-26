@@ -249,12 +249,21 @@
         margin-top: 2px;
       }
       .tag {
-        background: var(--soft);
-        color: var(--brand-dark);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+
+        padding: 6px 12px;
+
         border-radius: 999px;
-        padding: 5px 9px;
+
+        color: white;
+
         font-size: 12px;
+
         font-weight: 700;
+
+        letter-spacing: 0.4px;
       }
       .paid {
         color: var(--brand);
@@ -788,6 +797,23 @@
               "'": "&#39;",
             })[c],
         );
+      const CATEGORY_COLORS = {
+        TRABALHO: "#F97316",
+        GAS: "#8B5CF6",
+        NUBANK: "#7E22CE",
+        IPVA: "#DC2626",
+        IPTU: "#B45309",
+        CONDOMINIO: "#16A34A",
+        FINANCIAMENTO: "#4B5563",
+        OBJETIVO: "#EAB308",
+        PERSON: "#EC4899",
+        FIT: "#22C55E",
+        FRAN: "#06B6D4",
+      };
+
+      function categoryColor(type) {
+        return CATEGORY_COLORS[type] || "#64748B";
+      }
       const dialog = document.querySelector("#entryDialog"),
         form = document.querySelector("#entryForm"),
         type = document.querySelector("#type"),
@@ -821,7 +847,9 @@
             <td>${new Date(e.date + "T12:00").toLocaleDateString("pt-BR")}</td>
 
             <td>
-                <span class="tag">${esc(e.type)}</span>
+              <span class="tag" style="background:${categoryColor(e.type)}">
+                ${esc(e.type)}
+              </span>
             </td>
 
             <td>
