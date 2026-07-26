@@ -165,96 +165,16 @@
         padding: 10px 12px;
         color: var(--ink);
       }
-
-      .bulk-actions {
+      .selection-actions {
         display: flex;
         align-items: center;
-        gap: 16px;
-        padding: 14px 24px;
-        border-bottom: 1px solid var(--line);
-        background: #fafbfd;
+        gap: 8px;
       }
 
-      .bulk-actions span {
-        flex: 0 0 auto;
-        white-space: nowrap;
-        color: var(--muted);
-        font-size: 13px;
-        font-weight: 600;
-      }
-
-      .bulk-actions select {
-        flex: 1;
-        min-width: 240px;
-      }
-
-      .bulk-actions button {
-        flex: 0 0 auto;
-        min-width: 120px;
-        border: 0;
-        border-radius: 8px;
-        padding: 10px 18px;
-        background: var(--brand);
-        color: #fff;
-        font-weight: 700;
-        cursor: pointer;
-      }
-
-      .bulk-actions button:disabled {
-        background: #cbd5e1;
-        color: #64748b;
-        cursor: not-allowed;
-        opacity: 0.8;
-      }
-
-      /* CSS legado da tabela - remover na Fase 3 */
-      .table-wrap {
-        overflow: auto;
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        min-width: 760px;
-      }
-      th {
-        text-align: left;
-        padding: 12px 24px;
-        color: var(--muted);
-        font-size: 11px;
-        letter-spacing: 0.07em;
-        text-transform: uppercase;
-        background: #fbfcfe;
-      }
-      td {
-        padding: 14px 24px;
-        border-top: 1px solid var(--line);
-        font-size: 14px;
-      }
-
-      .category {
-        font-weight: 700;
-      }
-      .detail {
-        color: var(--muted);
-        font-size: 12px;
-        margin-top: 2px;
-      }
-      .tag {
-        display: inline-flex;
+      .selection-toolbar {
+        display: flex;
         align-items: center;
-        justify-content: center;
-
-        padding: 6px 12px;
-
-        border-radius: 999px;
-
-        color: white;
-
-        font-size: 12px;
-
-        font-weight: 700;
-
-        letter-spacing: 0.4px;
+        gap: 6px;
       }
       .status-button {
         border: 0;
@@ -263,9 +183,22 @@
         cursor: pointer;
         font-weight: 700;
       }
-
-      /* CSS legado da tabela - remover na Fase 3 */
-
+      .icon-button {
+        border: 0;
+        background: none;
+        cursor: pointer;
+        font-size: 22px;
+        color: var(--ink);
+        padding: 6px;
+        border-radius: 8px;
+      }
+      .icon-button:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+      }
+      .icon-button:not(:disabled):hover {
+        background: #f3f4f6;
+      }
       .paid {
         color: var(--brand);
         font-weight: 700;
@@ -276,9 +209,6 @@
       }
       .status-button:hover {
         text-decoration: underline;
-      }
-      .edit:hover {
-        opacity: 0.7;
       }
       .empty {
         padding: 42px 24px;
@@ -369,13 +299,7 @@
         color: var(--ink);
         cursor: pointer;
       }
-      .hint {
-        font-size: 12px;
-        color: var(--muted);
-        margin-top: 6px;
-        line-height: 1.35;
-        min-height: 32px;
-      }
+
       #installmentsField {
         align-self: start;
       }
@@ -396,17 +320,6 @@
       .toast.show {
         opacity: 1;
         transform: none;
-      }
-
-      .form-hint {
-        margin-top: 16px;
-        padding: 12px 14px;
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 10px;
-        color: var(--muted);
-        font-size: 12px;
-        line-height: 1.45;
       }
 
       /* =======================================================
@@ -433,6 +346,19 @@
 
       .entry:active {
         background: #f8fafc;
+      }
+
+      .entry.selected {
+        background: #eff6ff;
+        border-left: 4px solid var(--brand);
+        padding-left: 12px;
+      }
+
+      .entry.selected .entry-title::before {
+        content: "✓";
+        color: var(--brand);
+        font-weight: 700;
+        margin-right: 6px;
       }
 
       .entry-date {
@@ -595,29 +521,6 @@
           grid-template-columns: 1fr;
         }
 
-        .panel-head,
-        .filters,
-        .bulk-actions {
-          padding: 16px;
-        }
-
-        .filters > *,
-        .bulk-actions select,
-        .bulk-actions button {
-          width: 100%;
-          flex: 1 1 100%;
-        }
-
-        .bulk-actions {
-          flex-direction: column;
-          align-items: stretch;
-          gap: 12px;
-        }
-
-        .bulk-actions span {
-          text-align: center;
-        }
-
         dialog {
           width: calc(100% - 16px);
           margin: 8px;
@@ -653,11 +556,6 @@
 
         .amount {
           font-size: 22px;
-        }
-
-        th,
-        td {
-          padding: 10px;
         }
 
         .modal {
@@ -738,9 +636,11 @@
       <section class="panel">
         <div class="panel-head">
           <div>
-            <h2>Lançamentos</h2>
+            <h2 id="panelTitle">Lançamentos</h2>
             <span id="count">0 lançamentos</span>
           </div>
+
+          <div id="selectionActions"></div>
         </div>
         <div class="filters">
           <input id="filterMonth" type="month" aria-label="Filtrar por mês" />
@@ -895,6 +795,10 @@
         activeEntry: null,
 
         editingId: null,
+
+        selectionMode: false,
+
+        selectedEntries: new Set(),
       };
 
       const money = (n) =>
@@ -945,10 +849,35 @@
         recurrence = document.querySelector("#recurrence"),
         installments = document.querySelector("#installments"),
         installmentsField = document.querySelector("#installmentsField"),
-        filterType = document.querySelector("#filterType");
+        filterType = document.querySelector("#filterType"),
+        filterMonth = document.querySelector("#filterMonth"),
+        filterStatus = document.querySelector("#filterStatus"),
+        monthTotal = document.querySelector("#monthTotal"),
+        paidTotal = document.querySelector("#paidTotal"),
+        pendingTotal = document.querySelector("#pendingTotal"),
+        count = document.querySelector("#count"),
+        panelTitle = document.querySelector("#panelTitle"),
+        toast = document.querySelector("#toast"),
+        selectionActions = document.querySelector("#selectionActions"),
+        openModal = document.querySelector("#openModal"),
+        rows = document.querySelector("#rows"),
+        contextMenu = document.querySelector("#contextMenu");
 
-      const filterMonth = document.querySelector("#filterMonth"),
-        filterStatus = document.querySelector("#filterStatus");
+      selectionActions.onclick = (e) => {
+        if (e.target.closest("#exitSelection")) {
+          exitSelectionMode();
+          return;
+        }
+
+        if (e.target.closest("#deleteSelection")) {
+          deleteSelectedEntries();
+          return;
+        }
+
+        if (e.target.closest("#markPaidSelection")) {
+          markSelectedAsPaid();
+        }
+      };
 
       function save() {
         localStorage.setItem("mg-types", JSON.stringify(state.types));
@@ -977,7 +906,9 @@
       }
       function renderEntry(e) {
         return `
-      <div class="entry">
+      <div
+        class="entry ${state.selectedEntries.has(e.id) ? "selected" : ""}"
+        data-entry="${e.id}">
           <div class="entry-date">
               <span class="entry-day">
                   ${formatDay(e.date)}
@@ -1004,22 +935,35 @@
               </div>
               <div class="entry-footer">
                   <div class="entry-meta">
+                      ${
+                        state.selectionMode
+                          ? ""
+                          : `
                       <button
                           class="status-button ${e.paid ? "paid" : "pending"}"
                           data-toggle-status="${e.id}">
                           ${e.paid ? "✔ Pago" : "○ Em aberto"}
                       </button>
+                      `
+                      }
+                          
                       ${
                         e.installment
                           ? `<span>${e.installment.current}/${e.installment.total}</span>`
                           : ""
                       }
                   </div>
+                  ${
+                    state.selectionMode
+                      ? ""
+                      : `
                   <button
                       class="entry-menu"
                       data-edit="${e.id}">
                       ⋮
                   </button>
+                  `
+                  }
               </div>
           </div>
       </div>
@@ -1027,15 +971,15 @@
       }
 
       function updateSummary(entries) {
-        document.querySelector("#monthTotal").textContent = money(
+        monthTotal.textContent = money(
           entries.reduce((a, e) => a + e.value, 0),
         );
 
-        document.querySelector("#paidTotal").textContent = money(
+        paidTotal.textContent = money(
           entries.filter((e) => e.paid).reduce((a, e) => a + e.value, 0),
         );
 
-        document.querySelector("#pendingTotal").textContent = money(
+        pendingTotal.textContent = money(
           entries.filter((e) => !e.paid).reduce((a, e) => a + e.value, 0),
         );
       }
@@ -1065,8 +1009,7 @@
       }
 
       function updateCount(entries) {
-        document.querySelector("#count").textContent =
-          `${entries.length} lançamento${entries.length === 1 ? "" : "s"}`;
+        count.textContent = `${entries.length} lançamento${entries.length === 1 ? "" : "s"}`;
       }
 
       function renderEntries(entries) {
@@ -1098,7 +1041,68 @@
 
         updateCount(list);
 
+        panelTitle.textContent = state.selectionMode
+          ? `${state.selectedEntries.size} selecionado${state.selectedEntries.size > 1 ? "s" : ""}`
+          : "Lançamentos";
+
+        count.style.display = state.selectionMode ? "none" : "";
+
+        let hasPendingSelection = false;
+
+        if (state.selectionMode) {
+          hasPendingSelection = state.entries.some(
+            (entry) => state.selectedEntries.has(entry.id) && !entry.paid,
+          );
+        }
+
+        selectionActions.innerHTML = state.selectionMode
+          ? `
+              <div class="selection-actions">
+                  <button id="exitSelection" class="icon-button" title="Cancelar seleção">
+                      ←
+                  </button>
+
+                  <div class="selection-toolbar">
+                      <button
+                        id="markPaidSelection"
+                        class="icon-button"
+                        title="Marcar como pago"
+                        ${hasPendingSelection ? "" : "disabled"}>
+                        ✔
+                    </button>
+                  </div>
+              </div>
+            `
+          : "";
+
         renderEntries(list);
+      }
+
+      function markSelectedAsPaid() {
+        let changed = 0;
+
+        for (const entry of state.entries) {
+          if (!state.selectedEntries.has(entry.id)) {
+            continue;
+          }
+
+          if (!entry.paid) {
+            entry.paid = true;
+            changed++;
+          }
+        }
+
+        if (changed > 0) {
+          save();
+        }
+
+        exitSelectionMode();
+
+        show(
+          changed === 0
+            ? "Os lançamentos selecionados já estavam pagos."
+            : `${changed} lançamento${changed !== 1 ? "s" : ""} marcado${changed !== 1 ? "s" : ""} como pago.`,
+        );
       }
 
       function openNew() {
@@ -1132,14 +1136,52 @@
         return d.toISOString().slice(0, 10);
       }
       function show(msg) {
-        const t = document.querySelector("#toast");
-        t.textContent = msg;
-        t.classList.add("show");
-        setTimeout(() => t.classList.remove("show"), 2400);
+        toast.textContent = msg;
+        toast.classList.add("show");
+        setTimeout(() => toast.classList.remove("show"), 2400);
       }
 
-      const rows = document.querySelector("#rows");
-      const contextMenu = document.querySelector("#contextMenu");
+      let longPressTimer = null;
+      let ignoreNextClick = false;
+      function enterSelectionMode(id) {
+        closeContextMenu();
+
+        state.selectionMode = true;
+        ignoreNextClick = true;
+
+        state.selectedEntries.clear();
+        state.selectedEntries.add(id);
+
+        navigator.vibrate?.(25);
+
+        render();
+      }
+
+      function exitSelectionMode() {
+        state.selectionMode = false;
+        state.selectedEntries.clear();
+        render();
+      }
+
+      function toggleSelection(id) {
+        if (state.selectedEntries.has(id)) {
+          state.selectedEntries.delete(id);
+        } else {
+          state.selectedEntries.add(id);
+        }
+
+        if (state.selectedEntries.size === 0) {
+          exitSelectionMode();
+          return;
+        }
+
+        render();
+      }
+
+      function cancelLongPress() {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
 
       function openContextMenu(button, id) {
         state.activeEntry = id;
@@ -1247,6 +1289,34 @@
         show("Lançamento excluído.");
       }
 
+      function deleteSelectedEntries() {
+        const total = state.selectedEntries.size;
+
+        if (total === 0) {
+          exitSelectionMode();
+          return;
+        }
+
+        if (
+          !confirm(
+            `Deseja realmente excluir ${total} lançamento${total > 1 ? "s" : ""}?`,
+          )
+        ) {
+          return;
+        }
+
+        state.entries = state.entries.filter(
+          (entry) => !state.selectedEntries.has(entry.id),
+        );
+
+        save();
+
+        exitSelectionMode();
+
+        show(
+          `${total} lançamento${total > 1 ? "s" : ""} excluído${total > 1 ? "s" : ""}.`,
+        );
+      }
       function fillForm(entry) {
         dateInput.value = entry.date;
         valueInput.value = entry.value;
@@ -1259,7 +1329,7 @@
         installments.value = entry.installment?.total ?? 2;
       }
 
-      document.querySelector("#openModal").onclick = openNew;
+      openModal.onclick = openNew;
       document
         .querySelectorAll("[data-close]")
         .forEach((b) => (b.onclick = () => dialog.close()));
@@ -1269,11 +1339,26 @@
         installmentsField.style.display =
           recurrence.value === "installments" ? "" : "none";
       };
+
       [filterMonth, filterType, filterStatus].forEach((control) => {
-        control.onchange = render;
+        control.onchange = exitSelectionMode;
       });
 
       rows.onclick = (e) => {
+        if (ignoreNextClick) {
+          ignoreNextClick = false;
+          return;
+        }
+        if (state.selectionMode) {
+          const card = e.target.closest("[data-entry]");
+
+          if (!card) return;
+
+          toggleSelection(card.dataset.entry);
+
+          return;
+        }
+
         const statusButton = e.target.closest("[data-toggle-status]");
 
         if (statusButton) {
@@ -1295,6 +1380,28 @@
         if (!button) return;
         handleMenuAction(button.dataset.action);
       };
+
+      rows.addEventListener("pointerdown", (e) => {
+        if (e.target.closest(".entry-menu")) return;
+
+        if (e.target.closest(".status-button")) return;
+
+        if (state.selectionMode) return;
+
+        const card = e.target.closest("[data-entry]");
+
+        if (!card) return;
+
+        longPressTimer = setTimeout(() => {
+          enterSelectionMode(card.dataset.entry);
+        }, 500);
+      });
+
+      rows.addEventListener("pointerup", cancelLongPress);
+
+      rows.addEventListener("pointerleave", cancelLongPress);
+
+      rows.addEventListener("pointercancel", cancelLongPress);
 
       form.onsubmit = (e) => {
         e.preventDefault();
@@ -1334,6 +1441,10 @@
           !e.target.closest("#contextMenu")
         ) {
           closeContextMenu();
+        }
+
+        if (state.selectionMode && !e.target.closest("[data-entry]")) {
+          exitSelectionMode();
         }
       });
 
