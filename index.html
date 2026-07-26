@@ -737,10 +737,18 @@
               "'": "&#39;",
             })[c],
         );
-      const dialog = document.querySelector("#entryDialog"),
-        form = document.querySelector("#entryForm"),
-        type = document.querySelector("#type"),
-        desc = document.querySelector("#description");
+
+      /* ======================================================
+         DOM
+      ====================================================== */
+      const ui = {
+        dialog: document.querySelector("#entryDialog"),
+        form: document.querySelector("#entryForm"),
+
+        type: document.querySelector("#type"),
+        description: document.querySelector("#description"),
+      };
+
       function save() {
         localStorage.setItem("mg-types", JSON.stringify(state.types));
         localStorage.setItem("mg-desc", JSON.stringify(state.descriptions));
@@ -753,8 +761,8 @@
           '<option value="__new__">＋ Adicionar nova opção…</option>';
       }
       function render() {
-        fill(type, state.types, "Selecione");
-        fill(desc, state.descriptions, "Selecione");
+        fill(ui.type, state.types, "Selecione");
+        fill(ui.description, state.descriptions, "Selecione");
         const fType = document.querySelector("#filterType"),
           selected = fType.value;
         fType.innerHTML =
@@ -838,8 +846,9 @@
       document
         .querySelectorAll("[data-close]")
         .forEach((b) => (b.onclick = () => dialog.close()));
-      type.onchange = (e) => addOption(e, "types", type);
-      desc.onchange = (e) => addOption(e, "descriptions", desc);
+      ui.type.onchange = (e) => addOption(e, "types", ui.type);
+      ui.description.onchange = (e) =>
+        addOption(e, "descriptions", ui.description);
       [
         document.querySelector("#filterMonth"),
         document.querySelector("#filterType"),
