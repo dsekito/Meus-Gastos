@@ -654,12 +654,12 @@
         </div>
         <div class="form-grid">
           <div class="field">
-            <label for="date">Data</label
-            ><input id="date" type="date" required />
+            <label for="date">Data</label>
+            <input id="date" type="date" required />
           </div>
           <div class="field">
-            <label for="value">Valor</label
-            ><input
+            <label for="value">Valor</label>
+            <input
               id="value"
               type="number"
               min="0.01"
@@ -669,12 +669,27 @@
             />
           </div>
           <div class="field">
+            <label for="recurrence">Tipo do lançamento</label>
+            <select id="recurrence">
+              <option value="single">Único</option>
+              <option value="installments">Parcelado</option>
+            </select>
+          </div>
+
+          <div class="field" id="installmentsField" style="display: none">
+            <label for="installments"> Número de parcelas </label>
+
+            <input id="installments" type="number" min="2" value="2" />
+          </div>
+
+          <div class="field">
             <label for="type">Tipo</label
             ><select id="type" required></select>
             <p class="hint">
               Escolha “Adicionar nova opção…” para incluir um tipo.
             </p>
           </div>
+
           <div class="field">
             <label for="description">Descrição</label
             ><select id="description" required></select>
@@ -776,7 +791,10 @@
       const dialog = document.querySelector("#entryDialog"),
         form = document.querySelector("#entryForm"),
         type = document.querySelector("#type"),
-        desc = document.querySelector("#description");
+        desc = document.querySelector("#description"),
+        recurrence = document.querySelector("#recurrence"),
+        installments = document.querySelector("#installments"),
+        installmentsField = document.querySelector("#installmentsField");
       function save() {
         localStorage.setItem("mg-types", JSON.stringify(state.types));
         localStorage.setItem("mg-desc", JSON.stringify(state.descriptions));
@@ -807,7 +825,14 @@
             </td>
 
             <td>
-                <div class="category">${esc(e.description)}</div>
+                <div class="category">
+                    ${esc(e.description)}
+                    ${
+                      e.installment
+                        ? `<span class="tag" style="margin-left:8px">${e.installment.current}/${e.installment.total}</span>`
+                        : ""
+                    }
+                </div>
                 ${e.detail ? `<div class="detail">${esc(e.detail)}</div>` : ""}
             </td>
 
@@ -983,6 +1008,11 @@
           show("Opção adicionada à lista.");
         } else select.value = "";
       }
+      function addMonths(dateString, months) {
+        const d = new Date(dateString + "T12:00");
+        d.setMonth(d.getMonth() + months);
+        return d.toISOString().slice(0, 10);
+      }
       function show(msg) {
         const t = document.querySelector("#toast");
         t.textContent = msg;
@@ -995,6 +1025,10 @@
         .forEach((b) => (b.onclick = () => dialog.close()));
       type.onchange = (e) => addOption(e, "types", type);
       desc.onchange = (e) => addOption(e, "descriptions", desc);
+      recurrence.onchange = () => {
+        installmentsField.style.display =
+          recurrence.value === "installments" ? "" : "none";
+      };
       [
         document.querySelector("#filterMonth"),
         document.querySelector("#filterType"),
@@ -1034,18 +1068,69 @@
       };
       form.onsubmit = (e) => {
         e.preventDefault();
-        state.entries.push({
-          id: crypto.randomUUID(),
-          date: document.querySelector("#date").value,
-          value: Number(document.querySelector("#value").value),
-          type: type.value,
-          description: desc.value,
-          detail: document.querySelector("#detail").value.trim(),
-          paid: document.querySelector("#paid").checked,
-        });
+
+        const mode = recurrence.value;
+
+        const date = document.querySelector("#date").value;
+
+        const totalValue = Number(document.querySelector("#value").value);
+
+        const detail = document.querySelector("#detail").value.trim();
+
+        const paid = document.querySelector("#paid").checked;
+
+        if (mode === "single") {
+          state.entries.push({
+            id: crypto.randomUUID(),
+
+            date,
+
+            value: totalValue,
+
+            type: type.value,
+
+            description: desc.value,
+
+            detail,
+
+            paid,
+          });
+        } else {
+          const qty = Math.max(2, Number(installments.value));
+
+          const installmentValue = Number((totalValue / qty).toFixed(2));
+
+          for (let i = 0; i < qty; i++) {
+            state.entries.push({
+              id: crypto.randomUUID(),
+
+              date: addMonths(date, i),
+
+              value: installmentValue,
+
+              type: type.value,
+
+              description: desc.value,
+
+              detail,
+
+              installment: {
+                current: i + 1,
+
+                total: qty,
+              },
+
+              paid: false,
+            });
+          }
+        }
+
         save();
+
         dialog.close();
+
         render();
+
         show("Lançamento salvo.");
       };
       document.querySelector("#rows").onchange = (e) => {
