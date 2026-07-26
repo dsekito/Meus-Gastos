@@ -891,7 +891,10 @@
           defaultDescriptions,
 
         entries: JSON.parse(localStorage.getItem("mg-entries") || "[]"),
+
         activeEntry: null,
+
+        editingId: null,
       };
 
       const money = (n) =>
@@ -929,13 +932,24 @@
       function categoryColor(type) {
         return CATEGORY_COLORS[type] || "#64748B";
       }
+
       const dialog = document.querySelector("#entryDialog"),
         form = document.querySelector("#entryForm"),
+        modalTitle = document.querySelector(".modal h2"),
+        dateInput = document.querySelector("#date"),
+        valueInput = document.querySelector("#value"),
+        detailInput = document.querySelector("#detail"),
+        paidInput = document.querySelector("#paid"),
         type = document.querySelector("#type"),
         desc = document.querySelector("#description"),
         recurrence = document.querySelector("#recurrence"),
         installments = document.querySelector("#installments"),
-        installmentsField = document.querySelector("#installmentsField");
+        installmentsField = document.querySelector("#installmentsField"),
+        filterType = document.querySelector("#filterType");
+
+      const filterMonth = document.querySelector("#filterMonth"),
+        filterStatus = document.querySelector("#filterStatus");
+
       function save() {
         localStorage.setItem("mg-types", JSON.stringify(state.types));
         localStorage.setItem("mg-desc", JSON.stringify(state.descriptions));
@@ -1012,58 +1026,93 @@
       `;
       }
 
-      function render() {
-        fill(type, state.types, "Selecione");
-        fill(desc, state.descriptions, "Selecione");
-        const fType = document.querySelector("#filterType"),
-          selected = fType.value;
-        fType.innerHTML =
+      function updateSummary(entries) {
+        document.querySelector("#monthTotal").textContent = money(
+          entries.reduce((a, e) => a + e.value, 0),
+        );
+
+        document.querySelector("#paidTotal").textContent = money(
+          entries.filter((e) => e.paid).reduce((a, e) => a + e.value, 0),
+        );
+
+        document.querySelector("#pendingTotal").textContent = money(
+          entries.filter((e) => !e.paid).reduce((a, e) => a + e.value, 0),
+        );
+      }
+
+      function renderFilterTypes() {
+        const selected = filterType.value;
+
+        filterType.innerHTML =
           '<option value="">Todos os tipos</option>' +
           state.types.map((x) => `<option>${esc(x)}</option>`).join("");
-        fType.value = selected;
-        const ft = fType.value,
-          fs = document.querySelector("#filterStatus").value,
-          fMonth = document.querySelector("#filterMonth");
-        const current = new Date().toISOString().slice(0, 7);
-        if (!fMonth.value) fMonth.value = current;
-        const month = fMonth.value;
-        const monthly = state.entries.filter(
-          (e) => e.date.slice(0, 7) === month,
-        );
-        document.querySelector("#monthTotal").textContent = money(
-          monthly.reduce((a, e) => a + e.value, 0),
-        );
-        document.querySelector("#paidTotal").textContent = money(
-          monthly.filter((e) => e.paid).reduce((a, e) => a + e.value, 0),
-        );
-        document.querySelector("#pendingTotal").textContent = money(
-          monthly.filter((e) => !e.paid).reduce((a, e) => a + e.value, 0),
-        );
-        const list = monthly
+
+        filterType.value = selected;
+      }
+
+      function getMonthlyEntries(month) {
+        return state.entries.filter((e) => e.date.slice(0, 7) === month);
+      }
+
+      function getFilteredEntries(entries, type, status) {
+        return entries
           .filter(
             (e) =>
-              (!ft || e.type === ft) && (!fs || (fs === "paid") === e.paid),
+              (!type || e.type === type) &&
+              (!status || (status === "paid") === e.paid),
           )
           .sort((a, b) => a.date.localeCompare(b.date));
-        document.querySelector("#count").textContent =
-          `${list.length} lançamento${list.length === 1 ? "" : "s"}`;
+      }
 
-        document.querySelector("#rows").innerHTML = list.length
-          ? list.map(renderEntry).join("")
+      function updateCount(entries) {
+        document.querySelector("#count").textContent =
+          `${entries.length} lançamento${entries.length === 1 ? "" : "s"}`;
+      }
+
+      function renderEntries(entries) {
+        rows.innerHTML = entries.length
+          ? entries.map(renderEntry).join("")
           : '<div class="empty">Nenhum lançamento encontrado.</div>';
       }
 
+      function render() {
+        fill(type, state.types, "Selecione");
+        fill(desc, state.descriptions, "Selecione");
+
+        renderFilterTypes();
+
+        const ft = filterType.value,
+          fs = filterStatus.value;
+
+        const current = new Date().toISOString().slice(0, 7);
+
+        if (!filterMonth.value) filterMonth.value = current;
+
+        const month = filterMonth.value;
+
+        const monthly = getMonthlyEntries(month);
+
+        updateSummary(monthly);
+
+        const list = getFilteredEntries(monthly, ft, fs);
+
+        updateCount(list);
+
+        renderEntries(list);
+      }
+
       function openNew() {
+        state.editingId = null;
+        modalTitle.textContent = "Novo lançamento";
         form.reset();
         installmentsField.style.display = "none";
         recurrence.value = "single";
         installments.value = 2;
-        document.querySelector("#date").value = new Date()
-          .toISOString()
-          .slice(0, 10);
+        dateInput.value = new Date().toISOString().slice(0, 10);
         render();
         dialog.showModal();
       }
+
       function addOption(event, key, select) {
         if (event.target.value !== "__new__") return;
         const label = key === "types" ? "novo tipo" : "nova descrição";
@@ -1108,19 +1157,106 @@
         closeContextMenu();
         switch (action) {
           case "edit":
-            console.log(getActiveEntry());
+            editEntry();
             break;
           case "toggle-status":
-            show("Alterar status: " + state.activeEntry);
+            toggleEntryStatus();
             break;
           case "delete":
-            show("Excluir: " + state.activeEntry);
+            deleteEntry();
             break;
         }
       }
 
       function getActiveEntry() {
         return state.entries.find((e) => e.id === state.activeEntry);
+      }
+
+      function editEntry() {
+        const entry = getActiveEntry();
+        if (!entry) return;
+        state.editingId = entry.id;
+        modalTitle.textContent = "Editar lançamento";
+        fillForm(entry);
+        dialog.showModal();
+      }
+
+      function updateEntry(entry) {
+        const index = state.entries.findIndex((e) => e.id === state.editingId);
+        if (index < 0) return false;
+        state.entries[index] = {
+          ...state.entries[index],
+          ...entry,
+        };
+        state.editingId = null;
+        return true;
+      }
+
+      function createEntry(entry) {
+        if (recurrence.value === "single") {
+          state.entries.push({
+            id: crypto.randomUUID(),
+            ...entry,
+          });
+          return;
+        }
+        const qty = Math.max(2, Number(installments.value));
+        const installmentValue = Math.floor((entry.value / qty) * 100) / 100;
+        let remaining = entry.value;
+        for (let i = 0; i < qty; i++) {
+          const value =
+            i === qty - 1 ? Number(remaining.toFixed(2)) : installmentValue;
+          remaining -= value;
+          state.entries.push({
+            id: crypto.randomUUID(),
+            ...entry,
+            date: addMonths(entry.date, i),
+            value,
+            paid: false,
+            installment: {
+              current: i + 1,
+              total: qty,
+              original: entry.value,
+            },
+          });
+        }
+      }
+
+      function toggleEntryStatus() {
+        const entry = getActiveEntry();
+        if (!entry) return;
+        entry.paid = !entry.paid;
+        closeContextMenu();
+        save();
+        render();
+        show(
+          entry.paid
+            ? "Lançamento marcado como pago."
+            : "Lançamento marcado como pendente.",
+        );
+      }
+
+      function deleteEntry() {
+        const entry = getActiveEntry();
+        if (!entry) return;
+        if (!confirm("Deseja realmente excluir este lançamento?")) return;
+        state.entries = state.entries.filter((e) => e.id !== entry.id);
+        closeContextMenu();
+        save();
+        render();
+        show("Lançamento excluído.");
+      }
+
+      function fillForm(entry) {
+        dateInput.value = entry.date;
+        valueInput.value = entry.value;
+        type.value = entry.type;
+        desc.value = entry.description;
+        detailInput.value = entry.detail;
+        paidInput.checked = entry.paid;
+        recurrence.value = entry.installment ? "installments" : "single";
+        installmentsField.style.display = entry.installment ? "" : "none";
+        installments.value = entry.installment?.total ?? 2;
       }
 
       document.querySelector("#openModal").onclick = openNew;
@@ -1133,16 +1269,21 @@
         installmentsField.style.display =
           recurrence.value === "installments" ? "" : "none";
       };
-      [
-        document.querySelector("#filterMonth"),
-        document.querySelector("#filterType"),
-        document.querySelector("#filterStatus"),
-      ].forEach((control) => {
+      [filterMonth, filterType, filterStatus].forEach((control) => {
         control.onchange = render;
       });
 
       rows.onclick = (e) => {
+        const statusButton = e.target.closest("[data-toggle-status]");
+
+        if (statusButton) {
+          state.activeEntry = statusButton.dataset.toggleStatus;
+          toggleEntryStatus();
+          return;
+        }
+
         const menuButton = e.target.closest("[data-edit]");
+
         if (menuButton) {
           openContextMenu(menuButton, menuButton.dataset.edit);
           return;
@@ -1157,55 +1298,34 @@
 
       form.onsubmit = (e) => {
         e.preventDefault();
-        const mode = recurrence.value;
-        const date = document.querySelector("#date").value;
-        const totalValue = Number(document.querySelector("#value").value);
-        const detail = document.querySelector("#detail").value.trim();
-        const paid = document.querySelector("#paid").checked;
-        if (mode === "single") {
-          state.entries.push({
-            id: crypto.randomUUID(),
 
-            date,
+        const editing = !!state.editingId;
 
-            value: totalValue,
+        const date = dateInput.value;
+        const totalValue = Number(valueInput.value);
+        const detail = detailInput.value.trim();
+        const paid = paidInput.checked;
 
-            type: type.value,
+        const entry = {
+          date,
+          value: totalValue,
+          type: type.value,
+          description: desc.value,
+          detail,
+          paid,
+        };
 
-            description: desc.value,
-
-            detail,
-
-            paid,
-          });
+        if (editing) {
+          if (!updateEntry(entry)) return;
         } else {
-          const qty = Math.max(2, Number(installments.value));
-          const installmentValue = Math.floor((totalValue / qty) * 100) / 100;
-          let remaining = totalValue;
-          for (let i = 0; i < qty; i++) {
-            const value =
-              i === qty - 1 ? Number(remaining.toFixed(2)) : installmentValue;
-            remaining -= value;
-            state.entries.push({
-              id: crypto.randomUUID(),
-              date: addMonths(date, i),
-              value,
-              type: type.value,
-              description: desc.value,
-              detail,
-              installment: {
-                current: i + 1,
-                total: qty,
-                original: totalValue,
-              },
-              paid: false,
-            });
-          }
+          createEntry(entry);
         }
+
         save();
         dialog.close();
         render();
-        show("Lançamento salvo.");
+
+        show(editing ? "Lançamento atualizado." : "Lançamento salvo.");
       };
 
       document.addEventListener("click", (e) => {
