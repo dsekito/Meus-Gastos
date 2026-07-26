@@ -1133,7 +1133,13 @@
           </div>
           `
           : "";
-
+        console.log(
+          "Render",
+          list.map((e) => ({
+            id: e.id,
+            selected: state.selectedEntries.has(e.id),
+          })),
+        );
         renderEntries(list);
       }
 
@@ -1298,6 +1304,13 @@
         }
 
         render();
+
+        setTimeout(() => {
+          console.log(
+            "DOM selecionados:",
+            document.querySelectorAll(".entry.selected").length,
+          );
+        }, 0);
       }
 
       function cancelLongPress() {
