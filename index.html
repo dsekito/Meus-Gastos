@@ -1260,6 +1260,7 @@
       let longPressTriggered = false;
 
       function enterSelectionMode(id) {
+        console.log("ENTER", id);
         closeContextMenu();
 
         state.selectionMode = true;
@@ -1281,7 +1282,8 @@
       }
 
       function toggleSelection(id) {
-        console.log("toggle", id, state.selectedEntries.size);
+        console.log("toggle", id);
+        console.log([...state.selectedEntries]);
         if (state.selectedEntries.has(id)) {
           state.selectedEntries.delete(id);
         } else {
