@@ -1032,7 +1032,6 @@
       }
 
       function render() {
-        console.log("RENDER NOVO 999");
         fill(type, state.types, "Selecione");
         fill(desc, state.descriptions, "Selecione");
 
@@ -1199,13 +1198,24 @@
           filterStatus.value,
         );
 
-        console.log(list.length);
+        const allSelected =
+          list.length > 0 &&
+          list.every((entry) => state.selectedEntries.has(entry.id));
 
-        list.forEach((entry) => {
-          state.selectedEntries.add(entry.id);
-        });
+        if (allSelected) {
+          list.forEach((entry) => {
+            state.selectedEntries.delete(entry.id);
+          });
 
-        console.log(state.selectedEntries.size);
+          if (state.selectedEntries.size === 0) {
+            exitSelectionMode();
+            return;
+          }
+        } else {
+          list.forEach((entry) => {
+            state.selectedEntries.add(entry.id);
+          });
+        }
 
         render();
       }
@@ -1247,12 +1257,14 @@
       }
 
       let longPressTimer = null;
-      let ignoreNextClick = false;
+      let longPressTriggered = false;
+
       function enterSelectionMode(id) {
         closeContextMenu();
 
         state.selectionMode = true;
-        ignoreNextClick = true;
+
+        longPressTriggered = true;
 
         state.selectedEntries.clear();
         state.selectedEntries.add(id);
@@ -1285,7 +1297,6 @@
 
       function cancelLongPress() {
         clearTimeout(longPressTimer);
-        longPressTimer = null;
       }
 
       function openContextMenu(button, id) {
@@ -1450,13 +1461,14 @@
       });
 
       rows.onclick = (e) => {
-        if (ignoreNextClick) {
-          ignoreNextClick = false;
+        if (longPressTriggered) {
+          longPressTriggered = false;
           return;
         }
-        if (state.selectionMode) {
-          const card = e.target.closest("[data-entry]");
 
+        const card = e.target.closest("[data-entry]");
+
+        if (state.selectionMode) {
           if (!card) return;
 
           toggleSelection(card.dataset.entry);
@@ -1487,15 +1499,17 @@
       };
 
       rows.addEventListener("pointerdown", (e) => {
+        if (state.selectionMode) return;
+
         if (e.target.closest(".entry-menu")) return;
 
         if (e.target.closest(".status-button")) return;
 
-        if (state.selectionMode) return;
-
         const card = e.target.closest("[data-entry]");
 
         if (!card) return;
+
+        longPressTriggered = false;
 
         longPressTimer = setTimeout(() => {
           enterSelectionMode(card.dataset.entry);
