@@ -1,285 +1,946 @@
 <!doctype html>
 <html lang="pt-BR">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Meus Gastos</title>
-  <style>
-    :root { --ink:#102a43; --muted:#627d98; --line:#e7edf3; --paper:#fff; --bg:#f4f7fb; --brand:#126b5b; --brand-dark:#0d4f44; --soft:#e6f4f0; --danger:#b42318; --shadow:0 16px 40px rgba(16,42,67,.09); }
-    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif} button,input,select,textarea{font:inherit}
-   
-    .shell{max-width:1180px;margin:auto;padding:30px 22px 60px}
-    .top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:30px}
-    .brand{display:flex;align-items:center;gap:12px}
-    .mark{width:42px;height:42px;border-radius:13px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:22px}
-    .brand h1{font-size:22px;margin:0;letter-spacing:-.5px}
-    .brand p{margin:2px 0 0;color:var(--muted);font-size:13px}
-    .primary{border:0;border-radius:10px;padding:12px 17px;background:var(--brand);color:white;font-weight:700;cursor:pointer;box-shadow:0 7px 14px rgba(18,107,91,.18)}
-    .primary:hover{background:var(--brand-dark)}
-    
-    .summary{
-      display:grid;
-      grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
-      gap:16px;
-      margin-bottom:24px;
-    }
-    
-    .card{background:var(--paper);border:1px solid var(--line);border-radius:15px;padding:20px;box-shadow:0 3px 12px rgba(16,42,67,.025)}
-    .card.label{color:var(--muted);font-size:13px}
-    .amount{font-size:27px;font-weight:750;letter-spacing:-1px;margin-top:7px}
-    .amount.warn{color:#b54708}.amount.good{color:var(--brand)}
-   
-    .panel{background:var(--paper);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
-    .panel-head{padding:22px 24px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px}
-    .panel-head h2{font-size:18px;margin:0}.panel-head span{font-size:13px;color:var(--muted)}
-    
-    .filters{
-      display:flex;
-      flex-wrap:wrap;
-      gap:12px;
-      padding:0 24px 17px;
-      border-bottom:1px solid var(--line);
-      align-items:flex-end;
-    }
-    .filters>*{
-        flex:1 1 180px;
-    }
-    .filters select,
-    .filters input{
-        width:100%;
-        border:1px solid #cbd5e1;
-        background:#fff;
-        border-radius:8px;
-        padding:10px 12px;
-        color:var(--ink);
-    }
-    
-    .bulk-actions{
-      display:flex;
-      flex-wrap:wrap;
-      align-items:center;
-      gap:10px;
-      margin-left:auto;
-    }
-    .bulk-actions span{
-        font-size:12px;
-        color:var(--muted);
-        white-space:nowrap;
-    }
-    .bulk-actions button{
-        border:0;
-        border-radius:8px;
-        padding:10px 14px;
-        background:var(--brand);
-        color:#fff;
-        font-weight:700;
-        cursor:pointer;
-    }
-    
-    .table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:760px}th{text-align:left;padding:13px 24px;color:var(--muted);font-size:11px;letter-spacing:.07em;text-transform:uppercase;background:#fbfcfe}td{padding:16px 24px;border-top:1px solid var(--line);font-size:14px}
-    .select-cell{width:1%;padding-right:0}.select-entry,.select-all{width:auto;padding:0;accent-color:var(--brand);cursor:pointer}
-    .category{font-weight:700}.detail{color:var(--muted);font-size:12px;margin-top:2px}
-    .tag{background:var(--soft);color:var(--brand-dark);border-radius:999px;padding:5px 9px;font-size:12px;font-weight:700}
-    .paid{color:var(--brand);font-weight:700}.pending{color:#b54708;font-weight:700}
-    .status-button{border:0;background:none;padding:0;cursor:pointer;font-weight:700}
-    
-    .status-button:hover{text-decoration:underline}
-    
-    .delete{background:none;border:0;color:#98a6b5;cursor:pointer;font-size:17px}
-    
-    .empty{padding:42px 24px;text-align:center;color:var(--muted)}dialog{border:0;padding:0;border-radius:18px;width:min(570px,calc(100% - 28px));box-shadow:0 25px 80px rgba(16,42,67,.3)}dialog::backdrop{background:rgba(16,42,67,.45)}
-    
-    .modal{padding:26px}
-    .modal-head{display:flex;justify-content:space-between;align-items:start;margin-bottom:21px}
-    .modal h2{margin:0;font-size:21px}.modal p{margin:5px 0 0;color:var(--muted);font-size:13px}
-    .close{background:none;border:0;font-size:25px;line-height:1;color:var(--muted);cursor:pointer}
-    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px}
-    .field{display:grid;gap:7px}
-    .field.wide{grid-column:1/-1}label{font-size:13px;font-weight:700}input,select,textarea{width:100%;border:1px solid #cbd5e1;border-radius:9px;padding:11px 12px;background:#fff;color:var(--ink)}textarea{resize:vertical;min-height:68px}
-    .modal-foot{display:flex;justify-content:flex-end;gap:10px;margin-top:23px}
-    .secondary{border:1px solid #cbd5e1;background:white;border-radius:10px;padding:11px 15px;font-weight:700;color:var(--ink);cursor:pointer}
-    .hint{font-size:12px;color:var(--muted);margin:0}
-    .toast{position:fixed;right:22px;bottom:22px;background:#102a43;color:#fff;padding:13px 16px;border-radius:10px;box-shadow:var(--shadow);opacity:0;transform:translateY(12px);transition:.2s;pointer-events:none}
-    .toast.show{opacity:1;transform:none}
-     /* =======================================================
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Meus Gastos</title>
+    <style>
+      :root {
+        --ink: #102a43;
+        --muted: #627d98;
+        --line: #e7edf3;
+        --paper: #fff;
+        --bg: #f4f7fb;
+        --brand: #126b5b;
+        --brand-dark: #0d4f44;
+        --soft: #e6f4f0;
+        --danger: #b42318;
+        --shadow: 0 16px 40px rgba(16, 42, 67, 0.09);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+      }
+
+      .shell {
+        max-width: 1180px;
+        margin: auto;
+        padding: 30px 22px 60px;
+      }
+      .top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 30px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .mark {
+        width: 42px;
+        height: 42px;
+        border-radius: 13px;
+        background: var(--brand);
+        color: #fff;
+        display: grid;
+        place-items: center;
+        font-size: 22px;
+      }
+      .brand h1 {
+        font-size: 22px;
+        margin: 0;
+        letter-spacing: -0.5px;
+      }
+      .brand p {
+        margin: 2px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .primary {
+        border: 0;
+        border-radius: 10px;
+        padding: 12px 17px;
+        background: var(--brand);
+        color: white;
+        font-weight: 700;
+        cursor: pointer;
+        box-shadow: 0 7px 14px rgba(18, 107, 91, 0.18);
+      }
+      .primary:hover {
+        background: var(--brand-dark);
+      }
+
+      .summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+
+      .card {
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 15px;
+        padding: 20px;
+        box-shadow: 0 3px 12px rgba(16, 42, 67, 0.025);
+      }
+      .card.label {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .amount {
+        font-size: 27px;
+        font-weight: 750;
+        letter-spacing: -1px;
+        margin-top: 7px;
+      }
+      .amount.warn {
+        color: #b54708;
+      }
+      .amount.good {
+        color: var(--brand);
+      }
+
+      .panel {
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+      .panel-head {
+        padding: 22px 24px 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+      .panel-head h2 {
+        font-size: 18px;
+        margin: 0;
+      }
+      .panel-head span {
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 0 24px 17px;
+        border-bottom: 1px solid var(--line);
+        align-items: flex-end;
+      }
+      .filters > * {
+        flex: 1 1 180px;
+      }
+      .filters select,
+      .filters input {
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        background: #fff;
+        border-radius: 8px;
+        padding: 10px 12px;
+        color: var(--ink);
+      }
+
+      .bulk-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        margin-left: auto;
+      }
+      .bulk-actions span {
+        font-size: 12px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .bulk-actions button {
+        border: 0;
+        border-radius: 8px;
+        padding: 10px 14px;
+        background: var(--brand);
+        color: #fff;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .table-wrap {
+        overflow: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 760px;
+      }
+      th {
+        text-align: left;
+        padding: 13px 24px;
+        color: var(--muted);
+        font-size: 11px;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        background: #fbfcfe;
+      }
+      td {
+        padding: 16px 24px;
+        border-top: 1px solid var(--line);
+        font-size: 14px;
+      }
+      .select-cell {
+        width: 1%;
+        padding-right: 0;
+      }
+      .select-entry,
+      .select-all {
+        width: auto;
+        padding: 0;
+        accent-color: var(--brand);
+        cursor: pointer;
+      }
+      .category {
+        font-weight: 700;
+      }
+      .detail {
+        color: var(--muted);
+        font-size: 12px;
+        margin-top: 2px;
+      }
+      .tag {
+        background: var(--soft);
+        color: var(--brand-dark);
+        border-radius: 999px;
+        padding: 5px 9px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .paid {
+        color: var(--brand);
+        font-weight: 700;
+      }
+      .pending {
+        color: #b54708;
+        font-weight: 700;
+      }
+      .status-button {
+        border: 0;
+        background: none;
+        padding: 0;
+        cursor: pointer;
+        font-weight: 700;
+      }
+
+      .status-button:hover {
+        text-decoration: underline;
+      }
+
+      .delete {
+        background: none;
+        border: 0;
+        color: #98a6b5;
+        cursor: pointer;
+        font-size: 17px;
+      }
+
+      .empty {
+        padding: 42px 24px;
+        text-align: center;
+        color: var(--muted);
+      }
+      dialog {
+        border: 0;
+        padding: 0;
+        border-radius: 18px;
+        width: min(570px, calc(100% - 28px));
+        box-shadow: 0 25px 80px rgba(16, 42, 67, 0.3);
+      }
+      dialog::backdrop {
+        background: rgba(16, 42, 67, 0.45);
+      }
+
+      .modal {
+        padding: 26px;
+      }
+      .modal-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        margin-bottom: 21px;
+      }
+      .modal h2 {
+        margin: 0;
+        font-size: 21px;
+      }
+      .modal p {
+        margin: 5px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .close {
+        background: none;
+        border: 0;
+        font-size: 25px;
+        line-height: 1;
+        color: var(--muted);
+        cursor: pointer;
+      }
+      .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+      }
+      .field {
+        display: grid;
+        gap: 7px;
+      }
+      .field.wide {
+        grid-column: 1/-1;
+      }
+      label {
+        font-size: 13px;
+        font-weight: 700;
+      }
+      input,
+      select,
+      textarea {
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        border-radius: 9px;
+        padding: 11px 12px;
+        background: #fff;
+        color: var(--ink);
+      }
+      textarea {
+        resize: vertical;
+        min-height: 68px;
+      }
+      .modal-foot {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 23px;
+      }
+      .secondary {
+        border: 1px solid #cbd5e1;
+        background: white;
+        border-radius: 10px;
+        padding: 11px 15px;
+        font-weight: 700;
+        color: var(--ink);
+        cursor: pointer;
+      }
+      .hint {
+        font-size: 12px;
+        color: var(--muted);
+        margin: 0;
+      }
+      .toast {
+        position: fixed;
+        right: 22px;
+        bottom: 22px;
+        background: #102a43;
+        color: #fff;
+        padding: 13px 16px;
+        border-radius: 10px;
+        box-shadow: var(--shadow);
+        opacity: 0;
+        transform: translateY(12px);
+        transition: 0.2s;
+        pointer-events: none;
+      }
+      .toast.show {
+        opacity: 1;
+        transform: none;
+      }
+      /* =======================================================
      NOTEBOOK
     ======================================================= */
-      @media (max-width:1200px){
-        .shell{
-            padding:25px 20px 50px;
+      @media (max-width: 1200px) {
+        .shell {
+          padding: 25px 20px 50px;
         }
       }
 
-    /* =======================================================
+      /* =======================================================
        TABLET
     ======================================================= */
-      @media (max-width:992px){
-        .top{
-            flex-wrap:wrap;
+      @media (max-width: 992px) {
+        .top {
+          flex-wrap: wrap;
         }
-        .summary{
-            grid-template-columns:repeat(2,1fr);
+        .summary {
+          grid-template-columns: repeat(2, 1fr);
         }
-        .filters>*{
-            flex:1 1 240px;
-        }    
+        .filters > * {
+          flex: 1 1 240px;
+        }
       }
 
       /* =======================================================
          TABLET PEQUENO
       ======================================================= */
-      
-        @media (max-width:768px){
-        
-            .top{
-                flex-direction:column;
-                align-items:stretch;
-            }
-        
-            .brand{
-                justify-content:center;
-            }
-        
-            .top .primary{
-                width:100%;
-            }
-        
-            .summary{
-                grid-template-columns:1fr;
-            }
-        
-            .panel-head{
-                padding:18px;
-            }
-        
-            .filters{
-                padding:18px;
-            }
-        
-            .filters>*{
-                flex:1 1 100%;
-            }
-        
-            .bulk-actions{
-                width:100%;
-                margin-left:0;
-            }
-        
-            .bulk-actions>*{
-                width:100%;
-            }
-        
-            .form-grid{
-                grid-template-columns:1fr;
-            }
-        
-            dialog{
-                width:calc(100% - 20px);
-                margin:10px;
-            }
-        
+
+      @media (max-width: 768px) {
+        .top {
+          flex-direction: column;
+          align-items: stretch;
         }
+
+        .brand {
+          justify-content: center;
+        }
+
+        .top .primary {
+          width: 100%;
+        }
+
+        .summary {
+          grid-template-columns: 1fr;
+        }
+
+        .panel-head {
+          padding: 18px;
+        }
+
+        .filters {
+          padding: 18px;
+        }
+
+        .filters > * {
+          flex: 1 1 100%;
+        }
+
+        .bulk-actions {
+          width: 100%;
+          margin-left: 0;
+        }
+
+        .bulk-actions > * {
+          width: 100%;
+        }
+
+        .form-grid {
+          grid-template-columns: 1fr;
+        }
+
+        dialog {
+          width: calc(100% - 20px);
+          margin: 10px;
+        }
+      }
 
       /* =======================================================
          CELULAR
       ======================================================= */
-      
-      @media (max-width:576px){
-      
-          .shell{
-              padding:16px;
-          }
-      
-          .brand{
-              flex-direction:column;
-              text-align:center;
-          }
-      
-          .brand h1{
-              font-size:20px;
-          }
-      
-          .brand p{
-              font-size:12px;
-          }
-      
-          .amount{
-              font-size:24px;
-          }
-      
-          th,
-          td{
-              padding:12px;
-          }
-      
-          .modal{
-              padding:18px;
-          }
-      
-          .modal-foot{
-              flex-direction:column;
-          }
-      
-          .modal-foot button{
-              width:100%;
-          }
-      
-          .toast{
-              left:12px;
-              right:12px;
-              bottom:12px;
-          }
-      
+
+      @media (max-width: 576px) {
+        .shell {
+          padding: 16px;
+        }
+
+        .brand {
+          flex-direction: column;
+          text-align: center;
+        }
+
+        .brand h1 {
+          font-size: 20px;
+        }
+
+        .brand p {
+          font-size: 12px;
+        }
+
+        .amount {
+          font-size: 24px;
+        }
+
+        th,
+        td {
+          padding: 12px;
+        }
+
+        .modal {
+          padding: 18px;
+        }
+
+        .modal-foot {
+          flex-direction: column;
+        }
+
+        .modal-foot button {
+          width: 100%;
+        }
+
+        .toast {
+          left: 12px;
+          right: 12px;
+          bottom: 12px;
+        }
       }
 
-    /* =======================================================
+      /* =======================================================
        CELULAR PEQUENO
     ======================================================= */
-    
-      @media (max-width:400px){
-      
-          .brand h1{
-              font-size:18px;
-          }
-      
-          .amount{
-              font-size:22px;
-          }
-      
-          .primary{
-              padding:10px;
-              font-size:14px;
-          }
-      
+
+      @media (max-width: 400px) {
+        .brand h1 {
+          font-size: 18px;
+        }
+
+        .amount {
+          font-size: 22px;
+        }
+
+        .primary {
+          padding: 10px;
+          font-size: 14px;
+        }
       }
-    
-  </style>
-</head>
-<body>
-  <main class="shell">
-    <header class="top"><div class="brand"><div class="mark">$</div><div><h1>Meus Gastos</h1><p>Seu controle financeiro, sem complicação.</p></div></div><button class="primary" id="openModal">+ Novo lançamento</button></header>
-    <section class="summary"><article class="card"><div class="label">Gastos do mês</div><div class="amount warn" id="monthTotal">R$ 0,00</div></article><article class="card"><div class="label">Já pago</div><div class="amount good" id="paidTotal">R$ 0,00</div></article><article class="card"><div class="label">A pagar</div><div class="amount" id="pendingTotal">R$ 0,00</div></article></section>
-    <section class="panel"><div class="panel-head"><div><h2>Lançamentos</h2><span id="count">0 lançamentos</span></div></div><div class="filters"><input id="filterMonth" type="month" aria-label="Filtrar por mês"><select id="filterType"><option value="">Todos os tipos</option></select><select id="filterStatus"><option value="">Todos os status</option><option value="paid">Pagos</option><option value="pending">Em aberto</option></select><div class="bulk-actions"><span id="selectedCount">0 selecionados</span><select id="bulkStatus" aria-label="Novo status"><option value="">Alterar status...</option><option value="paid">Marcar como pago</option><option value="pending">Marcar como em aberto</option></select><button id="applyBulkStatus" type="button" disabled>Atualizar</button></div></div><div class="table-wrap"><table><thead><tr><th class="select-cell"><input class="select-all" id="selectAll" type="checkbox" aria-label="Selecionar todos os lançamentos exibidos"></th><th>Data</th><th>Categoria</th><th>Descrição</th><th>Valor</th><th>Status</th><th></th></tr></thead><tbody id="rows"></tbody></table></div></section>
-  </main>
-  <dialog id="entryDialog"><form class="modal" id="entryForm"><div class="modal-head"><div><h2>Novo lançamento</h2><p>Registre uma despesa ou compromisso financeiro.</p></div><button class="close" type="button" data-close>&times;</button></div><div class="form-grid"><div class="field"><label for="date">Data</label><input id="date" type="date" required></div><div class="field"><label for="value">Valor</label><input id="value" type="number" min="0.01" step="0.01" placeholder="0,00" required></div><div class="field"><label for="type">Tipo</label><select id="type" required></select><p class="hint">Escolha “Adicionar nova opção…” para incluir um tipo.</p></div><div class="field"><label for="description">Descrição</label><select id="description" required></select><p class="hint">Também pode criar uma nova descrição.</p></div><div class="field wide"><label for="detail">Detalhe (opcional)</label><textarea id="detail" placeholder="Ex.: pagamento da fatura, nome da loja…"></textarea></div><div class="field wide"><label><input id="paid" type="checkbox" style="width:auto;margin-right:8px">Marcar como pago</label></div></div><div class="modal-foot"><button class="secondary" type="button" data-close>Cancelar</button><button class="primary" type="submit">Salvar lançamento</button></div></form></dialog>
-  <div class="toast" id="toast"></div>
-  <script src="./dados-importados.js"></script>
-  <script>
-    const defaultTypes=['TRABALHO','GAS','NUBANK','IPVA','IPTU','CONDOMINIO','FINANCIAMENTO','OBJETIVO','PERSON','FIT','FRAN'];
-    const defaultDescriptions=['TRABALHO','GAS','ASSINATURA','CARRO','CASA','CONDOMINIO','FINANCIAMENTO','EMPRESTIMO','MEL','PRESENTES','ROUPAS','BRUNA','TEC','FIT','COMIDA','VIAGEM','SAUDE','RESTAURANTE','BEBIDAS','BARBEARIA','CASHBACK','FRAN','RECORRENTE'];
-    const state={types:JSON.parse(localStorage.getItem('mg-types')||'null')||defaultTypes, descriptions:JSON.parse(localStorage.getItem('mg-desc')||'null')||defaultDescriptions, entries:JSON.parse(localStorage.getItem('mg-entries')||'[]'), selectedIds:new Set()};
-    const money=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(n); const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const dialog=document.querySelector('#entryDialog'), form=document.querySelector('#entryForm'), type=document.querySelector('#type'), desc=document.querySelector('#description');
-    function save(){localStorage.setItem('mg-types',JSON.stringify(state.types));localStorage.setItem('mg-desc',JSON.stringify(state.descriptions));localStorage.setItem('mg-entries',JSON.stringify(state.entries));}
-    function fill(select, values, placeholder){select.innerHTML=`<option value="">${placeholder}</option>`+values.map(x=>`<option>${esc(x)}</option>`).join('')+'<option value="__new__">＋ Adicionar nova opção…</option>'}
-    function render(){fill(type,state.types,'Selecione');fill(desc,state.descriptions,'Selecione'); const fType=document.querySelector('#filterType'), selected=fType.value; fType.innerHTML='<option value="">Todos os tipos</option>'+state.types.map(x=>`<option>${esc(x)}</option>`).join('');fType.value=selected; const ft=fType.value, fs=document.querySelector('#filterStatus').value, fMonth=document.querySelector('#filterMonth'); const current=new Date().toISOString().slice(0,7); if(!fMonth.value)fMonth.value=current; const month=fMonth.value; const monthly=state.entries.filter(e=>e.date.slice(0,7)===month); document.querySelector('#monthTotal').textContent=money(monthly.reduce((a,e)=>a+e.value,0)); document.querySelector('#paidTotal').textContent=money(monthly.filter(e=>e.paid).reduce((a,e)=>a+e.value,0)); document.querySelector('#pendingTotal').textContent=money(monthly.filter(e=>!e.paid).reduce((a,e)=>a+e.value,0)); const list=monthly.filter(e=>(!ft||e.type===ft)&&(!fs||(fs==='paid')===e.paid)).sort((a,b)=>a.date.localeCompare(b.date));const visibleIds=new Set(list.map(e=>e.id));state.selectedIds=new Set([...state.selectedIds].filter(id=>visibleIds.has(id))); const selectedCount=state.selectedIds.size; document.querySelector('#count').textContent=`${list.length} lançamento${list.length===1?'':'s'}`;document.querySelector('#selectedCount').textContent=`${selectedCount} selecionado${selectedCount===1?'':'s'}`;document.querySelector('#selectAll').checked=list.length>0&&selectedCount===list.length;document.querySelector('#applyBulkStatus').disabled=!selectedCount||!document.querySelector('#bulkStatus').value;document.querySelector('#rows').innerHTML=list.length?list.map(e=>`<tr><td class="select-cell"><input class="select-entry" type="checkbox" data-select-entry="${esc(e.id)}" aria-label="Selecionar ${esc(e.description)}" ${state.selectedIds.has(e.id)?'checked':''}></td><td>${new Date(e.date+'T12:00').toLocaleDateString('pt-BR')}</td><td><span class="tag">${esc(e.type)}</span></td><td><div class="category">${esc(e.description)}</div>${e.detail?`<div class="detail">${esc(e.detail)}</div>`:''}</td><td>${money(e.value)}</td><td><button class="status-button ${e.paid?'paid':'pending'}" data-toggle-status="${esc(e.id)}" aria-label="Alterar status de ${esc(e.description)}">${e.paid?'Pago':'Em aberto'}</button></td><td><button class="delete" data-delete="${esc(e.id)}" aria-label="Excluir">×</button></td></tr>`).join(''):'<tr><td class="empty" colspan="7">Nenhum lançamento encontrado.</td></tr>';}
-    function openNew(){form.reset();document.querySelector('#date').value=new Date().toISOString().slice(0,10);render();dialog.showModal();}
-    function addOption(event, key, select){if(event.target.value!=='__new__')return;const label=key==='types'?'novo tipo':'nova descrição';const value=prompt(`Digite a ${label}:`);if(value&&value.trim()){const clean=value.trim().toUpperCase();if(!state[key].includes(clean))state[key].push(clean);save();fill(select,state[key],'Selecione');select.value=clean;show('Opção adicionada à lista.');}else select.value='';}
-    function show(msg){const t=document.querySelector('#toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
-    document.querySelector('#openModal').onclick=openNew;document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>dialog.close());type.onchange=e=>addOption(e,'types',type);desc.onchange=e=>addOption(e,'descriptions',desc);[document.querySelector('#filterMonth'),document.querySelector('#filterType'),document.querySelector('#filterStatus')].forEach(control=>control.onchange=()=>{state.selectedIds.clear();render();});document.querySelector('#bulkStatus').onchange=render;document.querySelector('#selectAll').onchange=e=>{document.querySelectorAll('[data-select-entry]').forEach(input=>e.target.checked?state.selectedIds.add(input.dataset.selectEntry):state.selectedIds.delete(input.dataset.selectEntry));render();};document.querySelector('#applyBulkStatus').onclick=()=>{const paid=document.querySelector('#bulkStatus').value==='paid', total=state.selectedIds.size;if(!total)return;state.entries.forEach(entry=>{if(state.selectedIds.has(entry.id))entry.paid=paid;});state.selectedIds.clear();document.querySelector('#bulkStatus').value='';save();render();show(`${total} lançamento${total===1?'':'s'} atualizado${total===1?'':'s'}.`);};
-    form.onsubmit=e=>{e.preventDefault();state.entries.push({id:crypto.randomUUID(),date:document.querySelector('#date').value,value:Number(document.querySelector('#value').value),type:type.value,description:desc.value,detail:document.querySelector('#detail').value.trim(),paid:document.querySelector('#paid').checked});save();dialog.close();render();show('Lançamento salvo.');};
-    document.querySelector('#rows').onchange=e=>{const checkbox=e.target.closest('[data-select-entry]');if(!checkbox)return;checkbox.checked?state.selectedIds.add(checkbox.dataset.selectEntry):state.selectedIds.delete(checkbox.dataset.selectEntry);render();};document.querySelector('#rows').onclick=e=>{const button=e.target.closest('button');if(!button)return;const deleteId=button.dataset.delete, statusId=button.dataset.toggleStatus;if(deleteId){state.entries=state.entries.filter(x=>x.id!==deleteId);state.selectedIds.delete(deleteId);save();render();show('Lançamento excluído.');return;}if(statusId){const entry=state.entries.find(x=>x.id===statusId);if(!entry)return;entry.paid=!entry.paid;save();render();show(entry.paid?'Lançamento marcado como pago.':'Lançamento marcado como em aberto.');}};render();
-    window.MEUS_GASTOS_IMPORT?.then(entries=>{if(localStorage.getItem('mg-imported')==='1')return;state.entries=entries;state.types=[...new Set([...state.types,...entries.map(e=>e.type)])].sort();state.descriptions=[...new Set([...state.descriptions,...entries.map(e=>e.description)])].sort();localStorage.setItem('mg-imported','1');save();render();show(`${entries.length} registros importados.`);}).catch(()=>show('Não foi possível carregar os registros importados.'));
-  </script>
-</body>
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="top">
+        <div class="brand">
+          <div class="mark">$</div>
+          <div>
+            <h1>Meus Gastos</h1>
+            <p>Seu controle financeiro, sem complicação.</p>
+          </div>
+        </div>
+        <button class="primary" id="openModal">+ Novo lançamento</button>
+      </header>
+      <section class="summary">
+        <article class="card">
+          <div class="label">Gastos do mês</div>
+          <div class="amount warn" id="monthTotal">R$ 0,00</div>
+        </article>
+        <article class="card">
+          <div class="label">Já pago</div>
+          <div class="amount good" id="paidTotal">R$ 0,00</div>
+        </article>
+        <article class="card">
+          <div class="label">A pagar</div>
+          <div class="amount" id="pendingTotal">R$ 0,00</div>
+        </article>
+      </section>
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Lançamentos</h2>
+            <span id="count">0 lançamentos</span>
+          </div>
+        </div>
+        <div class="filters">
+          <input
+            id="filterMonth"
+            type="month"
+            aria-label="Filtrar por mês"
+          /><select id="filterType">
+            <option value="">Todos os tipos</option></select
+          ><select id="filterStatus">
+            <option value="">Todos os status</option>
+            <option value="paid">Pagos</option>
+            <option value="pending">Em aberto</option>
+          </select>
+          <div class="bulk-actions">
+            <span id="selectedCount">0 selecionados</span
+            ><select id="bulkStatus" aria-label="Novo status">
+              <option value="">Alterar status...</option>
+              <option value="paid">Marcar como pago</option>
+              <option value="pending">Marcar como em aberto</option></select
+            ><button id="applyBulkStatus" type="button" disabled>
+              Atualizar
+            </button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="select-cell">
+                  <input
+                    class="select-all"
+                    id="selectAll"
+                    type="checkbox"
+                    aria-label="Selecionar todos os lançamentos exibidos"
+                  />
+                </th>
+                <th>Data</th>
+                <th>Categoria</th>
+                <th>Descrição</th>
+                <th>Valor</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+    <dialog id="entryDialog">
+      <form class="modal" id="entryForm">
+        <div class="modal-head">
+          <div>
+            <h2>Novo lançamento</h2>
+            <p>Registre uma despesa ou compromisso financeiro.</p>
+          </div>
+          <button class="close" type="button" data-close>&times;</button>
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <label for="date">Data</label
+            ><input id="date" type="date" required />
+          </div>
+          <div class="field">
+            <label for="value">Valor</label
+            ><input
+              id="value"
+              type="number"
+              min="0.01"
+              step="0.01"
+              placeholder="0,00"
+              required
+            />
+          </div>
+          <div class="field">
+            <label for="type">Tipo</label
+            ><select id="type" required></select>
+            <p class="hint">
+              Escolha “Adicionar nova opção…” para incluir um tipo.
+            </p>
+          </div>
+          <div class="field">
+            <label for="description">Descrição</label
+            ><select id="description" required></select>
+            <p class="hint">Também pode criar uma nova descrição.</p>
+          </div>
+          <div class="field wide">
+            <label for="detail">Detalhe (opcional)</label
+            ><textarea
+              id="detail"
+              placeholder="Ex.: pagamento da fatura, nome da loja…"
+            ></textarea>
+          </div>
+          <div class="field wide">
+            <label
+              ><input
+                id="paid"
+                type="checkbox"
+                style="width: auto; margin-right: 8px"
+              />Marcar como pago</label
+            >
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="secondary" type="button" data-close>Cancelar</button
+          ><button class="primary" type="submit">Salvar lançamento</button>
+        </div>
+      </form>
+    </dialog>
+    <div class="toast" id="toast"></div>
+    <script src="./dados-importados.js"></script>
+    <script>
+      const defaultTypes = [
+        "TRABALHO",
+        "GAS",
+        "NUBANK",
+        "IPVA",
+        "IPTU",
+        "CONDOMINIO",
+        "FINANCIAMENTO",
+        "OBJETIVO",
+        "PERSON",
+        "FIT",
+        "FRAN",
+      ];
+      const defaultDescriptions = [
+        "TRABALHO",
+        "GAS",
+        "ASSINATURA",
+        "CARRO",
+        "CASA",
+        "CONDOMINIO",
+        "FINANCIAMENTO",
+        "EMPRESTIMO",
+        "MEL",
+        "PRESENTES",
+        "ROUPAS",
+        "BRUNA",
+        "TEC",
+        "FIT",
+        "COMIDA",
+        "VIAGEM",
+        "SAUDE",
+        "RESTAURANTE",
+        "BEBIDAS",
+        "BARBEARIA",
+        "CASHBACK",
+        "FRAN",
+        "RECORRENTE",
+      ];
+      const state = {
+        types:
+          JSON.parse(localStorage.getItem("mg-types") || "null") ||
+          defaultTypes,
+        descriptions:
+          JSON.parse(localStorage.getItem("mg-desc") || "null") ||
+          defaultDescriptions,
+        entries: JSON.parse(localStorage.getItem("mg-entries") || "[]"),
+        selectedIds: new Set(),
+      };
+      const money = (n) =>
+        new Intl.NumberFormat("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+        }).format(n);
+      const esc = (s) =>
+        String(s).replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c],
+        );
+      const dialog = document.querySelector("#entryDialog"),
+        form = document.querySelector("#entryForm"),
+        type = document.querySelector("#type"),
+        desc = document.querySelector("#description");
+      function save() {
+        localStorage.setItem("mg-types", JSON.stringify(state.types));
+        localStorage.setItem("mg-desc", JSON.stringify(state.descriptions));
+        localStorage.setItem("mg-entries", JSON.stringify(state.entries));
+      }
+      function fill(select, values, placeholder) {
+        select.innerHTML =
+          `<option value="">${placeholder}</option>` +
+          values.map((x) => `<option>${esc(x)}</option>`).join("") +
+          '<option value="__new__">＋ Adicionar nova opção…</option>';
+      }
+      function render() {
+        fill(type, state.types, "Selecione");
+        fill(desc, state.descriptions, "Selecione");
+        const fType = document.querySelector("#filterType"),
+          selected = fType.value;
+        fType.innerHTML =
+          '<option value="">Todos os tipos</option>' +
+          state.types.map((x) => `<option>${esc(x)}</option>`).join("");
+        fType.value = selected;
+        const ft = fType.value,
+          fs = document.querySelector("#filterStatus").value,
+          fMonth = document.querySelector("#filterMonth");
+        const current = new Date().toISOString().slice(0, 7);
+        if (!fMonth.value) fMonth.value = current;
+        const month = fMonth.value;
+        const monthly = state.entries.filter(
+          (e) => e.date.slice(0, 7) === month,
+        );
+        document.querySelector("#monthTotal").textContent = money(
+          monthly.reduce((a, e) => a + e.value, 0),
+        );
+        document.querySelector("#paidTotal").textContent = money(
+          monthly.filter((e) => e.paid).reduce((a, e) => a + e.value, 0),
+        );
+        document.querySelector("#pendingTotal").textContent = money(
+          monthly.filter((e) => !e.paid).reduce((a, e) => a + e.value, 0),
+        );
+        const list = monthly
+          .filter(
+            (e) =>
+              (!ft || e.type === ft) && (!fs || (fs === "paid") === e.paid),
+          )
+          .sort((a, b) => a.date.localeCompare(b.date));
+        const visibleIds = new Set(list.map((e) => e.id));
+        state.selectedIds = new Set(
+          [...state.selectedIds].filter((id) => visibleIds.has(id)),
+        );
+        const selectedCount = state.selectedIds.size;
+        document.querySelector("#count").textContent =
+          `${list.length} lançamento${list.length === 1 ? "" : "s"}`;
+        document.querySelector("#selectedCount").textContent =
+          `${selectedCount} selecionado${selectedCount === 1 ? "" : "s"}`;
+        document.querySelector("#selectAll").checked =
+          list.length > 0 && selectedCount === list.length;
+        document.querySelector("#applyBulkStatus").disabled =
+          !selectedCount || !document.querySelector("#bulkStatus").value;
+        document.querySelector("#rows").innerHTML = list.length
+          ? list
+              .map(
+                (e) =>
+                  `<tr><td class="select-cell"><input class="select-entry" type="checkbox" data-select-entry="${esc(e.id)}" aria-label="Selecionar ${esc(e.description)}" ${state.selectedIds.has(e.id) ? "checked" : ""}></td><td>${new Date(e.date + "T12:00").toLocaleDateString("pt-BR")}</td><td><span class="tag">${esc(e.type)}</span></td><td><div class="category">${esc(e.description)}</div>${e.detail ? `<div class="detail">${esc(e.detail)}</div>` : ""}</td><td>${money(e.value)}</td><td><button class="status-button ${e.paid ? "paid" : "pending"}" data-toggle-status="${esc(e.id)}" aria-label="Alterar status de ${esc(e.description)}">${e.paid ? "Pago" : "Em aberto"}</button></td><td><button class="delete" data-delete="${esc(e.id)}" aria-label="Excluir">×</button></td></tr>`,
+              )
+              .join("")
+          : '<tr><td class="empty" colspan="7">Nenhum lançamento encontrado.</td></tr>';
+      }
+      function openNew() {
+        form.reset();
+        document.querySelector("#date").value = new Date()
+          .toISOString()
+          .slice(0, 10);
+        render();
+        dialog.showModal();
+      }
+      function addOption(event, key, select) {
+        if (event.target.value !== "__new__") return;
+        const label = key === "types" ? "novo tipo" : "nova descrição";
+        const value = prompt(`Digite a ${label}:`);
+        if (value && value.trim()) {
+          const clean = value.trim().toUpperCase();
+          if (!state[key].includes(clean)) state[key].push(clean);
+          save();
+          fill(select, state[key], "Selecione");
+          select.value = clean;
+          show("Opção adicionada à lista.");
+        } else select.value = "";
+      }
+      function show(msg) {
+        const t = document.querySelector("#toast");
+        t.textContent = msg;
+        t.classList.add("show");
+        setTimeout(() => t.classList.remove("show"), 2400);
+      }
+      document.querySelector("#openModal").onclick = openNew;
+      document
+        .querySelectorAll("[data-close]")
+        .forEach((b) => (b.onclick = () => dialog.close()));
+      type.onchange = (e) => addOption(e, "types", type);
+      desc.onchange = (e) => addOption(e, "descriptions", desc);
+      [
+        document.querySelector("#filterMonth"),
+        document.querySelector("#filterType"),
+        document.querySelector("#filterStatus"),
+      ].forEach(
+        (control) =>
+          (control.onchange = () => {
+            state.selectedIds.clear();
+            render();
+          }),
+      );
+      document.querySelector("#bulkStatus").onchange = render;
+      document.querySelector("#selectAll").onchange = (e) => {
+        document
+          .querySelectorAll("[data-select-entry]")
+          .forEach((input) =>
+            e.target.checked
+              ? state.selectedIds.add(input.dataset.selectEntry)
+              : state.selectedIds.delete(input.dataset.selectEntry),
+          );
+        render();
+      };
+      document.querySelector("#applyBulkStatus").onclick = () => {
+        const paid = document.querySelector("#bulkStatus").value === "paid",
+          total = state.selectedIds.size;
+        if (!total) return;
+        state.entries.forEach((entry) => {
+          if (state.selectedIds.has(entry.id)) entry.paid = paid;
+        });
+        state.selectedIds.clear();
+        document.querySelector("#bulkStatus").value = "";
+        save();
+        render();
+        show(
+          `${total} lançamento${total === 1 ? "" : "s"} atualizado${total === 1 ? "" : "s"}.`,
+        );
+      };
+      form.onsubmit = (e) => {
+        e.preventDefault();
+        state.entries.push({
+          id: crypto.randomUUID(),
+          date: document.querySelector("#date").value,
+          value: Number(document.querySelector("#value").value),
+          type: type.value,
+          description: desc.value,
+          detail: document.querySelector("#detail").value.trim(),
+          paid: document.querySelector("#paid").checked,
+        });
+        save();
+        dialog.close();
+        render();
+        show("Lançamento salvo.");
+      };
+      document.querySelector("#rows").onchange = (e) => {
+        const checkbox = e.target.closest("[data-select-entry]");
+        if (!checkbox) return;
+        checkbox.checked
+          ? state.selectedIds.add(checkbox.dataset.selectEntry)
+          : state.selectedIds.delete(checkbox.dataset.selectEntry);
+        render();
+      };
+      document.querySelector("#rows").onclick = (e) => {
+        const button = e.target.closest("button");
+        if (!button) return;
+        const deleteId = button.dataset.delete,
+          statusId = button.dataset.toggleStatus;
+        if (deleteId) {
+          state.entries = state.entries.filter((x) => x.id !== deleteId);
+          state.selectedIds.delete(deleteId);
+          save();
+          render();
+          show("Lançamento excluído.");
+          return;
+        }
+        if (statusId) {
+          const entry = state.entries.find((x) => x.id === statusId);
+          if (!entry) return;
+          entry.paid = !entry.paid;
+          save();
+          render();
+          show(
+            entry.paid
+              ? "Lançamento marcado como pago."
+              : "Lançamento marcado como em aberto.",
+          );
+        }
+      };
+      render();
+      window.MEUS_GASTOS_IMPORT?.then((entries) => {
+        if (localStorage.getItem("mg-imported") === "1") return;
+        state.entries = entries;
+        state.types = [
+          ...new Set([...state.types, ...entries.map((e) => e.type)]),
+        ].sort();
+        state.descriptions = [
+          ...new Set([
+            ...state.descriptions,
+            ...entries.map((e) => e.description),
+          ]),
+        ].sort();
+        localStorage.setItem("mg-imported", "1");
+        save();
+        render();
+        show(`${entries.length} registros importados.`);
+      }).catch(() =>
+        show("Não foi possível carregar os registros importados."),
+      );
+    </script>
+  </body>
 </html>
