@@ -1550,7 +1550,11 @@
           closeContextMenu();
         }
 
-        if (state.selectionMode && !e.target.closest("[data-entry]")) {
+        if (
+          state.selectionMode &&
+          !e.target.closest("[data-entry]") &&
+          !e.target.closest("#selectionActions")
+        ) {
           exitSelectionMode();
         }
       });
