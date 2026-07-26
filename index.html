@@ -276,6 +276,19 @@
         text-decoration: underline;
       }
 
+      .edit {
+        background: none;
+        border: 0;
+        color: #126b5b;
+        cursor: pointer;
+        font-size: 17px;
+        margin-right: 8px;
+      }
+
+      .edit:hover {
+        opacity: 0.7;
+      }
+
       .delete {
         background: none;
         border: 0;
@@ -740,7 +753,9 @@
           defaultDescriptions,
         entries: JSON.parse(localStorage.getItem("mg-entries") || "[]"),
         selectedIds: new Set(),
+        editingId: null,
       };
+
       const money = (n) =>
         new Intl.NumberFormat("pt-BR", {
           style: "currency",
@@ -772,6 +787,122 @@
           `<option value="">${placeholder}</option>` +
           values.map((x) => `<option>${esc(x)}</option>`).join("") +
           '<option value="__new__">＋ Adicionar nova opção…</option>';
+      }
+      function renderNormalRow(e) {
+        return `
+        <tr>
+            <td class="select-cell">
+                <input
+                    class="select-entry"
+                    type="checkbox"
+                    data-select-entry="${esc(e.id)}"
+                    ${state.selectedIds.has(e.id) ? "checked" : ""}
+                >
+            </td>
+
+            <td>${new Date(e.date + "T12:00").toLocaleDateString("pt-BR")}</td>
+
+            <td>
+                <span class="tag">${esc(e.type)}</span>
+            </td>
+
+            <td>
+                <div class="category">${esc(e.description)}</div>
+                ${e.detail ? `<div class="detail">${esc(e.detail)}</div>` : ""}
+            </td>
+
+            <td>${money(e.value)}</td>
+
+            <td>
+                <button
+                    class="status-button ${e.paid ? "paid" : "pending"}"
+                    data-toggle-status="${e.id}">
+                    ${e.paid ? "Pago" : "Em aberto"}
+                </button>
+            </td>
+
+            <td>
+
+                <button
+                    class="edit"
+                    data-edit="${e.id}">
+                    ✏️
+                </button>
+
+                <button
+                    class="delete"
+                    data-delete="${e.id}">
+                    🗑️
+                </button>
+
+            </td>
+
+        </tr>`;
+      }
+      function renderEditRow(e) {
+        return `
+        <tr>
+
+        <td></td>
+
+        <td>
+        <input type="date" data-date="${e.id}" value="${e.date}">
+        </td>
+
+        <td>
+        <select data-type="${e.id}">
+          ${state.types
+            .map(
+              (t) => `<option ${t === e.type ? "selected" : ""}>${t}</option>`,
+            )
+            .join("")}
+        </select>
+        </td>
+
+        <td>
+        <select data-description="${e.id}">
+        ${state.descriptions
+          .map(
+            (d) =>
+              `<option ${d === e.description ? "selected" : ""}>${d}</option>`,
+          )
+          .join("")}
+        </select>
+
+        <input
+            type="text"
+            data-detail="${e.id}"
+            value="${esc(e.detail || "")}"
+            placeholder="Detalhe"
+            style="margin-top:6px;">
+        </td>
+
+        <td>
+        <input type="number" data-value="${e.id}" value="${e.value}">
+        </td>
+
+        <td>
+        <input type="checkbox" data-paid="${e.id}" ${e.paid ? "checked" : ""}>
+        </td>
+
+        <td>
+        <button
+          type="button"
+          class="primary"
+          data-save="${e.id}">
+          💾
+        </button>
+
+        <button
+          type="button"
+          class="secondary"
+          data-cancel="${e.id}">
+          ✖
+        </button>
+        </td>
+
+        </tr>
+        `;
       }
       function render() {
         fill(type, state.types, "Selecione");
@@ -821,10 +952,13 @@
           !selectedCount || !document.querySelector("#bulkStatus").value;
         document.querySelector("#rows").innerHTML = list.length
           ? list
-              .map(
-                (e) =>
-                  `<tr><td class="select-cell"><input class="select-entry" type="checkbox" data-select-entry="${esc(e.id)}" aria-label="Selecionar ${esc(e.description)}" ${state.selectedIds.has(e.id) ? "checked" : ""}></td><td>${new Date(e.date + "T12:00").toLocaleDateString("pt-BR")}</td><td><span class="tag">${esc(e.type)}</span></td><td><div class="category">${esc(e.description)}</div>${e.detail ? `<div class="detail">${esc(e.detail)}</div>` : ""}</td><td>${money(e.value)}</td><td><button class="status-button ${e.paid ? "paid" : "pending"}" data-toggle-status="${esc(e.id)}" aria-label="Alterar status de ${esc(e.description)}">${e.paid ? "Pago" : "Em aberto"}</button></td><td><button class="delete" data-delete="${esc(e.id)}" aria-label="Excluir">×</button></td></tr>`,
-              )
+              .map((e) => {
+                if (state.editingId === e.id) {
+                  return renderEditRow(e);
+                }
+
+                return renderNormalRow(e);
+              })
               .join("")
           : '<tr><td class="empty" colspan="7">Nenhum lançamento encontrado.</td></tr>';
       }
@@ -925,8 +1059,44 @@
       document.querySelector("#rows").onclick = (e) => {
         const button = e.target.closest("button");
         if (!button) return;
-        const deleteId = button.dataset.delete,
+        const editId = button.dataset.edit,
+          saveId = button.dataset.save,
+          cancelId = button.dataset.cancel,
+          deleteId = button.dataset.delete,
           statusId = button.dataset.toggleStatus;
+        if (editId) {
+          state.editingId = editId;
+          render();
+          return;
+        }
+        if (cancelId) {
+          state.editingId = null;
+          render();
+          return;
+        }
+        if (saveId) {
+          const entry = state.entries.find((x) => x.id === saveId);
+          if (!entry) return;
+          entry.date = document.querySelector(`[data-date="${saveId}"]`).value;
+          entry.type = document.querySelector(`[data-type="${saveId}"]`).value;
+          entry.description = document.querySelector(
+            `[data-description="${saveId}"]`,
+          ).value;
+          entry.detail = document
+            .querySelector(`[data-detail="${saveId}"]`)
+            .value.trim();
+          entry.value = Number(
+            document.querySelector(`[data-value="${saveId}"]`).value,
+          );
+          entry.paid = document.querySelector(
+            `[data-paid="${saveId}"]`,
+          ).checked;
+          state.editingId = null;
+          save();
+          render();
+          show("Lançamento atualizado.");
+          return;
+        }
         if (deleteId) {
           state.entries = state.entries.filter((x) => x.id !== deleteId);
           state.selectedIds.delete(deleteId);
