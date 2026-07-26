@@ -989,6 +989,9 @@
       }
       function openNew() {
         form.reset();
+        installmentsField.style.display = "none";
+        recurrence.value = "single";
+        installments.value = 2;
         document.querySelector("#date").value = new Date()
           .toISOString()
           .slice(0, 10);
@@ -1098,15 +1101,22 @@
         } else {
           const qty = Math.max(2, Number(installments.value));
 
-          const installmentValue = Number((totalValue / qty).toFixed(2));
+          const installmentValue = Math.floor((totalValue / qty) * 100) / 100;
+
+          let remaining = totalValue;
 
           for (let i = 0; i < qty; i++) {
+            const value =
+              i === qty - 1 ? Number(remaining.toFixed(2)) : installmentValue;
+
+            remaining -= value;
+
             state.entries.push({
               id: crypto.randomUUID(),
 
               date: addMonths(date, i),
 
-              value: installmentValue,
+              value,
 
               type: type.value,
 
@@ -1116,8 +1126,8 @@
 
               installment: {
                 current: i + 1,
-
                 total: qty,
+                original: totalValue,
               },
 
               paid: false,
