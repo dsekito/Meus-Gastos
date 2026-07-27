@@ -1026,6 +1026,11 @@
       }
 
       function renderEntries(entries) {
+        console.log(
+          entries
+            .filter((e) => state.selectedEntries.has(e.id))
+            .map((e) => e.id),
+        );
         rows.innerHTML = entries.length
           ? entries.map(renderEntry).join("")
           : '<div class="empty">Nenhum lançamento encontrado.</div>';
@@ -1315,6 +1320,7 @@
         }
 
         render();
+        console.log("Após render:", [...state.selectedEntries]);
       }
 
       function cancelLongPress() {
