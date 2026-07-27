@@ -918,6 +918,10 @@
           .toUpperCase();
       }
       function renderEntry(e) {
+        const selected = state.selectedEntries.has(e.id);
+
+        console.log(e.id, selected);
+
         return `
       <div
         class="entry ${state.selectedEntries.has(e.id) ? "selected" : ""}"
@@ -1158,6 +1162,18 @@
           })),
         );
         renderEntries(list);
+        requestAnimationFrame(() => {
+          console.log(
+            "DOM selecionados:",
+            document.querySelectorAll(".entry.selected").length,
+          );
+
+          console.log(
+            [...document.querySelectorAll(".entry.selected")].map(
+              (e) => e.dataset.entry,
+            ),
+          );
+        });
       }
 
       function markSelectedAsPaid() {
