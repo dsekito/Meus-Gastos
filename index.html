@@ -1051,7 +1051,12 @@
       }
 
       function render() {
-        console.trace("RENDER");
+        console.group("RENDER");
+        console.trace();
+        console.log("selectionMode:", state.selectionMode);
+        console.log("selected:", [...state.selectedEntries]);
+        console.groupEnd();
+
         fill(type, state.types, "Selecione");
         fill(desc, state.descriptions, "Selecione");
 
@@ -1315,6 +1320,9 @@
       }
 
       function exitSelectionMode() {
+        console.error("EXIT SELECTION");
+        console.trace();
+
         state.selectionMode = false;
         state.selectedEntries.clear();
         render();
