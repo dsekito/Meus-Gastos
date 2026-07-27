@@ -1276,6 +1276,7 @@
 
       let longPressTimer = null;
       let suppressNextClick = false;
+      let justEnteredSelection = null;
 
       function enterSelectionMode(id) {
         console.log("ENTER", id);
@@ -1285,6 +1286,8 @@
 
         state.selectedEntries.clear();
         state.selectedEntries.add(id);
+
+        justEnteredSelection = id;
 
         navigator.vibrate?.(25);
 
@@ -1298,6 +1301,8 @@
       }
 
       function toggleSelection(id) {
+        console.log("toggle", id, [...state.selectedEntries]);
+
         if (state.selectedEntries.has(id)) {
           state.selectedEntries.delete(id);
         } else {
@@ -1488,8 +1493,15 @@
         if (state.selectionMode) {
           if (!card) return;
 
-          toggleSelection(card.dataset.entry);
+          // Ignora o click sintético gerado pelo long press
+          if (justEnteredSelection === card.dataset.entry) {
+            justEnteredSelection = null;
+            return;
+          }
 
+          justEnteredSelection = null;
+
+          toggleSelection(card.dataset.entry);
           return;
         }
 
