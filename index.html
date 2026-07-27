@@ -349,8 +349,8 @@
       }
 
       .entry.selected {
-        background: red !important;
-        color: white !important;
+        background: #e6f4f0 !important;
+        border-left: 4px solid var(--brand);
       }
 
       .entry.selected .entry-title::before {
@@ -1299,38 +1299,23 @@
         setTimeout(() => toast.classList.remove("show"), 2400);
       }
 
-      let longPressTimer = null;
-      let suppressNextClick = false;
-      let justEnteredSelection = null;
-
       function enterSelectionMode(id) {
-        console.log("ENTER", id);
-        closeContextMenu();
-
         state.selectionMode = true;
-
         state.selectedEntries.clear();
         state.selectedEntries.add(id);
-
-        justEnteredSelection = id;
-
-        navigator.vibrate?.(25);
 
         render();
       }
 
       function exitSelectionMode() {
-        console.error("EXIT SELECTION");
-        console.trace();
-
         state.selectionMode = false;
+
         state.selectedEntries.clear();
+
         render();
       }
 
       function toggleSelection(id) {
-        console.log("toggle", id, [...state.selectedEntries]);
-
         if (state.selectedEntries.has(id)) {
           state.selectedEntries.delete(id);
         } else {
@@ -1343,11 +1328,6 @@
         }
 
         render();
-        console.log("Após render:", [...state.selectedEntries]);
-      }
-
-      function cancelLongPress() {
-        clearTimeout(longPressTimer);
       }
 
       function openContextMenu(button, id) {
@@ -1511,73 +1491,78 @@
         control.onchange = exitSelectionMode;
       });
 
-      rows.onclick = (e) => {
-        if (suppressNextClick) {
-          suppressNextClick = false;
-          return;
-        }
-
-        const card = e.target.closest("[data-entry]");
-
-        if (state.selectionMode) {
-          if (!card) return;
-
-          // Ignora o click sintético gerado pelo long press
-          if (justEnteredSelection === card.dataset.entry) {
-            justEnteredSelection = null;
-            return;
-          }
-
-          justEnteredSelection = null;
-
-          toggleSelection(card.dataset.entry);
-          return;
-        }
-
-        const statusButton = e.target.closest("[data-toggle-status]");
-
-        if (statusButton) {
-          state.activeEntry = statusButton.dataset.toggleStatus;
-          toggleEntryStatus();
-          return;
-        }
-
-        const menuButton = e.target.closest("[data-edit]");
-
-        if (menuButton) {
-          openContextMenu(menuButton, menuButton.dataset.edit);
-          return;
-        }
-      };
-
       contextMenu.onclick = (e) => {
         const button = e.target.closest("[data-action]");
         if (!button) return;
         handleMenuAction(button.dataset.action);
       };
 
+      let pressTimer = null;
+      let longPressTriggered = false;
+
       rows.addEventListener("pointerdown", (e) => {
-        if (state.selectionMode) return;
+        const card = e.target.closest("[data-entry]");
+
+        if (!card) return;
 
         if (e.target.closest(".entry-menu")) return;
 
         if (e.target.closest(".status-button")) return;
 
-        const card = e.target.closest("[data-entry]");
+        if (state.selectionMode) return;
 
-        if (!card) return;
+        pressTimer = setTimeout(() => {
+          longPressTriggered = true;
 
-        longPressTimer = setTimeout(() => {
-          suppressNextClick = true;
           enterSelectionMode(card.dataset.entry);
         }, 500);
       });
 
-      rows.addEventListener("pointerup", cancelLongPress);
+      rows.addEventListener("pointerup", () => {
+        clearTimeout(pressTimer);
+      });
 
-      rows.addEventListener("pointerleave", cancelLongPress);
+      rows.addEventListener("pointerleave", () => {
+        clearTimeout(pressTimer);
+      });
 
-      rows.addEventListener("pointercancel", cancelLongPress);
+      rows.addEventListener("pointercancel", () => {
+        clearTimeout(pressTimer);
+      });
+
+      rows.addEventListener("click", (e) => {
+        const card = e.target.closest("[data-entry]");
+
+        if (!card) return;
+
+        if (longPressTriggered) {
+          longPressTriggered = false;
+          e.preventDefault();
+          return;
+        }
+
+        if (state.selectionMode) {
+          toggleSelection(card.dataset.entry);
+
+          return;
+        }
+
+        const status = e.target.closest("[data-toggle-status]");
+
+        if (status) {
+          state.activeEntry = status.dataset.toggleStatus;
+
+          toggleEntryStatus();
+
+          return;
+        }
+
+        const menu = e.target.closest("[data-edit]");
+
+        if (menu) {
+          openContextMenu(menu, menu.dataset.edit);
+        }
+      });
 
       form.onsubmit = (e) => {
         e.preventDefault();
@@ -1610,14 +1595,6 @@
 
         show(editing ? "Lançamento atualizado." : "Lançamento salvo.");
       };
-
-      document.addEventListener("pointerdown", (e) => {
-        if (!state.selectionMode) return;
-
-        if (e.target.closest(".panel")) return;
-
-        exitSelectionMode();
-      });
 
       render();
 
