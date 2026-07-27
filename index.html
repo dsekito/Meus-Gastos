@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="pt-BR">
   <head>
+    <link rel="icon" href="data:," />
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Meus Gastos</title>
@@ -917,10 +918,6 @@
           .toUpperCase();
       }
       function renderEntry(e) {
-        const selected = state.selectedEntries.has(e.id);
-
-        console.log(e.id, selected);
-
         return `
       <div
         class="entry ${state.selectedEntries.has(e.id) ? "selected" : ""}"
@@ -947,7 +944,8 @@
                   </div>
               </div>
               <div class="entry-description">
-                  ${esc(e.description)}
+                ${esc(e.description)}
+                ${e.detail ? `<br><small>${esc(e.detail)}</small>` : ""}
               </div>
               <div class="entry-footer">
                   <div class="entry-meta">
@@ -1029,34 +1027,12 @@
       }
 
       function renderEntries(entries) {
-        console.log(
-          entries
-            .filter((e) => state.selectedEntries.has(e.id))
-            .map((e) => e.id),
-        );
         rows.innerHTML = entries.length
           ? entries.map(renderEntry).join("")
           : '<div class="empty">Nenhum lançamento encontrado.</div>';
       }
 
-      function updateSelectionUI() {
-        document.querySelectorAll(".entry").forEach((card) => {
-          card.classList.toggle(
-            "selected",
-            state.selectedEntries.has(card.dataset.entry),
-          );
-        });
-
-        panelTitle.textContent = `${state.selectedEntries.size} selecionado${state.selectedEntries.size > 1 ? "s" : ""}`;
-      }
-
       function render() {
-        console.group("RENDER");
-        console.trace();
-        console.log("selectionMode:", state.selectionMode);
-        console.log("selected:", [...state.selectedEntries]);
-        console.groupEnd();
-
         fill(type, state.types, "Selecione");
         fill(desc, state.descriptions, "Selecione");
 
@@ -1078,6 +1054,8 @@
         const list = getFilteredEntries(monthly, ft, fs);
 
         updateCount(list);
+
+        renderEntries(list);
 
         panelTitle.textContent = state.selectionMode
           ? `${state.selectedEntries.size} selecionado${state.selectedEntries.size > 1 ? "s" : ""}`
@@ -1158,26 +1136,6 @@
           </div>
           `
           : "";
-        console.log(
-          "Render",
-          list.map((e) => ({
-            id: e.id,
-            selected: state.selectedEntries.has(e.id),
-          })),
-        );
-        renderEntries(list);
-        requestAnimationFrame(() => {
-          console.log(
-            "DOM selecionados:",
-            document.querySelectorAll(".entry.selected").length,
-          );
-
-          console.log(
-            [...document.querySelectorAll(".entry.selected")].map(
-              (e) => e.dataset.entry,
-            ),
-          );
-        });
       }
 
       function markSelectedAsPaid() {
@@ -1370,6 +1328,12 @@
         dialog.showModal();
       }
 
+      function generateId() {
+        return crypto.randomUUID
+          ? crypto.randomUUID()
+          : Date.now().toString(36) + Math.random().toString(36).slice(2);
+      }
+
       function updateEntry(entry) {
         const index = state.entries.findIndex((e) => e.id === state.editingId);
         if (index < 0) return false;
@@ -1384,7 +1348,7 @@
       function createEntry(entry) {
         if (recurrence.value === "single") {
           state.entries.push({
-            id: crypto.randomUUID(),
+            id: generateId(),
             ...entry,
           });
           return;
@@ -1397,7 +1361,7 @@
             i === qty - 1 ? Number(remaining.toFixed(2)) : installmentValue;
           remaining -= value;
           state.entries.push({
-            id: crypto.randomUUID(),
+            id: generateId(),
             ...entry,
             date: addMonths(entry.date, i),
             value,
@@ -1488,7 +1452,11 @@
       };
 
       [filterMonth, filterType, filterStatus].forEach((control) => {
-        control.onchange = exitSelectionMode;
+        control.onchange = () => {
+          state.selectedEntries.clear();
+          state.selectionMode = false;
+          render();
+        };
       });
 
       contextMenu.onclick = (e) => {
