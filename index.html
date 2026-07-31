@@ -252,6 +252,75 @@
         color: var(--ink);
         font-size: 17px;
       }
+      .calendar-panel {
+        margin-bottom: 24px;
+      }
+      .calendar-head {
+        padding: 20px 24px 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 14px;
+      }
+      .calendar-head h2 {
+        margin: 0;
+        font-size: 18px;
+      }
+      .calendar-head p {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .calendar-balance {
+        text-align: right;
+      }
+      .calendar-balance span {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .calendar-balance strong {
+        font-size: 18px;
+      }
+      .calendar-weekdays,
+      .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+      }
+      .calendar-weekdays {
+        border-top: 1px solid var(--line);
+        background: #fbfcfe;
+      }
+      .calendar-weekdays span {
+        padding: 10px 8px;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 700;
+        text-align: center;
+        text-transform: uppercase;
+      }
+      .calendar-day {
+        min-height: 126px;
+        padding: 10px;
+        border: 0;
+        border-top: 1px solid var(--line);
+        border-right: 1px solid var(--line);
+        background: #fff;
+        cursor: pointer;
+      }
+      .calendar-day:nth-child(7n) { border-right: 0; }
+      .calendar-day.empty-day { background: #fbfcfe; cursor: default; }
+      .calendar-day.selected { background: #e6f4f0; }
+      .calendar-day:hover:not(.empty-day) { background: #f1f7f5; }
+      .calendar-date { font-weight: 700; font-size: 13px; }
+      .calendar-income, .calendar-cost, .calendar-projection {
+        margin-top: 5px;
+        font-size: 11px;
+        line-height: 1.25;
+      }
+      .calendar-income { color: var(--brand); }
+      .calendar-cost { color: #b54708; }
+      .calendar-projection { color: var(--ink); font-weight: 700; }
       .selection-actions {
         display: flex;
         align-items: center;
@@ -715,6 +784,7 @@
         </div>
         <div class="header-actions">
           <div id="authArea"></div>
+          <button class="auth-button" id="openSettings" type="button">Configurações</button>
           <button class="primary" id="openModal">+ Novo lançamento</button>
         </div>
       </header>
@@ -731,6 +801,14 @@
           <div class="label">A pagar</div>
           <div class="amount" id="pendingTotal">R$ 0,00</div>
         </article>
+      </section>
+      <section class="panel calendar-panel">
+        <div class="calendar-head">
+          <div><h2>Projeção de saldo</h2><p id="calendarCaption">Selecione um mês nos filtros.</p></div>
+          <div class="calendar-balance"><span id="selectedDateLabel">Saldo projetado</span><strong id="selectedBalance">R$ 0,00</strong></div>
+        </div>
+        <div class="calendar-weekdays"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div>
+        <div class="calendar-grid" id="calendarGrid"></div>
       </section>
       <section class="panel">
         <div class="panel-head">
@@ -829,6 +907,17 @@
         </div>
       </form>
     </dialog>
+    <dialog id="settingsDialog">
+      <form class="modal" id="settingsForm">
+        <div class="modal-head"><div><h2>Configurações financeiras</h2><p>Defina os valores usados na projeção de saldo.</p></div><button class="close" type="button" data-close-settings>&times;</button></div>
+        <div class="form-grid">
+          <div class="field"><label for="currentBalance">Saldo atual</label><input id="currentBalance" type="number" step="0.01" required></div>
+          <div class="field"><label for="incomeDay15">Recebimento do dia 15</label><input id="incomeDay15" type="number" step="0.01" required></div>
+          <div class="field wide"><label for="incomeLastBusinessDay">Recebimento do último dia útil</label><input id="incomeLastBusinessDay" type="number" step="0.01" required></div>
+        </div>
+        <div class="modal-foot"><button class="secondary" type="button" data-close-settings>Cancelar</button><button class="primary" type="submit">Salvar configurações</button></div>
+      </form>
+    </dialog>
 
     <div id="contextMenu" class="context-menu hidden">
       <button data-action="edit">✏ Editar</button>
@@ -900,6 +989,15 @@
           defaultDescriptions,
 
         entries: JSON.parse(localStorage.getItem("mg-entries") || "[]"),
+
+        settings:
+          JSON.parse(localStorage.getItem("mg-settings") || "null") || {
+            current_balance: 10000,
+            income_day_15: 9365.96,
+            income_last_business_day: 8011.84,
+          },
+
+        selectedCalendarDate: null,
 
         activeEntry: null,
 
@@ -979,7 +1077,17 @@
         authScreen = document.querySelector("#authScreen"),
         appShell = document.querySelector("#appShell"),
         signInGoogleScreen = document.querySelector("#signInGoogleScreen"),
-        filteredSubtotal = document.querySelector("#filteredSubtotal");
+        filteredSubtotal = document.querySelector("#filteredSubtotal"),
+        calendarGrid = document.querySelector("#calendarGrid"),
+        calendarCaption = document.querySelector("#calendarCaption"),
+        selectedDateLabel = document.querySelector("#selectedDateLabel"),
+        selectedBalance = document.querySelector("#selectedBalance"),
+        settingsDialog = document.querySelector("#settingsDialog"),
+        settingsForm = document.querySelector("#settingsForm"),
+        openSettings = document.querySelector("#openSettings"),
+        currentBalanceInput = document.querySelector("#currentBalance"),
+        incomeDay15Input = document.querySelector("#incomeDay15"),
+        incomeLastBusinessDayInput = document.querySelector("#incomeLastBusinessDay");
 
       selectionActions.onclick = (e) => {
         e.stopPropagation();
@@ -1014,6 +1122,7 @@
         localStorage.setItem("mg-types", JSON.stringify(state.types));
         localStorage.setItem("mg-desc", JSON.stringify(state.descriptions));
         localStorage.setItem("mg-entries", JSON.stringify(state.entries));
+        localStorage.setItem("mg-settings", JSON.stringify(state.settings));
         if (state.user) localStorage.setItem("mg-user-id", state.user.id);
       }
 
@@ -1121,6 +1230,30 @@
         }
       }
 
+      async function syncSettings() {
+        if (!state.user) return;
+        const { error } = await supabaseClient.from("financial_settings").upsert(
+          {
+            user_id: state.user.id,
+            ...state.settings,
+          },
+          { onConflict: "user_id" },
+        );
+        if (error) throw error;
+      }
+
+      async function loadCloudSettings() {
+        const { data, error } = await supabaseClient
+          .from("financial_settings")
+          .select("current_balance, income_day_15, income_last_business_day")
+          .maybeSingle();
+        if (error) throw error;
+        if (data) state.settings = data;
+        else await syncSettings();
+        saveLocal();
+        render();
+      }
+
       async function setCurrentUser(user) {
         if (state.user?.id === user?.id) return;
         state.user = user || null;
@@ -1128,6 +1261,7 @@
         if (state.user) {
           normalizeEntryIds();
           await loadCloudEntries();
+          await loadCloudSettings();
         }
       }
 
@@ -1318,6 +1452,100 @@
           );
       }
 
+      function addDays(date, days) {
+        const value = new Date(`${date}T12:00`);
+        value.setDate(value.getDate() + days);
+        return value.toISOString().slice(0, 10);
+      }
+
+      function lastBusinessDay(year, monthIndex) {
+        const date = new Date(year, monthIndex + 1, 0, 12);
+        while (date.getDay() === 0 || date.getDay() === 6) {
+          date.setDate(date.getDate() - 1);
+        }
+        return date.toISOString().slice(0, 10);
+      }
+
+      function getRecurringIncome(date) {
+        const [year, month, day] = date.split("-").map(Number);
+        let income = day === 15 ? Number(state.settings.income_day_15) : 0;
+        if (date === lastBusinessDay(year, month - 1)) {
+          income += Number(state.settings.income_last_business_day);
+        }
+        return income;
+      }
+
+      function buildDailyEntryTotals() {
+        return state.entries.reduce((totals, entry) => {
+          totals.set(
+            entry.date,
+            (totals.get(entry.date) || 0) + Number(entry.value),
+          );
+          return totals;
+        }, new Map());
+      }
+
+      function getDailyNet(date, entryTotals) {
+        return (entryTotals.get(date) || 0) + getRecurringIncome(date);
+      }
+
+      function getProjectedBalance(date, entryTotals) {
+        const today = new Date().toISOString().slice(0, 10);
+        let balance = Number(state.settings.current_balance);
+        if (date > today) {
+          for (let cursor = addDays(today, 1); cursor <= date; cursor = addDays(cursor, 1)) {
+            balance += getDailyNet(cursor, entryTotals);
+          }
+        } else if (date < today) {
+          for (let cursor = addDays(date, 1); cursor <= today; cursor = addDays(cursor, 1)) {
+            balance -= getDailyNet(cursor, entryTotals);
+          }
+        }
+        return balance;
+      }
+
+      function renderCalendar() {
+        const month = filterMonth.value;
+        if (!month) return;
+        const [year, monthNumber] = month.split("-").map(Number);
+        const monthIndex = monthNumber - 1;
+        const firstDay = new Date(year, monthIndex, 1, 12);
+        const daysInMonth = new Date(year, monthNumber, 0).getDate();
+        const entryTotals = buildDailyEntryTotals();
+
+        if (!state.selectedCalendarDate?.startsWith(month)) {
+          state.selectedCalendarDate = `${month}-01`;
+        }
+
+        calendarCaption.textContent = firstDay.toLocaleDateString("pt-BR", {
+          month: "long",
+          year: "numeric",
+        });
+
+        const cells = Array.from({ length: firstDay.getDay() }, () =>
+          '<div class="calendar-day empty-day"></div>',
+        );
+        for (let day = 1; day <= daysInMonth; day++) {
+          const date = `${month}-${String(day).padStart(2, "0")}`;
+          const costs = entryTotals.get(date) || 0;
+          const income = getRecurringIncome(date);
+          const projected = getProjectedBalance(date, entryTotals);
+          cells.push(`
+            <button class="calendar-day ${date === state.selectedCalendarDate ? "selected" : ""}" data-calendar-date="${date}" type="button">
+              <span class="calendar-date">${day}</span>
+              ${income ? `<span class="calendar-income">+ ${money(income)}</span>` : ""}
+              ${costs ? `<span class="calendar-cost">Gastos ${money(costs)}</span>` : ""}
+              <span class="calendar-projection">${money(projected)}</span>
+            </button>
+          `);
+        }
+        calendarGrid.innerHTML = cells.join("");
+
+        const selected = state.selectedCalendarDate;
+        selectedDateLabel.textContent = `Saldo em ${new Date(`${selected}T12:00`).toLocaleDateString("pt-BR")}`;
+        selectedBalance.textContent = money(getProjectedBalance(selected, entryTotals));
+      }
+
       function updateCount(entries) {
         count.textContent = `${entries.length} lançamento${entries.length === 1 ? "" : "s"}`;
       }
@@ -1355,6 +1583,7 @@
         );
 
         renderEntries(list);
+        renderCalendar();
 
         panelTitle.textContent = state.selectionMode
           ? `${state.selectedEntries.size} selecionado${state.selectedEntries.size > 1 ? "s" : ""}`
@@ -1530,6 +1759,13 @@
         dateInput.value = new Date().toISOString().slice(0, 10);
         render();
         dialog.showModal();
+      }
+
+      function openSettingsDialog() {
+        currentBalanceInput.value = state.settings.current_balance;
+        incomeDay15Input.value = state.settings.income_day_15;
+        incomeLastBusinessDayInput.value = state.settings.income_last_business_day;
+        settingsDialog.showModal();
       }
 
       function addOption(event, key, select) {
@@ -1779,9 +2015,13 @@
       }
 
       openModal.onclick = openNew;
+      openSettings.onclick = openSettingsDialog;
       document
         .querySelectorAll("[data-close]")
         .forEach((b) => (b.onclick = () => dialog.close()));
+      document
+        .querySelectorAll("[data-close-settings]")
+        .forEach((b) => (b.onclick = () => settingsDialog.close()));
       type.onchange = (e) => addOption(e, "types", type);
       desc.onchange = (e) => addOption(e, "descriptions", desc);
       recurrence.onchange = () => {
@@ -1801,6 +2041,32 @@
         const button = e.target.closest("[data-action]");
         if (!button) return;
         handleMenuAction(button.dataset.action);
+      };
+
+      calendarGrid.onclick = (event) => {
+        const day = event.target.closest("[data-calendar-date]");
+        if (!day) return;
+        state.selectedCalendarDate = day.dataset.calendarDate;
+        renderCalendar();
+      };
+
+      settingsForm.onsubmit = async (event) => {
+        event.preventDefault();
+        state.settings = {
+          current_balance: Number(currentBalanceInput.value),
+          income_day_15: Number(incomeDay15Input.value),
+          income_last_business_day: Number(incomeLastBusinessDayInput.value),
+        };
+        saveLocal();
+        try {
+          await syncSettings();
+          settingsDialog.close();
+          render();
+          show("Configurações financeiras sincronizadas.");
+        } catch (error) {
+          console.error(error);
+          show("Não foi possível sincronizar as configurações.");
+        }
       };
 
       let pressTimer = null;
