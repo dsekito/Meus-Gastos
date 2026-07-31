@@ -28,10 +28,14 @@ grant select, insert, update, delete on public.entries to authenticated;
 create table if not exists public.financial_settings (
   user_id uuid primary key references auth.users(id) on delete cascade default auth.uid(),
   current_balance numeric(12,2) not null default 10000,
+  balance_reference_date date not null default current_date,
   income_day_15 numeric(12,2) not null default 9365.96,
   income_last_business_day numeric(12,2) not null default 8011.84,
   updated_at timestamptz not null default now()
 );
+
+alter table public.financial_settings
+  add column if not exists balance_reference_date date not null default current_date;
 
 alter table public.financial_settings enable row level security;
 
