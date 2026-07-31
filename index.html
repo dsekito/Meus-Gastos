@@ -1118,12 +1118,6 @@
 
       async function initializeAuth() {
         updateAuthArea();
-        const { data, error } = await supabaseClient.auth.getSession();
-        if (error) {
-          show("Não foi possível verificar o login.");
-          return;
-        }
-        await setCurrentUser(data.session?.user);
         supabaseClient.auth.onAuthStateChange((event, session) => {
           if (event === "SIGNED_OUT") {
             state.user = null;
@@ -1137,6 +1131,12 @@
             });
           }
         });
+        const { data, error } = await supabaseClient.auth.getSession();
+        if (error) {
+          show("Não foi possível verificar o login.");
+          return;
+        }
+        await setCurrentUser(data.session?.user);
       }
 
       authArea.onclick = async (event) => {
