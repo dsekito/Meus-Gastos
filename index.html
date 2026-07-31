@@ -1030,6 +1030,8 @@
       async function syncEntries() {
         if (!state.user) return;
 
+        normalizeEntryIds();
+
         const deletedIds = [...state.deletedEntryIds];
         if (deletedIds.length) {
           const { error } = await supabaseClient
@@ -1093,7 +1095,10 @@
         if (state.user?.id === user?.id) return;
         state.user = user || null;
         updateAuthArea();
-        if (state.user) await loadCloudEntries();
+        if (state.user) {
+          normalizeEntryIds();
+          await loadCloudEntries();
+        }
       }
 
       async function signInWithGoogle() {
@@ -1587,7 +1592,41 @@
       function generateId() {
         return crypto.randomUUID
           ? crypto.randomUUID()
-          : Date.now().toString(36) + Math.random().toString(36).slice(2);
+          : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+              const random = (Math.random() * 16) | 0;
+              const value = c === "x" ? random : (random & 0x3) | 0x8;
+              return value.toString(16);
+            });
+      }
+
+      function normalizeEntryIds() {
+        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        const replacements = new Map();
+        const usedIds = new Set();
+
+        for (const entry of state.entries) {
+          if (uuidPattern.test(entry.id) && !usedIds.has(entry.id)) {
+            usedIds.add(entry.id);
+            continue;
+          }
+          const previousId = entry.id;
+          let nextId = generateId();
+          while (usedIds.has(nextId)) nextId = generateId();
+          entry.id = nextId;
+          usedIds.add(nextId);
+          replacements.set(previousId, nextId);
+        }
+
+        if (!replacements.size) return;
+        state.selectedEntries = new Set(
+          [...state.selectedEntries].map((id) => replacements.get(id) || id),
+        );
+        state.deletedEntryIds = new Set(
+          [...state.deletedEntryIds].map((id) => replacements.get(id) || id),
+        );
+        state.activeEntry = replacements.get(state.activeEntry) || state.activeEntry;
+        state.editingId = replacements.get(state.editingId) || state.editingId;
+        saveLocal();
       }
 
       function updateEntry(entry) {
