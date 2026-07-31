@@ -1052,14 +1052,27 @@
         if (error) throw error;
       }
 
+      async function fetchAllCloudEntries() {
+        const pageSize = 1000;
+        const entries = [];
+
+        for (let from = 0; ; from += pageSize) {
+          const { data, error } = await supabaseClient
+            .from("entries")
+            .select(
+              "id, date, value, type, description, detail, paid, installment",
+            )
+            .order("date", { ascending: true })
+            .order("id", { ascending: true })
+            .range(from, from + pageSize - 1);
+          if (error) throw error;
+          entries.push(...data);
+          if (data.length < pageSize) return entries;
+        }
+      }
+
       async function loadCloudEntries() {
-        const { data, error } = await supabaseClient
-          .from("entries")
-          .select(
-            "id, date, value, type, description, detail, paid, installment",
-          )
-          .order("date", { ascending: true });
-        if (error) throw error;
+        const data = await fetchAllCloudEntries();
 
         if (data.length) {
           state.entries = data;
