@@ -872,6 +872,7 @@
       const SUPABASE_URL = "https://gluyucuvvvfkztzjhbyj.supabase.co";
       const SUPABASE_PUBLISHABLE_KEY =
         "sb_publishable_KPlZr5eXf58-6-O89Gqr0A_OKIkj_Me";
+      const APP_URL = "https://dsekito.github.io/Meus-Gastos/";
       const supabaseClient = window.supabase.createClient(
         SUPABASE_URL,
         SUPABASE_PUBLISHABLE_KEY,
@@ -1102,7 +1103,7 @@
         }
         const { error } = await supabaseClient.auth.signInWithOAuth({
           provider: "google",
-          options: { redirectTo: window.location.href },
+          options: { redirectTo: APP_URL },
         });
         if (error) show(`Não foi possível iniciar o login: ${error.message}`);
       }
