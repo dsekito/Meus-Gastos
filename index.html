@@ -91,6 +91,31 @@
       .primary:hover {
         background: var(--brand-dark);
       }
+      .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .auth-button {
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        padding: 11px 14px;
+        background: #fff;
+        color: var(--ink);
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .auth-button:hover {
+        background: #f8fafc;
+      }
+      .signed-user {
+        max-width: 180px;
+        overflow: hidden;
+        color: var(--muted);
+        font-size: 13px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
 
       .summary {
         display: grid;
@@ -617,7 +642,10 @@
             <p>Seu controle financeiro, sem complicação.</p>
           </div>
         </div>
-        <button class="primary" id="openModal">+ Novo lançamento</button>
+        <div class="header-actions">
+          <div id="authArea"></div>
+          <button class="primary" id="openModal">+ Novo lançamento</button>
+        </div>
       </header>
       <section class="summary">
         <article class="card">
@@ -674,13 +702,12 @@
             <input id="date" type="date" required />
           </div>
           <div class="field">
-            <label for="value">Valor</label>
+            <label for="value">Valor (negativo para reembolso)</label>
             <input
               id="value"
               type="number"
-              min="0.01"
               step="0.01"
-              placeholder="0,00"
+              placeholder="Ex.: -50,00"
               required
             />
           </div>
@@ -740,6 +767,7 @@
     </div>
 
     <div class="toast" id="toast"></div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./dados-importados.js"></script>
     <script>
       const defaultTypes = [
@@ -781,6 +809,14 @@
         "RECORRENTE",
       ];
 
+      const SUPABASE_URL = "https://gluyucuvvvfkztzjhbyj.supabase.co";
+      const SUPABASE_PUBLISHABLE_KEY =
+        "sb_publishable_KPlZr5eXf58-6-O89Gqr0A_OKIkj_Me";
+      const supabaseClient = window.supabase.createClient(
+        SUPABASE_URL,
+        SUPABASE_PUBLISHABLE_KEY,
+      );
+
       const state = {
         types:
           JSON.parse(localStorage.getItem("mg-types") || "null") ||
@@ -799,6 +835,10 @@
         selectionMode: false,
 
         selectedEntries: new Set(),
+
+        user: null,
+
+        deletedEntryIds: new Set(),
       };
 
       const money = (n) =>
@@ -861,7 +901,8 @@
         selectionActions = document.querySelector("#selectionActions"),
         openModal = document.querySelector("#openModal"),
         rows = document.querySelector("#rows"),
-        contextMenu = document.querySelector("#contextMenu");
+        contextMenu = document.querySelector("#contextMenu"),
+        authArea = document.querySelector("#authArea");
 
       selectionActions.onclick = (e) => {
         e.stopPropagation();
@@ -892,11 +933,148 @@
         }
       };
 
-      function save() {
+      function saveLocal() {
         localStorage.setItem("mg-types", JSON.stringify(state.types));
         localStorage.setItem("mg-desc", JSON.stringify(state.descriptions));
         localStorage.setItem("mg-entries", JSON.stringify(state.entries));
+        if (state.user) localStorage.setItem("mg-user-id", state.user.id);
       }
+
+      function save() {
+        saveLocal();
+        syncEntries().catch((error) => {
+          console.error(error);
+          show(
+            "Alteração salva neste aparelho. A sincronização será tentada novamente.",
+          );
+        });
+      }
+
+      function updateAuthArea() {
+        if (!state.user) {
+          authArea.innerHTML =
+            '<button class="auth-button" id="signInGoogle" type="button">Entrar com Google</button>';
+          return;
+        }
+
+        const name = state.user.user_metadata?.full_name || state.user.email;
+        authArea.innerHTML = `<span class="signed-user" title="${esc(state.user.email || "")}">${esc(name || "Usuário")}</span><button class="auth-button" id="signOut" type="button">Sair</button>`;
+      }
+
+      async function syncEntries() {
+        if (!state.user) return;
+
+        const deletedIds = [...state.deletedEntryIds];
+        if (deletedIds.length) {
+          const { error } = await supabaseClient
+            .from("entries")
+            .delete()
+            .in("id", deletedIds);
+          if (error) throw error;
+          deletedIds.forEach((id) => state.deletedEntryIds.delete(id));
+        }
+
+        if (!state.entries.length) return;
+
+        const entries = state.entries.map((entry) => ({
+          ...entry,
+          user_id: state.user.id,
+        }));
+        const { error } = await supabaseClient.from("entries").upsert(entries);
+        if (error) throw error;
+      }
+
+      async function loadCloudEntries() {
+        const { data, error } = await supabaseClient
+          .from("entries")
+          .select(
+            "id, date, value, type, description, detail, paid, installment",
+          )
+          .order("date", { ascending: true });
+        if (error) throw error;
+
+        if (data.length) {
+          state.entries = data;
+          state.types = [
+            ...new Set([...state.types, ...data.map((entry) => entry.type)]),
+          ].sort();
+          state.descriptions = [
+            ...new Set([
+              ...state.descriptions,
+              ...data.map((entry) => entry.description),
+            ]),
+          ].sort();
+          saveLocal();
+          render();
+          show("Lançamentos sincronizados.");
+          return;
+        }
+
+        const savedUserId = localStorage.getItem("mg-user-id");
+        const canMigrateLocalEntries =
+          !savedUserId || savedUserId === state.user.id;
+        if (state.entries.length && canMigrateLocalEntries) {
+          await syncEntries();
+          show("Lançamentos deste aparelho foram enviados para sua conta.");
+        } else if (!canMigrateLocalEntries) {
+          state.entries = [];
+          saveLocal();
+          render();
+        }
+      }
+
+      async function setCurrentUser(user) {
+        if (state.user?.id === user?.id) return;
+        state.user = user || null;
+        updateAuthArea();
+        if (state.user) await loadCloudEntries();
+      }
+
+      async function signInWithGoogle() {
+        if (window.location.protocol === "file:") {
+          show("Abra o site publicado para entrar com Google.");
+          return;
+        }
+        const { error } = await supabaseClient.auth.signInWithOAuth({
+          provider: "google",
+          options: { redirectTo: window.location.href },
+        });
+        if (error) show(`Não foi possível iniciar o login: ${error.message}`);
+      }
+
+      async function initializeAuth() {
+        updateAuthArea();
+        const { data, error } = await supabaseClient.auth.getSession();
+        if (error) {
+          show("Não foi possível verificar o login.");
+          return;
+        }
+        await setCurrentUser(data.session?.user);
+        supabaseClient.auth.onAuthStateChange((event, session) => {
+          if (event === "SIGNED_OUT") {
+            state.user = null;
+            updateAuthArea();
+            return;
+          }
+          if (event === "SIGNED_IN") {
+            setCurrentUser(session?.user).catch((error) => {
+              console.error(error);
+              show("Não foi possível carregar seus lançamentos.");
+            });
+          }
+        });
+      }
+
+      authArea.onclick = async (event) => {
+        if (event.target.closest("#signInGoogle")) await signInWithGoogle();
+        if (event.target.closest("#signOut"))
+          await supabaseClient.auth.signOut();
+      };
+
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState !== "visible" || !state.user) return;
+        loadCloudEntries().catch((error) => console.error(error));
+      });
       function fill(select, values, placeholder) {
         select.innerHTML =
           `<option value="">${placeholder}</option>` +
@@ -1394,6 +1572,7 @@
         if (!entry) return;
         if (!confirm("Deseja realmente excluir este lançamento?")) return;
         state.entries = state.entries.filter((e) => e.id !== entry.id);
+        state.deletedEntryIds.add(entry.id);
         closeContextMenu();
         save();
         render();
@@ -1419,6 +1598,7 @@
         state.entries = state.entries.filter(
           (entry) => !state.selectedEntries.has(entry.id),
         );
+        state.selectedEntries.forEach((id) => state.deletedEntryIds.add(id));
 
         save();
 
@@ -1564,27 +1744,31 @@
         show(editing ? "Lançamento atualizado." : "Lançamento salvo.");
       };
 
-      render();
-
-      window.MEUS_GASTOS_IMPORT?.then((entries) => {
-        if (localStorage.getItem("mg-imported") === "1") return;
-        state.entries = entries;
-        state.types = [
-          ...new Set([...state.types, ...entries.map((e) => e.type)]),
-        ].sort();
-        state.descriptions = [
-          ...new Set([
-            ...state.descriptions,
-            ...entries.map((e) => e.description),
-          ]),
-        ].sort();
-        localStorage.setItem("mg-imported", "1");
-        save();
+      async function startApp() {
         render();
-        show(`${entries.length} registros importados.`);
-      }).catch(() =>
-        show("Não foi possível carregar os registros importados."),
-      );
+        await initializeAuth();
+        window.MEUS_GASTOS_IMPORT?.then((entries) => {
+          if (state.user || localStorage.getItem("mg-imported") === "1") return;
+          state.entries = entries;
+          state.types = [
+            ...new Set([...state.types, ...entries.map((e) => e.type)]),
+          ].sort();
+          state.descriptions = [
+            ...new Set([
+              ...state.descriptions,
+              ...entries.map((e) => e.description),
+            ]),
+          ].sort();
+          localStorage.setItem("mg-imported", "1");
+          save();
+          render();
+          show(`${entries.length} registros importados.`);
+        }).catch(() =>
+          show("Não foi possível carregar os registros importados."),
+        );
+      }
+
+      startApp();
     </script>
   </body>
 </html>
