@@ -241,6 +241,17 @@
         padding: 10px 12px;
         color: var(--ink);
       }
+      .filter-subtotal {
+        align-self: center;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .filter-subtotal strong {
+        display: block;
+        margin-top: 3px;
+        color: var(--ink);
+        font-size: 17px;
+      }
       .selection-actions {
         display: flex;
         align-items: center;
@@ -742,6 +753,7 @@
             <option value="paid">Pagos</option>
             <option value="pending">Em aberto</option>
           </select>
+          <div class="filter-subtotal">Subtotal filtrado<strong id="filteredSubtotal">R$ 0,00</strong></div>
         </div>
 
         <div class="entries" id="rows"></div>
@@ -966,7 +978,8 @@
         authArea = document.querySelector("#authArea"),
         authScreen = document.querySelector("#authScreen"),
         appShell = document.querySelector("#appShell"),
-        signInGoogleScreen = document.querySelector("#signInGoogleScreen");
+        signInGoogleScreen = document.querySelector("#signInGoogleScreen"),
+        filteredSubtotal = document.querySelector("#filteredSubtotal");
 
       selectionActions.onclick = (e) => {
         e.stopPropagation();
@@ -1004,14 +1017,18 @@
         if (state.user) localStorage.setItem("mg-user-id", state.user.id);
       }
 
-      function save() {
+      async function save() {
         saveLocal();
-        syncEntries().catch((error) => {
+        try {
+          await syncEntries();
+          return true;
+        } catch (error) {
           console.error(error);
           show(
             "Alteração salva neste aparelho. A sincronização será tentada novamente.",
           );
-        });
+          return false;
+        }
       }
 
       function updateAuthArea() {
@@ -1060,7 +1077,7 @@
           const { data, error } = await supabaseClient
             .from("entries")
             .select(
-              "id, date, value, type, description, detail, paid, installment",
+              "id, date, value, type, description, detail, paid, installment, created_at",
             )
             .order("date", { ascending: true })
             .order("id", { ascending: true })
@@ -1293,7 +1310,12 @@
               (!type || e.type === type) &&
               (!status || (status === "paid") === e.paid),
           )
-          .sort((a, b) => a.date.localeCompare(b.date));
+          .sort(
+            (a, b) =>
+              a.date.localeCompare(b.date) ||
+              a.type.localeCompare(b.type, "pt-BR") ||
+              String(b.created_at || "").localeCompare(String(a.created_at || "")),
+          );
       }
 
       function updateCount(entries) {
@@ -1328,6 +1350,9 @@
         const list = getFilteredEntries(monthly, ft, fs);
 
         updateCount(list);
+        filteredSubtotal.textContent = money(
+          list.reduce((total, entry) => total + Number(entry.value), 0),
+        );
 
         renderEntries(list);
 
@@ -1654,9 +1679,11 @@
       }
 
       function createEntry(entry) {
+        const createdAt = new Date().toISOString();
         if (recurrence.value === "single") {
           state.entries.push({
             id: generateId(),
+            created_at: createdAt,
             ...entry,
           });
           return;
@@ -1670,6 +1697,7 @@
           remaining -= value;
           state.entries.push({
             id: generateId(),
+            created_at: createdAt,
             ...entry,
             date: addMonths(entry.date, i),
             value,
@@ -1842,7 +1870,7 @@
         }
       });
 
-      form.onsubmit = (e) => {
+      form.onsubmit = async (e) => {
         e.preventDefault();
 
         const editing = !!state.editingId;
@@ -1867,11 +1895,17 @@
           createEntry(entry);
         }
 
-        save();
+        const synced = await save();
         dialog.close();
         render();
 
-        show(editing ? "Lançamento atualizado." : "Lançamento salvo.");
+        show(
+          synced
+            ? editing
+              ? "Lançamento atualizado e sincronizado."
+              : "Lançamento salvo e sincronizado."
+            : "Lançamento salvo neste aparelho; sincronização pendente.",
+        );
       };
 
       async function startApp() {
