@@ -43,12 +43,6 @@
         if (error) throw error;
         return data;
       },
-      async fetchRecurrenceSeriesVersion(id) {
-        const { data, error } = await client.from("recurrence_series")
-          .select("updated_at").eq("id", id).maybeSingle();
-        if (error) throw error;
-        return data;
-      },
       async upsertRecurrenceSeries(series, userId) {
         const { data, error } = await client.from("recurrence_series")
           .upsert({ ...series, user_id: userId })

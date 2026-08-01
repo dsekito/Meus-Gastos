@@ -637,73 +637,6 @@ const defaultTypes = [
           .replace(".", "")
           .toUpperCase();
       }
-      function renderEntry(e) {
-        return `
-      <div
-        class="entry ${state.selectedEntries.has(e.id) ? "selected" : ""}"
-        data-entry="${e.id}">
-          <div class="entry-date">
-              <span class="entry-day">
-                  ${formatDay(e.date)}
-              </span>
-              <span class="entry-month">
-                  ${formatMonth(e.date)}
-              </span>
-          </div>
-          <div class="entry-content">
-              <div class="entry-header">
-                  <div class="entry-title">
-                      <span
-                          class="entry-dot"
-                          style="background:${categoryColor(e.type)}">
-                      </span>
-                      ${esc(e.type)}
-                  </div>
-                  <div class="entry-value">
-                      ${money(e.value)}
-                  </div>
-              </div>
-              <div class="entry-description">
-                ${esc(e.description)}
-                ${e.detail ? ` - ${esc(e.detail)}` : ""}
-              </div>
-              <div class="entry-footer">
-                  <div class="entry-meta">
-                      ${
-                        state.selectionMode
-                          ? ""
-                          : `
-                      <button
-                          class="status-button ${e.paid ? "paid" : "pending"}"
-                          data-toggle-status="${e.id}">
-                          ${e.paid ? "✔ Pago" : "○ Em aberto"}
-                      </button>
-                      `
-                      }
-
-                      ${
-                        e.installment
-                          ? `<span>${e.installment.current}/${e.installment.total}</span>`
-                          : ""
-                      }
-                  </div>
-                  ${
-                    state.selectionMode
-                      ? ""
-                      : `
-                  <button
-                      class="entry-menu"
-                      data-edit="${e.id}">
-                      ⋮
-                  </button>
-                  `
-                  }
-              </div>
-          </div>
-      </div>
-      `;
-      }
-
       function renderDenseEntry(e) {
         const selected = state.selectedEntries.has(e.id);
         const isIncome = (e.flow_type || "expense") === "income";
@@ -779,14 +712,6 @@ const defaultTypes = [
               a.type.localeCompare(b.type, "pt-BR") ||
               String(b.created_at || "").localeCompare(String(a.created_at || "")),
           );
-      }
-
-      function addDays(date, days) {
-        return domain.addDays(date, days);
-      }
-
-      function lastBusinessDay(year, monthIndex) {
-        return domain.lastBusinessDay(year, monthIndex);
       }
 
       function getRecurringIncome(date) {
