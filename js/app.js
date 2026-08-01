@@ -312,6 +312,7 @@ const defaultTypes = [
       function updateAuthArea() {
         authScreen.hidden = !!state.user;
         appShell.hidden = !state.user;
+        openModalMobile.hidden = !state.user;
         if (!state.user) {
           authArea.innerHTML =
             '<button class="auth-button" id="signInGoogle" type="button">Entrar com Google</button>';
