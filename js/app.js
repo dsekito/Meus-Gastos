@@ -95,8 +95,6 @@ const defaultTypes = [
 
         selectedEntries: new Set(),
 
-        expandedEntries: new Set(),
-
         user: null,
 
         deletedEntryIds: new Set(),
@@ -707,20 +705,19 @@ const defaultTypes = [
       }
 
       function renderDenseEntry(e) {
-        const expanded = state.expandedEntries.has(e.id);
         const selected = state.selectedEntries.has(e.id);
         const isIncome = (e.flow_type || "expense") === "income";
         const statusLabel = e.paid
           ? (isIncome ? "Recebido" : "Pago")
           : (isIncome ? "A receber" : "Em aberto");
         return `
-          <div class="entry dense-entry ${selected ? "selected" : ""} ${expanded ? "expanded" : ""}" data-entry="${e.id}">
+          <div class="entry dense-entry ${selected ? "selected" : ""}" data-entry="${e.id}">
             <div class="entry-content">
-              <div class="entry-summary" data-expand-entry="${e.id}" role="button" tabindex="0" aria-expanded="${expanded}" aria-controls="entry-detail-${e.id}">
+              <div class="entry-summary">
                 <div class="entry-header">
-                  <div class="entry-title" title="${esc(e.description)}">
+                  <div class="entry-title" title="${esc(e.description)}${e.detail ? ` - ${esc(e.detail)}` : ""}">
                     <span class="entry-dot" style="background:${categoryColor(e.type)}"></span>
-                    <span class="entry-title-text">${esc(e.description)}</span>
+                    <span class="entry-title-text">${esc(e.description)}${e.detail ? ` <span class="entry-detail-inline">- ${esc(e.detail)}</span>` : ""}</span>
                   </div>
                   <div class="entry-value ${isIncome ? "income" : ""}">${isIncome ? "+ " : ""}${money(e.value)}</div>
                 </div>
@@ -732,21 +729,11 @@ const defaultTypes = [
                     ${e.installment ? `<span class="entry-installment">${e.installment.current}/${e.installment.total}</span>` : ""}
                     ${state.selectionMode ? "" : `<button class="status-button ${e.paid ? "paid" : "pending"}" data-toggle-status="${e.id}">${statusLabel}</button>`}
                   </div>
-                  <span class="entry-chevron" aria-hidden="true">⌄</span>
                 </div>
-              </div>
-              <div class="entry-description" id="entry-detail-${e.id}" ${expanded ? "" : "hidden"}>
-                ${e.detail ? esc(e.detail) : "Sem detalhes adicionais"}
               </div>
             </div>
             ${state.selectionMode ? "" : `<button class="entry-menu" data-edit="${e.id}" aria-label="Mais opções para ${esc(e.description)}">⋮</button>`}
           </div>`;
-      }
-
-      function toggleEntryDetails(id) {
-        if (state.expandedEntries.has(id)) state.expandedEntries.delete(id);
-        else state.expandedEntries.add(id);
-        render();
       }
 
       function updateSummary(entries) {
@@ -1845,16 +1832,6 @@ const defaultTypes = [
           return;
         }
 
-        const summary = e.target.closest("[data-expand-entry]");
-        if (summary) toggleEntryDetails(summary.dataset.expandEntry);
-      });
-
-      rows.addEventListener("keydown", (e) => {
-        if (e.key !== "Enter" && e.key !== " ") return;
-        const summary = e.target.closest("[data-expand-entry]");
-        if (!summary || state.selectionMode) return;
-        e.preventDefault();
-        toggleEntryDetails(summary.dataset.expandEntry);
       });
 
       form.onsubmit = async (e) => {
