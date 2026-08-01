@@ -1108,6 +1108,15 @@
       .entry-menu { display: inline-grid; place-items: center; margin: -12px -12px -12px 0; border-radius: 12px; }
       .entry-menu:hover { background: var(--soft); }
 
+      .entry-summary { min-width: 0; cursor: pointer; border-radius: 10px; }
+      .entry-summary:focus-visible { outline: 3px solid rgba(20, 92, 68, 0.34); outline-offset: 2px; }
+      .entry-title-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .entry-meta-line { display: flex; min-width: 0; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+      .entry-type { overflow: hidden; text-overflow: ellipsis; }
+      .entry-installment { padding: 0 5px; border-radius: 5px; background: #dde8d8; color: var(--brand); font-weight: 700; }
+      .entry-chevron { color: var(--muted); font-size: 18px; transition: transform 0.15s ease; }
+      .entry.expanded .entry-chevron { transform: rotate(180deg); }
+
       dialog { border-radius: 28px; background: var(--paper); }
       dialog::backdrop { background: rgba(24, 51, 42, 0.55); backdrop-filter: blur(3px); }
       .close { display: inline-grid; place-items: center; border-radius: 14px; }
@@ -1155,10 +1164,16 @@
         .calendar-panel.compact .calendar-balance { padding: 16px; border-radius: 18px; background: var(--paper); }
         .calendar-nav { width: 48px; height: 48px; }
 
-        .entry { padding: 16px; }
-        .entry-title, .entry-value { font-size: 16px; }
-        .entry-description { font-size: 14px; }
-        .status-button { min-height: 48px; padding: 0 4px; }
+        .entry.dense-entry { position: relative; min-height: 68px; gap: 4px; padding: 9px 8px 9px 12px; align-items: stretch; }
+        .dense-entry .entry-content { display: flex; min-width: 0; flex: 1; flex-direction: column; justify-content: center; }
+        .dense-entry .entry-header { align-items: center; gap: 8px; }
+        .dense-entry .entry-title { min-width: 0; flex: 1; gap: 7px; font-size: 16px; line-height: 1.25; }
+        .dense-entry .entry-value { font-size: 16px; line-height: 1.25; }
+        .dense-entry .entry-footer { min-height: 24px; margin-top: 0; gap: 6px; }
+        .dense-entry .entry-meta-line { gap: 6px; font-size: 12px; line-height: 1.2; }
+        .dense-entry .entry-description { margin: 4px 0 1px 17px; padding-top: 6px; border-top: 1px solid var(--line); font-size: 13px; line-height: 1.3; }
+        .dense-entry .entry-menu { align-self: center; flex: 0 0 48px; margin: 0; }
+        .dense-entry .status-button { min-height: 48px; margin: -12px 0; padding: 0 3px; font-size: 12px; white-space: nowrap; }
 
         .mobile-new-entry {
           min-height: 58px;
