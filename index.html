@@ -739,27 +739,26 @@
         color: var(--danger);
       }
 
-      .radar-panel { margin-bottom: 24px; padding: 20px; border: 1px solid #cfe0d8; border-radius: 20px; background: var(--paper); box-shadow: 0 8px 24px rgba(16, 42, 67, 0.06); }
+      .radar-panel { margin-bottom: 18px; padding: 12px; border: 1px solid #cfe0d8; border-radius: 18px; background: var(--paper); box-shadow: 0 6px 18px rgba(16, 42, 67, 0.05); }
       .radar-head, .radar-status, .radar-actions, .simulation-comparison { display: flex; align-items: center; }
-      .radar-head { justify-content: space-between; gap: 16px; }
-      .radar-title { display: flex; align-items: center; gap: 10px; }
-      .radar-icon { display: grid; width: 40px; height: 40px; place-items: center; border-radius: 13px; background: var(--soft); color: var(--brand); font-size: 20px; }
-      .radar-title h2 { margin: 0; font-size: 18px; }
-      .radar-title p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
-      .radar-toggle { display: grid; min-width: 48px; min-height: 48px; place-items: center; border: 0; border-radius: 14px; background: transparent; color: var(--muted); cursor: pointer; font-size: 22px; }
-      .radar-toggle:hover { background: var(--soft); }
-      .radar-toggle span { transition: transform 0.15s ease; }
-      .radar-toggle[aria-expanded="false"] span { transform: rotate(180deg); }
+      .radar-head { width: 100%; min-height: 48px; justify-content: space-between; gap: 12px; padding: 0 4px; border: 0; border-radius: 12px; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+      .radar-head:hover { background: var(--soft); }
+      .radar-head:focus-visible { outline: 3px solid rgba(20, 92, 68, 0.34); outline-offset: 2px; }
+      .radar-title { display: flex; min-width: 0; align-items: center; gap: 9px; }
+      .radar-icon { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; border-radius: 11px; background: var(--soft); color: var(--brand); font-size: 17px; }
+      .radar-heading { display: block; margin: 0; font-size: 16px; line-height: 1.2; font-weight: 700; }
+      .radar-title p { margin: 2px 0 0; color: var(--muted); font-size: 11px; line-height: 1.2; }
+      .radar-head .entry-chevron { flex: 0 0 28px; text-align: center; }
+      .radar-head[aria-expanded="true"] .entry-chevron { transform: rotate(180deg); }
       #radarDetails[hidden] { display: none; }
-      .radar-panel.collapsed { padding-bottom: 16px; }
-      .radar-status { gap: 9px; margin-top: 16px; padding: 12px 14px; border-radius: 14px; background: var(--soft); color: var(--brand-dark); font-size: 14px; font-weight: 700; }
+      .radar-status { gap: 8px; margin-top: 8px; padding: 9px 11px; border-radius: 12px; background: var(--soft); color: var(--brand-dark); font-size: 13px; line-height: 1.25; font-weight: 700; }
       .radar-status.risk { background: #fef3f2; color: var(--danger); }
-      .radar-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
-      .radar-metric { min-width: 0; padding: 13px; border-radius: 14px; background: var(--bg); }
-      .radar-metric span { display: block; min-height: 32px; color: var(--muted); font-size: 12px; line-height: 1.3; }
-      .radar-metric strong { display: block; margin-top: 5px; font-size: 17px; letter-spacing: -0.03em; }
-      .radar-metric small { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
-      .radar-actions { justify-content: flex-end; margin-top: 14px; }
+      .radar-grid { display: grid; margin-top: 8px; }
+      .radar-metric { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: 10px; padding: 10px 11px; border-radius: 12px; background: var(--bg); }
+      .radar-metric span { color: var(--muted); font-size: 12px; line-height: 1.25; }
+      .radar-metric strong { margin-left: auto; font-size: 16px; letter-spacing: -0.03em; white-space: nowrap; }
+      .radar-metric small { color: var(--muted); font-size: 11px; white-space: nowrap; }
+      .radar-actions { justify-content: flex-end; margin-top: 8px; }
       .radar-simulate { min-height: 48px; box-shadow: none; }
       .simulation-result { margin-top: 18px; padding: 16px; border-radius: 16px; background: var(--soft); }
       .simulation-comparison { justify-content: space-between; gap: 12px; }
@@ -812,9 +811,7 @@
           grid-template-columns: 1fr;
         }
 
-        .radar-panel { padding: 16px; }
-        .radar-grid { grid-template-columns: 1fr 1fr; }
-        .radar-metric:first-child { grid-column: 1 / -1; }
+        .radar-panel { padding: 10px; }
         .radar-actions .primary { width: 100%; }
 
         dialog {
@@ -1472,19 +1469,17 @@
         </article>
       </section>
       <section class="radar-panel" aria-labelledby="radarTitle">
-        <div class="radar-head">
-          <div class="radar-title">
+        <button class="radar-head" id="toggleRadar" type="button" aria-expanded="true" aria-controls="radarDetails" aria-label="Minimizar Radar financeiro">
+          <span class="radar-title">
             <span class="radar-icon" aria-hidden="true">◎</span>
-            <div><h2 id="radarTitle">Radar financeiro</h2><p>Visão dos próximos 30 dias</p></div>
-          </div>
-          <button class="radar-toggle" id="toggleRadar" type="button" aria-expanded="true" aria-controls="radarDetails" aria-label="Minimizar Radar financeiro"><span aria-hidden="true">⌃</span></button>
-        </div>
-        <div class="radar-status" id="radarStatus" role="status"><span aria-hidden="true">✓</span><span id="radarStatusText">Calculando sua projeção…</span></div>
+            <span><span class="radar-heading" id="radarTitle">Radar financeiro</span><p>Próximos 30 dias</p></span>
+          </span>
+          <span class="entry-chevron" aria-hidden="true">⌄</span>
+        </button>
         <div id="radarDetails">
+          <div class="radar-status" id="radarStatus" role="status"><span aria-hidden="true">✓</span><span id="radarStatusText">Calculando sua projeção…</span></div>
           <div class="radar-grid">
             <article class="radar-metric"><span>Menor saldo previsto</span><strong id="radarMinimumBalance">R$ 0,00</strong><small id="radarMinimumDate">—</small></article>
-            <article class="radar-metric"><span>Saldo após receber</span><strong id="radarAvailable">R$ 0,00</strong><small id="radarNextIncome">—</small></article>
-            <article class="radar-metric"><span>Contas em aberto</span><strong id="radarOpenCount">0</strong><small id="radarOpenTotal">R$ 0,00</small></article>
           </div>
           <div class="radar-actions"><button class="primary radar-simulate" id="openSimulation" type="button" aria-label="Simular um gasto sem salvar lançamento">Simular gasto</button></div>
         </div>
@@ -1646,10 +1641,10 @@
 
     <div class="toast" id="toast"></div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="./js/domain.js?v=2026080108"></script>
+    <script src="./js/domain.js?v=2026080109"></script>
     <script src="./js/local-store.js?v=2026080106"></script>
     <script src="./js/supabase-repository.js?v=2026080106"></script>
     <script src="./js/sync-service.js?v=2026080106"></script>
-    <script src="./js/app.js?v=2026080108"></script>
+    <script src="./js/app.js?v=2026080109"></script>
   </body>
 </html>

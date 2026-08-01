@@ -209,10 +209,6 @@ const defaultTypes = [
         radarStatusText = document.querySelector("#radarStatusText"),
         radarMinimumBalance = document.querySelector("#radarMinimumBalance"),
         radarMinimumDate = document.querySelector("#radarMinimumDate"),
-        radarAvailable = document.querySelector("#radarAvailable"),
-        radarNextIncome = document.querySelector("#radarNextIncome"),
-        radarOpenCount = document.querySelector("#radarOpenCount"),
-        radarOpenTotal = document.querySelector("#radarOpenTotal"),
         toggleRadar = document.querySelector("#toggleRadar"),
         radarDetails = document.querySelector("#radarDetails"),
         openSimulation = document.querySelector("#openSimulation"),
@@ -770,19 +766,12 @@ const defaultTypes = [
           : "Tudo sob controle pelos próximos 30 dias";
         radarMinimumBalance.textContent = money(radar.minimumBalance);
         radarMinimumDate.textContent = `em ${shortDate(radar.minimumBalanceDate)}`;
-        radarAvailable.textContent = money(radar.balanceAfterIncome);
-        radarNextIncome.textContent = radar.nextIncomeDate
-          ? `${money(radar.nextIncomeAmount)} em ${shortDate(radar.nextIncomeDate)}, menos contas`
-          : "sem receita configurada";
-        radarOpenCount.textContent = `${radar.openCount} conta${radar.openCount === 1 ? "" : "s"}`;
-        radarOpenTotal.textContent = money(radar.openTotal);
         radarDetails.hidden = !state.radarExpanded;
         toggleRadar.setAttribute("aria-expanded", String(state.radarExpanded));
         toggleRadar.setAttribute(
           "aria-label",
           state.radarExpanded ? "Minimizar Radar financeiro" : "Expandir Radar financeiro",
         );
-        document.querySelector(".radar-panel").classList.toggle("collapsed", !state.radarExpanded);
       }
 
       function simulateExpense(value, date) {
