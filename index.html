@@ -732,6 +732,31 @@
         color: var(--danger);
       }
 
+      .radar-panel { margin-bottom: 24px; padding: 20px; border: 1px solid #cfe0d8; border-radius: 20px; background: var(--paper); box-shadow: 0 8px 24px rgba(16, 42, 67, 0.06); }
+      .radar-head, .radar-status, .radar-actions, .simulation-comparison { display: flex; align-items: center; }
+      .radar-head { justify-content: space-between; gap: 16px; }
+      .radar-title { display: flex; align-items: center; gap: 10px; }
+      .radar-icon { display: grid; width: 40px; height: 40px; place-items: center; border-radius: 13px; background: var(--soft); color: var(--brand); font-size: 20px; }
+      .radar-title h2 { margin: 0; font-size: 18px; }
+      .radar-title p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+      .radar-status { gap: 9px; margin-top: 16px; padding: 12px 14px; border-radius: 14px; background: var(--soft); color: var(--brand-dark); font-size: 14px; font-weight: 700; }
+      .radar-status.risk { background: #fef3f2; color: var(--danger); }
+      .radar-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+      .radar-metric { min-width: 0; padding: 13px; border-radius: 14px; background: var(--bg); }
+      .radar-metric span { display: block; min-height: 32px; color: var(--muted); font-size: 12px; line-height: 1.3; }
+      .radar-metric strong { display: block; margin-top: 5px; font-size: 17px; letter-spacing: -0.03em; }
+      .radar-metric small { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+      .radar-actions { justify-content: flex-end; margin-top: 14px; }
+      .radar-simulate { min-height: 48px; box-shadow: none; }
+      .simulation-result { margin-top: 18px; padding: 16px; border-radius: 16px; background: var(--soft); }
+      .simulation-comparison { justify-content: space-between; gap: 12px; }
+      .simulation-comparison div { flex: 1; }
+      .simulation-comparison span { display: block; color: var(--muted); font-size: 12px; }
+      .simulation-comparison strong { display: block; margin-top: 4px; font-size: 18px; }
+      .simulation-arrow { flex: 0 !important; color: var(--brand); font-size: 20px; }
+      .simulation-message { margin: 14px 0 0; color: var(--brand-dark); font-size: 13px; font-weight: 700; }
+      .simulation-message.risk { color: var(--danger); }
+
       /* =======================================================
        TABLET
     ======================================================= */
@@ -773,6 +798,11 @@
         .summary {
           grid-template-columns: 1fr;
         }
+
+        .radar-panel { padding: 16px; }
+        .radar-grid { grid-template-columns: 1fr 1fr; }
+        .radar-metric:first-child { grid-column: 1 / -1; }
+        .radar-actions .primary { width: 100%; }
 
         dialog {
           width: calc(100% - 16px);
@@ -1424,6 +1454,21 @@
           <div class="amount" id="pendingTotal">R$ 0,00</div>
         </article>
       </section>
+      <section class="radar-panel" aria-labelledby="radarTitle">
+        <div class="radar-head">
+          <div class="radar-title">
+            <span class="radar-icon" aria-hidden="true">◎</span>
+            <div><h2 id="radarTitle">Radar financeiro</h2><p>Visão dos próximos 30 dias</p></div>
+          </div>
+        </div>
+        <div class="radar-status" id="radarStatus" role="status"><span aria-hidden="true">✓</span><span id="radarStatusText">Calculando sua projeção…</span></div>
+        <div class="radar-grid">
+          <article class="radar-metric"><span>Menor saldo previsto</span><strong id="radarMinimumBalance">R$ 0,00</strong><small id="radarMinimumDate">—</small></article>
+          <article class="radar-metric"><span>Disponível até receber</span><strong id="radarAvailable">R$ 0,00</strong><small id="radarNextIncome">—</small></article>
+          <article class="radar-metric"><span>Contas em aberto</span><strong id="radarOpenCount">0</strong><small id="radarOpenTotal">R$ 0,00</small></article>
+        </div>
+        <div class="radar-actions"><button class="primary radar-simulate" id="openSimulation" type="button" aria-label="Simular um gasto sem salvar lançamento">Simular gasto</button></div>
+      </section>
       <section class="panel calendar-panel">
         <div class="calendar-head">
           <div><h2>Projeção de saldo</h2><p id="calendarCaption">Selecione um mês para visualizar a projeção.</p></div>
@@ -1535,6 +1580,27 @@
         </div>
       </form>
     </dialog>
+    <dialog id="simulationDialog">
+      <form class="modal" id="simulationForm">
+        <div class="modal-head">
+          <div><h2>Simular gasto</h2><p>Veja o impacto na projeção sem salvar um lançamento.</p></div>
+          <button class="close" type="button" data-close-simulation aria-label="Fechar simulador">&times;</button>
+        </div>
+        <div class="form-grid">
+          <div class="field"><label for="simulationValue">Valor do gasto</label><input id="simulationValue" type="number" min="0.01" step="0.01" inputmode="decimal" required /></div>
+          <div class="field"><label for="simulationDate">Data do gasto</label><input id="simulationDate" type="date" required /></div>
+        </div>
+        <div class="simulation-result" id="simulationResult" aria-live="polite" hidden>
+          <div class="simulation-comparison">
+            <div><span>Menor saldo atual</span><strong id="simulationBefore">R$ 0,00</strong></div>
+            <div class="simulation-arrow" aria-hidden="true">→</div>
+            <div><span>Após o gasto</span><strong id="simulationAfter">R$ 0,00</strong></div>
+          </div>
+          <p class="simulation-message" id="simulationMessage"></p>
+        </div>
+        <div class="modal-foot"><button class="secondary" type="button" data-close-simulation>Fechar</button><button class="primary" id="runSimulation" type="submit">Simular</button></div>
+      </form>
+    </dialog>
     <dialog id="settingsDialog">
       <form class="modal" id="settingsForm">
         <div class="modal-head"><div><h2>Configurações financeiras</h2><p>Defina o saldo e os recebimentos usados na projeção.</p></div><button class="close" type="button" data-close-settings>&times;</button></div>
@@ -1558,10 +1624,10 @@
 
     <div class="toast" id="toast"></div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="./js/domain.js?v=2026080106"></script>
+    <script src="./js/domain.js?v=2026080107"></script>
     <script src="./js/local-store.js?v=2026080106"></script>
     <script src="./js/supabase-repository.js?v=2026080106"></script>
     <script src="./js/sync-service.js?v=2026080106"></script>
-    <script src="./js/app.js?v=2026080106"></script>
+    <script src="./js/app.js?v=2026080107"></script>
   </body>
 </html>

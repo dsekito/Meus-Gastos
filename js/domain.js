@@ -43,5 +43,64 @@
     return balance;
   }
 
-  global.MGDomain = { todayISO, addDays, lastBusinessDay, recurringIncome, dailyEntryTotals, projectedBalance };
+  function nextIncomeDate(fromDate, settings, maxDays = 370) {
+    for (let offset = 1; offset <= maxDays; offset += 1) {
+      const date = addDays(fromDate, offset);
+      if (recurringIncome(date, settings) > 0) return date;
+    }
+    return null;
+  }
+
+  function financialRadar(entries, settings, fromDate = todayISO(), horizonDays = 30) {
+    const entryTotals = dailyEntryTotals(entries);
+    const endDate = addDays(fromDate, Math.max(0, horizonDays - 1));
+    let minimumBalance = Infinity;
+    let minimumBalanceDate = fromDate;
+    let firstRiskDate = null;
+
+    for (let date = fromDate; date <= endDate; date = addDays(date, 1)) {
+      const balance = projectedBalance(date, settings, entryTotals);
+      if (balance < minimumBalance) {
+        minimumBalance = balance;
+        minimumBalanceDate = date;
+      }
+      if (!firstRiskDate && balance < 0) firstRiskDate = date;
+    }
+
+    const nextIncome = nextIncomeDate(fromDate, settings);
+    const openUntilIncome = entries.filter(
+      (entry) =>
+        !entry.paid &&
+        entry.date >= fromDate &&
+        entry.date <= (nextIncome || endDate),
+    );
+    const openTotal = openUntilIncome.reduce(
+      (total, entry) => total + Number(entry.value),
+      0,
+    );
+    const currentBalance = projectedBalance(fromDate, settings, entryTotals);
+
+    return {
+      fromDate,
+      endDate,
+      minimumBalance,
+      minimumBalanceDate,
+      firstRiskDate,
+      nextIncomeDate: nextIncome,
+      availableUntilIncome: currentBalance - openTotal,
+      openCount: openUntilIncome.length,
+      openTotal,
+    };
+  }
+
+  global.MGDomain = {
+    todayISO,
+    addDays,
+    lastBusinessDay,
+    recurringIncome,
+    dailyEntryTotals,
+    projectedBalance,
+    nextIncomeDate,
+    financialRadar,
+  };
 })(window);

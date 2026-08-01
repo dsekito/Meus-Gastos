@@ -203,6 +203,24 @@ const defaultTypes = [
         balanceReferenceDateInput = document.querySelector("#balanceReferenceDate"),
         previousMonth = document.querySelector("#previousMonth"),
         nextMonth = document.querySelector("#nextMonth"),
+        radarStatus = document.querySelector("#radarStatus"),
+        radarStatusText = document.querySelector("#radarStatusText"),
+        radarMinimumBalance = document.querySelector("#radarMinimumBalance"),
+        radarMinimumDate = document.querySelector("#radarMinimumDate"),
+        radarAvailable = document.querySelector("#radarAvailable"),
+        radarNextIncome = document.querySelector("#radarNextIncome"),
+        radarOpenCount = document.querySelector("#radarOpenCount"),
+        radarOpenTotal = document.querySelector("#radarOpenTotal"),
+        openSimulation = document.querySelector("#openSimulation"),
+        simulationDialog = document.querySelector("#simulationDialog"),
+        simulationForm = document.querySelector("#simulationForm"),
+        simulationValue = document.querySelector("#simulationValue"),
+        simulationDate = document.querySelector("#simulationDate"),
+        simulationResult = document.querySelector("#simulationResult"),
+        simulationBefore = document.querySelector("#simulationBefore"),
+        simulationAfter = document.querySelector("#simulationAfter"),
+        simulationMessage = document.querySelector("#simulationMessage"),
+        runSimulation = document.querySelector("#runSimulation"),
         syncStatus = document.querySelector("#syncStatus");
 
       function todayISO() {
@@ -729,6 +747,47 @@ const defaultTypes = [
       function getProjectedBalance(date, entryTotals) {
         return domain.projectedBalance(date, state.settings, entryTotals);
       }
+
+      function shortDate(date) {
+        if (!date) return "Sem recebimento previsto";
+        return new Date(`${date}T12:00`).toLocaleDateString("pt-BR", {
+          day: "2-digit",
+          month: "short",
+        });
+      }
+
+      function renderRadar() {
+        const radar = domain.financialRadar(state.entries, state.settings);
+        const hasRisk = Boolean(radar.firstRiskDate);
+        radarStatus.classList.toggle("risk", hasRisk);
+        radarStatus.firstElementChild.textContent = hasRisk ? "!" : "✓";
+        radarStatusText.textContent = hasRisk
+          ? `Atenção: saldo negativo previsto em ${shortDate(radar.firstRiskDate)}`
+          : "Tudo sob controle pelos próximos 30 dias";
+        radarMinimumBalance.textContent = money(radar.minimumBalance);
+        radarMinimumDate.textContent = `em ${shortDate(radar.minimumBalanceDate)}`;
+        radarAvailable.textContent = money(radar.availableUntilIncome);
+        radarNextIncome.textContent = radar.nextIncomeDate
+          ? `até ${shortDate(radar.nextIncomeDate)}`
+          : "sem receita configurada";
+        radarOpenCount.textContent = `${radar.openCount} conta${radar.openCount === 1 ? "" : "s"}`;
+        radarOpenTotal.textContent = money(radar.openTotal);
+      }
+
+      function simulateExpense(value, date) {
+        const horizon = Math.max(30, Math.round((new Date(`${date}T12:00`) - new Date(`${todayISO()}T12:00`)) / 86400000) + 1);
+        const before = domain.financialRadar(state.entries, state.settings, todayISO(), horizon);
+        const simulatedEntry = { date, value, paid: false };
+        const after = domain.financialRadar([...state.entries, simulatedEntry], state.settings, todayISO(), horizon);
+        simulationBefore.textContent = money(before.minimumBalance);
+        simulationAfter.textContent = money(after.minimumBalance);
+        simulationMessage.classList.toggle("risk", Boolean(after.firstRiskDate));
+        simulationMessage.textContent = after.firstRiskDate
+          ? `Com esse gasto, o saldo fica negativo em ${shortDate(after.firstRiskDate)}.`
+          : `O saldo permanece positivo; impacto de ${money(value)} no menor saldo previsto.`;
+        simulationResult.hidden = false;
+      }
+
       function renderCalendar() {
         const month = filterMonth.value;
         if (!month) return;
@@ -818,6 +877,7 @@ const defaultTypes = [
         );
 
         renderEntries(list);
+        renderRadar();
         renderCalendar();
 
         panelTitle.textContent = state.selectionMode
@@ -1310,6 +1370,30 @@ const defaultTypes = [
 
       openModal.onclick = openNew;
       openModalMobile.onclick = openNew;
+      openSimulation.onclick = () => {
+        simulationForm.reset();
+        simulationDate.value = todayISO();
+        simulationDate.min = todayISO();
+        simulationResult.hidden = true;
+        simulationDialog.showModal();
+        requestAnimationFrame(() => simulationValue.focus());
+      };
+      document
+        .querySelectorAll("[data-close-simulation]")
+        .forEach((button) => (button.onclick = () => simulationDialog.close()));
+      simulationForm.onsubmit = (event) => {
+        event.preventDefault();
+        if (!simulationForm.reportValidity()) return;
+        runSimulation.disabled = true;
+        runSimulation.setAttribute("aria-busy", "true");
+        runSimulation.textContent = "Calculando…";
+        requestAnimationFrame(() => {
+          simulateExpense(Number(simulationValue.value), simulationDate.value);
+          runSimulation.disabled = false;
+          runSimulation.removeAttribute("aria-busy");
+          runSimulation.textContent = "Simular";
+        });
+      };
       openSettings.onclick = openSettingsDialog;
       document
         .querySelectorAll("[data-close]")
