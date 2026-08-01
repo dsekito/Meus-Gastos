@@ -85,6 +85,8 @@ const defaultTypes = [
 
         calendarExpanded: false,
 
+        radarExpanded: true,
+
         activeEntry: null,
 
         editingId: null,
@@ -211,6 +213,8 @@ const defaultTypes = [
         radarNextIncome = document.querySelector("#radarNextIncome"),
         radarOpenCount = document.querySelector("#radarOpenCount"),
         radarOpenTotal = document.querySelector("#radarOpenTotal"),
+        toggleRadar = document.querySelector("#toggleRadar"),
+        radarDetails = document.querySelector("#radarDetails"),
         openSimulation = document.querySelector("#openSimulation"),
         simulationDialog = document.querySelector("#simulationDialog"),
         simulationForm = document.querySelector("#simulationForm"),
@@ -766,12 +770,19 @@ const defaultTypes = [
           : "Tudo sob controle pelos próximos 30 dias";
         radarMinimumBalance.textContent = money(radar.minimumBalance);
         radarMinimumDate.textContent = `em ${shortDate(radar.minimumBalanceDate)}`;
-        radarAvailable.textContent = money(radar.availableUntilIncome);
+        radarAvailable.textContent = money(radar.balanceAfterIncome);
         radarNextIncome.textContent = radar.nextIncomeDate
-          ? `até ${shortDate(radar.nextIncomeDate)}`
+          ? `${money(radar.nextIncomeAmount)} em ${shortDate(radar.nextIncomeDate)}, menos contas`
           : "sem receita configurada";
         radarOpenCount.textContent = `${radar.openCount} conta${radar.openCount === 1 ? "" : "s"}`;
         radarOpenTotal.textContent = money(radar.openTotal);
+        radarDetails.hidden = !state.radarExpanded;
+        toggleRadar.setAttribute("aria-expanded", String(state.radarExpanded));
+        toggleRadar.setAttribute(
+          "aria-label",
+          state.radarExpanded ? "Minimizar Radar financeiro" : "Expandir Radar financeiro",
+        );
+        document.querySelector(".radar-panel").classList.toggle("collapsed", !state.radarExpanded);
       }
 
       function simulateExpense(value, date) {
@@ -1370,6 +1381,10 @@ const defaultTypes = [
 
       openModal.onclick = openNew;
       openModalMobile.onclick = openNew;
+      toggleRadar.onclick = () => {
+        state.radarExpanded = !state.radarExpanded;
+        renderRadar();
+      };
       openSimulation.onclick = () => {
         simulationForm.reset();
         simulationDate.value = todayISO();

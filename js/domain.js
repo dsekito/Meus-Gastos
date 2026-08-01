@@ -79,6 +79,9 @@
       0,
     );
     const currentBalance = projectedBalance(fromDate, settings, entryTotals);
+    const nextIncomeAmount = nextIncome
+      ? recurringIncome(nextIncome, settings)
+      : 0;
 
     return {
       fromDate,
@@ -87,7 +90,8 @@
       minimumBalanceDate,
       firstRiskDate,
       nextIncomeDate: nextIncome,
-      availableUntilIncome: currentBalance - openTotal,
+      nextIncomeAmount,
+      balanceAfterIncome: currentBalance + nextIncomeAmount - openTotal,
       openCount: openUntilIncome.length,
       openTotal,
     };
