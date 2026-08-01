@@ -220,6 +220,29 @@
         font-size: 13px;
         color: var(--muted);
       }
+      .date-filter {
+        display: none;
+        align-items: center;
+        gap: 7px;
+        border: 1px solid #b8ddd6;
+        border-radius: 999px;
+        background: var(--soft);
+        color: var(--brand-dark);
+        font-size: 12px;
+        font-weight: 700;
+        padding: 7px 10px;
+      }
+      .date-filter.visible { display: inline-flex; }
+      .date-filter button {
+        border: 0;
+        border-radius: 50%;
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+        font-size: 17px;
+        line-height: 1;
+        padding: 0;
+      }
 
       .filters {
         display: flex;
@@ -352,6 +375,8 @@
       .calendar-day.empty-day { background: #fbfcfe; cursor: default; }
       .calendar-day.selected { background: #e6f4f0; }
       .calendar-day:hover:not(.empty-day) { background: #f1f7f5; }
+      .calendar-day.balance-positive { box-shadow: inset 0 3px 0 #16a34a; }
+      .calendar-day.balance-negative { box-shadow: inset 0 3px 0 var(--danger); }
       .calendar-date { font-weight: 700; font-size: 13px; }
       .calendar-income, .calendar-cost, .calendar-projection {
         margin-top: 5px;
@@ -361,6 +386,8 @@
       .calendar-income { color: var(--brand); }
       .calendar-cost { color: #b54708; }
       .calendar-projection { color: var(--ink); font-weight: 700; }
+      .calendar-day.balance-positive .calendar-projection { color: #15803d; }
+      .calendar-day.balance-negative .calendar-projection { color: var(--danger); }
       .calendar-toggle {
         display: none;
         border: 0;
@@ -762,7 +789,7 @@
          CELULAR
       ======================================================= */
 
-      @media (max-width: 576px) {
+      @media (max-width: 768px) {
         .shell {
           padding: 0 14px 96px;
         }
@@ -1060,6 +1087,7 @@
           </div>
 
           <div id="selectionActions"></div>
+          <div class="date-filter" id="dateFilterInfo"><span id="dateFilterLabel"></span><button id="clearDateFilter" type="button" aria-label="Limpar filtro da data">×</button></div>
         </div>
         <div class="filters">
           <select id="filterType">
@@ -1241,6 +1269,8 @@
 
         selectedCalendarDate: null,
 
+        filterDate: null,
+
         calendarExpanded: false,
 
         activeEntry: null,
@@ -1260,6 +1290,14 @@
         new Intl.NumberFormat("pt-BR", {
           style: "currency",
           currency: "BRL",
+        }).format(n);
+
+      const calendarMoney = (n) =>
+        new Intl.NumberFormat("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
         }).format(n);
 
       const esc = (s) =>
@@ -1316,6 +1354,9 @@
         panelTitle = document.querySelector("#panelTitle"),
         toast = document.querySelector("#toast"),
         selectionActions = document.querySelector("#selectionActions"),
+        dateFilterInfo = document.querySelector("#dateFilterInfo"),
+        dateFilterLabel = document.querySelector("#dateFilterLabel"),
+        clearDateFilter = document.querySelector("#clearDateFilter"),
         openModal = document.querySelector("#openModal"),
         rows = document.querySelector("#rows"),
         contextMenu = document.querySelector("#contextMenu"),
@@ -1716,12 +1757,13 @@
         return state.entries.filter((e) => e.date.slice(0, 7) === month);
       }
 
-      function getFilteredEntries(entries, type, status) {
+      function getFilteredEntries(entries, type, status, date = state.filterDate) {
         return entries
           .filter(
             (e) =>
               (!type || e.type === type) &&
-              (!status || (status === "paid") === e.paid),
+              (!status || (status === "paid") === e.paid) &&
+              (!date || e.date === date),
           )
           .sort(
             (a, b) =>
@@ -1812,11 +1854,11 @@
           const income = getRecurringIncome(date);
           const projected = getProjectedBalance(date, entryTotals);
           cells.push(`
-            <button class="calendar-day ${date === state.selectedCalendarDate ? "selected" : ""} ${income ? "has-income" : ""} ${costs ? "has-cost" : ""}" data-calendar-date="${date}" type="button">
+            <button class="calendar-day ${date === state.selectedCalendarDate ? "selected" : ""} ${income ? "has-income" : ""} ${costs ? "has-cost" : ""} ${projected < 0 ? "balance-negative" : "balance-positive"}" data-calendar-date="${date}" type="button">
               <span class="calendar-date">${day}</span>
-              ${income ? `<span class="calendar-income">+ ${money(income)}</span>` : ""}
-              ${costs ? `<span class="calendar-cost">Gastos ${money(costs)}</span>` : ""}
-              <span class="calendar-projection">${money(projected)}</span>
+              ${income ? `<span class="calendar-income">+ ${calendarMoney(income)}</span>` : ""}
+              ${costs ? `<span class="calendar-cost">Gastos ${calendarMoney(costs)}</span>` : ""}
+              <span class="calendar-projection">${calendarMoney(projected)}</span>
             </button>
           `);
         }
@@ -1824,7 +1866,7 @@
 
         const selected = state.selectedCalendarDate;
         selectedDateLabel.textContent = `Saldo em ${new Date(`${selected}T12:00`).toLocaleDateString("pt-BR")}`;
-        selectedBalance.textContent = money(getProjectedBalance(selected, entryTotals));
+        selectedBalance.textContent = calendarMoney(getProjectedBalance(selected, entryTotals));
         calendarPanel.classList.toggle("compact", !state.calendarExpanded);
         toggleCalendar.setAttribute("aria-expanded", String(state.calendarExpanded));
         toggleCalendar.textContent = state.calendarExpanded
@@ -1878,9 +1920,18 @@
 
         panelTitle.textContent = state.selectionMode
           ? `${state.selectedEntries.size} selecionado${state.selectedEntries.size > 1 ? "s" : ""}`
-          : "Lançamentos";
+          : state.filterDate
+            ? `Lançamentos de ${new Date(`${state.filterDate}T12:00`).toLocaleDateString("pt-BR")}`
+            : "Lançamentos";
 
         count.style.display = state.selectionMode ? "none" : "";
+        dateFilterInfo.classList.toggle(
+          "visible",
+          Boolean(state.filterDate) && !state.selectionMode,
+        );
+        dateFilterLabel.textContent = state.filterDate
+          ? new Date(`${state.filterDate}T12:00`).toLocaleDateString("pt-BR")
+          : "";
 
         let hasPendingSelection = false;
 
@@ -2323,6 +2374,7 @@
 
       [filterMonth, filterType, filterStatus].forEach((control) => {
         control.onchange = () => {
+          if (control === filterMonth) state.filterDate = null;
           state.selectedEntries.clear();
           state.selectionMode = false;
           render();
@@ -2351,7 +2403,15 @@
         const day = event.target.closest("[data-calendar-date]");
         if (!day) return;
         state.selectedCalendarDate = day.dataset.calendarDate;
-        renderCalendar();
+        state.filterDate = day.dataset.calendarDate;
+        state.selectedEntries.clear();
+        state.selectionMode = false;
+        render();
+      };
+
+      clearDateFilter.onclick = () => {
+        state.filterDate = null;
+        render();
       };
 
       toggleCalendar.onclick = () => {
