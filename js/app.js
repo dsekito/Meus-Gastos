@@ -75,6 +75,8 @@ const defaultTypes = [
 
         entries: [],
 
+        recurrenceSeries: [],
+
         settings: createDefaultSettings(),
 
         settingsDirty: false,
@@ -161,11 +163,27 @@ const defaultTypes = [
         valueInput = document.querySelector("#value"),
         detailInput = document.querySelector("#detail"),
         paidInput = document.querySelector("#paid"),
+        paidField = document.querySelector("#paidField"),
         type = document.querySelector("#type"),
         desc = document.querySelector("#description"),
+        flowType = document.querySelector("#flowType"),
         recurrence = document.querySelector("#recurrence"),
         installments = document.querySelector("#installments"),
         installmentsField = document.querySelector("#installmentsField"),
+        recurrenceFields = document.querySelector("#recurrenceFields"),
+        recurrenceInterval = document.querySelector("#recurrenceInterval"),
+        customUnitField = document.querySelector("#customUnitField"),
+        customUnit = document.querySelector("#customUnit"),
+        endMode = document.querySelector("#endMode"),
+        endDateField = document.querySelector("#endDateField"),
+        endDate = document.querySelector("#endDate"),
+        occurrenceCountField = document.querySelector("#occurrenceCountField"),
+        occurrenceCount = document.querySelector("#occurrenceCount"),
+        businessDayAdjustment = document.querySelector("#businessDayAdjustment"),
+        recurrenceSummary = document.querySelector("#recurrenceSummary"),
+        editScopeField = document.querySelector("#editScopeField"),
+        editScope = document.querySelector("#editScope"),
+        paidLabel = document.querySelector("#paidLabel"),
         filterType = document.querySelector("#filterType"),
         filterMonth = document.querySelector("#filterMonth"),
         filterStatus = document.querySelector("#filterStatus"),
@@ -221,6 +239,8 @@ const defaultTypes = [
         simulationAfter = document.querySelector("#simulationAfter"),
         simulationMessage = document.querySelector("#simulationMessage"),
         runSimulation = document.querySelector("#runSimulation"),
+        seriesScopeDialog = document.querySelector("#seriesScopeDialog"),
+        saveEntry = document.querySelector("#saveEntry"),
         syncStatus = document.querySelector("#syncStatus");
 
       function todayISO() {
@@ -268,6 +288,7 @@ const defaultTypes = [
       function clearSessionState() {
         state.user = null;
         state.entries = [];
+        state.recurrenceSeries = [];
         state.syncQueue = [];
         state.deletedEntryIds = new Set();
         state.types = [...defaultTypes];
@@ -381,6 +402,62 @@ const defaultTypes = [
         render();
       }
 
+      function materializationHorizon(series) {
+        const anchor = series.start_date > todayISO() ? series.start_date : todayISO();
+        return domain.addMonthsClamped(anchor, 18);
+      }
+
+      function occurrenceEntry(series, occurrence) {
+        return {
+          id: generateId(),
+          date: occurrence.date,
+          scheduled_date: occurrence.scheduled_date,
+          series_id: series.id,
+          detached_from_series: false,
+          excluded_from_series: false,
+          flow_type: series.flow_type,
+          value: Number(series.value),
+          type: series.type,
+          description: series.description,
+          detail: series.detail || "",
+          paid: false,
+          installment: null,
+          created_at: new Date().toISOString(),
+        };
+      }
+
+      async function materializeRecurrenceSeries(series) {
+        if (!series.active) return 0;
+        const existingDates = new Set(
+          state.entries
+            .filter((entry) => entry.series_id === series.id)
+            .map((entry) => entry.scheduled_date),
+        );
+        const generated = domain.generateRecurringOccurrences(
+          series,
+          series.start_date,
+          materializationHorizon(series),
+        );
+        const missing = generated
+          .filter((occurrence) => !existingDates.has(occurrence.scheduled_date))
+          .map((occurrence) => occurrenceEntry(series, occurrence));
+        if (!missing.length) return 0;
+        const saved = await repository.upsertEntries(missing, state.user.id);
+        const versions = new Map(saved.map((entry) => [entry.id, entry.updated_at]));
+        missing.forEach((entry) => {
+          entry.updated_at = versions.get(entry.id) || entry.updated_at;
+          state.entries.push(entry);
+        });
+        return missing.length;
+      }
+
+      async function loadCloudRecurrenceSeries() {
+        state.recurrenceSeries = await repository.fetchRecurrenceSeries();
+        for (const series of state.recurrenceSeries) {
+          await materializeRecurrenceSeries(series);
+        }
+      }
+
       function applyRealtimeEntry(payload) {
         const id = payload.new?.id || payload.old?.id;
         if (!id) return;
@@ -472,6 +549,7 @@ const defaultTypes = [
             }
             await loadCloudEntries();
             await loadCloudSettings();
+            await loadCloudRecurrenceSeries();
             subscribeToEntryChanges();
             if (!hasPendingSync) setSyncStatus("synced", "Dados sincronizados");
           } finally {
@@ -542,7 +620,11 @@ const defaultTypes = [
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState !== "visible" || !state.user) return;
         retryPendingSynchronization()
-          .then(() => loadCloudEntries())
+          .then(async () => {
+            await loadCloudEntries();
+            await loadCloudRecurrenceSeries();
+            render();
+          })
           .catch((error) => console.error(error));
       });
 
@@ -645,6 +727,10 @@ const defaultTypes = [
       function renderDenseEntry(e) {
         const expanded = state.expandedEntries.has(e.id);
         const selected = state.selectedEntries.has(e.id);
+        const isIncome = (e.flow_type || "expense") === "income";
+        const statusLabel = e.paid
+          ? (isIncome ? "Recebido" : "Pago")
+          : (isIncome ? "A receber" : "Em aberto");
         return `
           <div class="entry dense-entry ${selected ? "selected" : ""} ${expanded ? "expanded" : ""}" data-entry="${e.id}">
             <div class="entry-content">
@@ -654,14 +740,15 @@ const defaultTypes = [
                     <span class="entry-dot" style="background:${categoryColor(e.type)}"></span>
                     <span class="entry-title-text">${esc(e.description)}</span>
                   </div>
-                  <div class="entry-value">${money(e.value)}</div>
+                  <div class="entry-value ${isIncome ? "income" : ""}">${isIncome ? "+ " : ""}${money(e.value)}</div>
                 </div>
                 <div class="entry-footer">
                   <div class="entry-meta-line">
                     <span>${formatDay(e.date)} ${formatMonth(e.date)}</span>
                     <span class="entry-type">${esc(e.type)}</span>
+                    <span class="entry-flow">${isIncome ? "Receita" : "Despesa"}</span>
                     ${e.installment ? `<span class="entry-installment">${e.installment.current}/${e.installment.total}</span>` : ""}
-                    ${state.selectionMode ? "" : `<button class="status-button ${e.paid ? "paid" : "pending"}" data-toggle-status="${e.id}">${e.paid ? "Pago" : "Em aberto"}</button>`}
+                    ${state.selectionMode ? "" : `<button class="status-button ${e.paid ? "paid" : "pending"}" data-toggle-status="${e.id}">${statusLabel}</button>`}
                   </div>
                   <span class="entry-chevron" aria-hidden="true">⌄</span>
                 </div>
@@ -681,16 +768,17 @@ const defaultTypes = [
       }
 
       function updateSummary(entries) {
+        const expenses = entries.filter((entry) => (entry.flow_type || "expense") === "expense");
         monthTotal.textContent = money(
-          entries.reduce((a, e) => a + e.value, 0),
+          expenses.reduce((a, e) => a + Number(e.value), 0),
         );
 
         paidTotal.textContent = money(
-          entries.filter((e) => e.paid).reduce((a, e) => a + e.value, 0),
+          expenses.filter((e) => e.paid).reduce((a, e) => a + Number(e.value), 0),
         );
 
         pendingTotal.textContent = money(
-          entries.filter((e) => !e.paid).reduce((a, e) => a + e.value, 0),
+          expenses.filter((e) => !e.paid).reduce((a, e) => a + Number(e.value), 0),
         );
       }
 
@@ -705,7 +793,7 @@ const defaultTypes = [
       }
 
       function getMonthlyEntries(month) {
-        return state.entries.filter((e) => e.date.slice(0, 7) === month);
+        return state.entries.filter((e) => !e.excluded_from_series && e.date.slice(0, 7) === month);
       }
 
       function getFilteredEntries(entries, type, status, date = state.filterDate) {
@@ -740,12 +828,12 @@ const defaultTypes = [
         return domain.dailyEntryTotals(state.entries);
       }
 
-      function getDailyNet(date, entryTotals) {
-        return getRecurringIncome(date) - (entryTotals.get(date) || 0);
+      function buildDailyEntryNet() {
+        return domain.dailyEntryNet(state.entries);
       }
 
-      function getProjectedBalance(date, entryTotals) {
-        return domain.projectedBalance(date, state.settings, entryTotals);
+      function getProjectedBalance(date, entryNet) {
+        return domain.projectedBalance(date, state.settings, entryNet);
       }
 
       function shortDate(date) {
@@ -796,6 +884,8 @@ const defaultTypes = [
         const firstDay = new Date(year, monthIndex, 1, 12);
         const daysInMonth = new Date(year, monthNumber, 0).getDate();
         const entryTotals = buildDailyEntryTotals();
+        const entryNet = buildDailyEntryNet();
+        const entryIncomeTotals = domain.dailyIncomeTotals(state.entries);
 
         if (!state.selectedCalendarDate?.startsWith(month)) {
           state.selectedCalendarDate = `${month}-01`;
@@ -812,8 +902,8 @@ const defaultTypes = [
         for (let day = 1; day <= daysInMonth; day++) {
           const date = `${month}-${String(day).padStart(2, "0")}`;
           const costs = entryTotals.get(date) || 0;
-          const income = getRecurringIncome(date);
-          const projected = getProjectedBalance(date, entryTotals);
+          const income = getRecurringIncome(date) + (entryIncomeTotals.get(date) || 0);
+          const projected = getProjectedBalance(date, entryNet);
           cells.push(`
             <button class="calendar-day ${date === state.selectedCalendarDate ? "selected" : ""} ${income ? "has-income" : ""} ${costs ? "has-cost" : ""} ${projected < 0 ? "balance-negative" : "balance-positive"}" data-calendar-date="${date}" type="button">
               <span class="calendar-date">${day}</span>
@@ -827,7 +917,7 @@ const defaultTypes = [
 
         const selected = state.selectedCalendarDate;
         selectedDateLabel.textContent = `Saldo em ${new Date(`${selected}T12:00`).toLocaleDateString("pt-BR")}`;
-        selectedBalance.textContent = calendarMoney(getProjectedBalance(selected, entryTotals));
+        selectedBalance.textContent = calendarMoney(getProjectedBalance(selected, entryNet));
         calendarPanel.classList.toggle("compact", !state.calendarExpanded);
         toggleCalendar.setAttribute("aria-expanded", String(state.calendarExpanded));
         toggleCalendar.textContent = state.calendarExpanded
@@ -864,7 +954,7 @@ const defaultTypes = [
 
         updateSummary(monthly);
         currentBalanceTotal.textContent = money(
-          getProjectedBalance(todayISO(), buildDailyEntryTotals()),
+          getProjectedBalance(todayISO(), buildDailyEntryNet()),
         );
         const referenceDate = state.settings.balance_reference_date || todayISO();
         balanceReferenceSummary.textContent = `Saldo informado em ${new Date(`${referenceDate}T12:00`).toLocaleDateString("pt-BR")}`;
@@ -873,7 +963,10 @@ const defaultTypes = [
 
         updateCount(list);
         filteredSubtotal.textContent = money(
-          list.reduce((total, entry) => total + Number(entry.value), 0),
+          list.reduce(
+            (total, entry) => total + ((entry.flow_type || "expense") === "income" ? Number(entry.value) : -Number(entry.value)),
+            0,
+          ),
         );
 
         renderEntries(list);
@@ -1055,14 +1148,75 @@ const defaultTypes = [
         render();
       }
 
+      function isRecurringValue(value = recurrence.value) {
+        return ["weekly", "monthly", "annual", "custom"].includes(value);
+      }
+
+      function recurrenceUnitLabel() {
+        const unit = recurrence.value === "custom" ? customUnit.value : {
+          weekly: "week",
+          monthly: "month",
+          annual: "year",
+        }[recurrence.value];
+        return {
+          day: ["dia", "dias"],
+          week: ["semana", "semanas"],
+          month: ["mês", "meses"],
+          year: ["ano", "anos"],
+        }[unit] || ["período", "períodos"];
+      }
+
+      function updateRecurrenceSummary() {
+        if (!isRecurringValue()) return;
+        const interval = Math.max(1, Number(recurrenceInterval.value) || 1);
+        const labels = recurrenceUnitLabel();
+        let text = interval === 1 ? `A cada ${labels[0]}` : `A cada ${interval} ${labels[1]}`;
+        if (endMode.value === "on_date" && endDate.value) {
+          text += `, até ${new Date(`${endDate.value}T12:00`).toLocaleDateString("pt-BR")}`;
+        } else if (endMode.value === "after_occurrences") {
+          const total = Math.max(1, Number(occurrenceCount.value) || 1);
+          text += `, por ${total} ocorrência${total === 1 ? "" : "s"}`;
+        } else {
+          text += ", sem data final";
+        }
+        if (businessDayAdjustment.value === "previous") text += ", movendo fins de semana para o dia útil anterior";
+        if (businessDayAdjustment.value === "next") text += ", movendo fins de semana para o próximo dia útil";
+        recurrenceSummary.textContent = `${text}.`;
+      }
+
+      function updateEntryFormVisibility() {
+        const recurring = isRecurringValue();
+        const installmentOption = recurrence.querySelector('option[value="installments"]');
+        installmentOption.disabled = flowType.value === "income";
+        if (flowType.value === "income" && recurrence.value === "installments") recurrence.value = "single";
+        installmentsField.hidden = recurrence.value !== "installments";
+        installmentsField.style.display = installmentsField.hidden ? "none" : "";
+        recurrenceFields.hidden = !recurring;
+        customUnitField.hidden = recurrence.value !== "custom";
+        endDateField.hidden = !recurring || endMode.value !== "on_date";
+        occurrenceCountField.hidden = !recurring || endMode.value !== "after_occurrences";
+        recurrenceInterval.required = recurring;
+        endDate.required = recurring && endMode.value === "on_date";
+        occurrenceCount.required = recurring && endMode.value === "after_occurrences";
+        paidLabel.textContent = flowType.value === "income" ? "Marcar como recebido" : "Marcar como pago";
+        paidField.hidden = recurring;
+        updateRecurrenceSummary();
+      }
+
       function openNew() {
         state.editingId = null;
         modalTitle.textContent = "Novo lançamento";
         form.reset();
-        installmentsField.style.display = "none";
+        flowType.value = "expense";
         recurrence.value = "single";
         installments.value = 2;
+        recurrenceInterval.value = 1;
+        endMode.value = "never";
+        occurrenceCount.value = 12;
+        businessDayAdjustment.value = "none";
+        editScopeField.hidden = true;
         dateInput.value = new Date().toISOString().slice(0, 10);
+        updateEntryFormVisibility();
         render();
         dialog.showModal();
       }
@@ -1260,6 +1414,96 @@ const defaultTypes = [
         return true;
       }
 
+      function recurrenceSeriesFromForm(id, startDate) {
+        return {
+          id,
+          flow_type: flowType.value,
+          frequency: recurrence.value,
+          interval_value: Math.max(1, Number(recurrenceInterval.value) || 1),
+          custom_unit: recurrence.value === "custom" ? customUnit.value : null,
+          weekdays: [],
+          start_date: startDate,
+          end_mode: endMode.value,
+          end_date: endMode.value === "on_date" ? endDate.value : null,
+          occurrence_count: endMode.value === "after_occurrences"
+            ? Math.max(1, Number(occurrenceCount.value) || 1)
+            : null,
+          business_day_adjustment: businessDayAdjustment.value,
+          value: Number(valueInput.value),
+          type: type.value,
+          description: desc.value,
+          detail: detailInput.value.trim(),
+          active: true,
+        };
+      }
+
+      async function createRecurringSeries() {
+        const series = recurrenceSeriesFromForm(generateId(), dateInput.value);
+        const saved = await repository.upsertRecurrenceSeries(series, state.user.id);
+        series.updated_at = saved.updated_at;
+        state.recurrenceSeries.push(series);
+        await materializeRecurrenceSeries(series);
+      }
+
+      async function removeGeneratedSeriesEntries(seriesId, fromScheduledDate = null) {
+        await repository.deleteGeneratedEntries(seriesId, state.user.id, fromScheduledDate);
+        state.entries = state.entries.filter((entry) => {
+          if (entry.series_id !== seriesId || entry.detached_from_series) return true;
+          return fromScheduledDate && entry.scheduled_date < fromScheduledDate;
+        });
+      }
+
+      async function editRecurringSeries(entry) {
+        const original = state.recurrenceSeries.find((series) => series.id === entry.series_id);
+        if (!original || editScope.value === "this") {
+          return updateEntry({
+            date: dateInput.value,
+            value: Number(valueInput.value),
+            flow_type: flowType.value,
+            type: type.value,
+            description: desc.value,
+            detail: detailInput.value.trim(),
+            paid: paidInput.checked,
+            detached_from_series: true,
+          });
+        }
+
+        const cutDate = entry.scheduled_date || entry.date;
+        if (editScope.value === "future" && cutDate > original.start_date) {
+          const shortened = {
+            ...original,
+            end_mode: "on_date",
+            end_date: domain.addDays(cutDate, -1),
+            occurrence_count: null,
+          };
+          const shortenedSaved = await repository.upsertRecurrenceSeries(shortened, state.user.id);
+          shortened.updated_at = shortenedSaved.updated_at;
+          const originalIndex = state.recurrenceSeries.findIndex((series) => series.id === original.id);
+          state.recurrenceSeries[originalIndex] = shortened;
+          await removeGeneratedSeriesEntries(original.id, cutDate);
+
+          const nextSeries = recurrenceSeriesFromForm(generateId(), dateInput.value);
+          const saved = await repository.upsertRecurrenceSeries(nextSeries, state.user.id);
+          nextSeries.updated_at = saved.updated_at;
+          state.recurrenceSeries.push(nextSeries);
+          await materializeRecurrenceSeries(nextSeries);
+          return true;
+        }
+
+        const updated = {
+          ...original,
+          ...recurrenceSeriesFromForm(original.id, original.start_date),
+          start_date: original.start_date,
+        };
+        const saved = await repository.upsertRecurrenceSeries(updated, state.user.id);
+        updated.updated_at = saved.updated_at;
+        const index = state.recurrenceSeries.findIndex((series) => series.id === original.id);
+        state.recurrenceSeries[index] = updated;
+        await removeGeneratedSeriesEntries(original.id);
+        await materializeRecurrenceSeries(updated);
+        return true;
+      }
+
       function createEntry(entry) {
         const createdAt = new Date().toISOString();
         if (recurrence.value === "single") {
@@ -1267,6 +1511,11 @@ const defaultTypes = [
             id: generateId(),
             created_at: createdAt,
             ...entry,
+            flow_type: entry.flow_type || "expense",
+            series_id: null,
+            scheduled_date: null,
+            detached_from_series: false,
+            excluded_from_series: false,
           };
           state.entries.push(created);
           queueUpsert(created);
@@ -1283,6 +1532,11 @@ const defaultTypes = [
             id: generateId(),
             created_at: createdAt,
             ...entry,
+            flow_type: "expense",
+            series_id: null,
+            scheduled_date: null,
+            detached_from_series: false,
+            excluded_from_series: false,
             date: addMonths(entry.date, i),
             value,
             paid: false,
@@ -1305,16 +1559,22 @@ const defaultTypes = [
         closeContextMenu();
         save();
         render();
+        const isIncome = (entry.flow_type || "expense") === "income";
         show(
           entry.paid
-            ? "Lançamento marcado como pago."
-            : "Lançamento marcado como pendente.",
+            ? (isIncome ? "Receita marcada como recebida." : "Lançamento marcado como pago.")
+            : (isIncome ? "Receita marcada como a receber." : "Lançamento marcado como pendente."),
         );
       }
 
       function deleteEntry() {
         const entry = getActiveEntry();
         if (!entry) return;
+        if (entry.series_id) {
+          closeContextMenu();
+          seriesScopeDialog.showModal();
+          return;
+        }
         if (!confirm("Deseja realmente excluir este lançamento?")) return;
         state.entries = state.entries.filter((e) => e.id !== entry.id);
         queueDelete(entry.id, entry.updated_at);
@@ -1322,6 +1582,42 @@ const defaultTypes = [
         save();
         render();
         show("Lançamento excluído.");
+      }
+
+      async function deleteRecurringScope(scope) {
+        const entry = getActiveEntry();
+        if (!entry?.series_id) return;
+        const series = state.recurrenceSeries.find((item) => item.id === entry.series_id);
+        const cutDate = entry.scheduled_date || entry.date;
+        if (scope === "this") {
+          entry.detached_from_series = true;
+          entry.excluded_from_series = true;
+          queueUpsert(entry);
+          if (!await save()) throw new Error("Não foi possível sincronizar a exclusão da ocorrência.");
+        } else if (scope === "future" && series && cutDate > series.start_date) {
+          const shortened = {
+            ...series,
+            end_mode: "on_date",
+            end_date: domain.addDays(cutDate, -1),
+            occurrence_count: null,
+          };
+          const saved = await repository.upsertRecurrenceSeries(shortened, state.user.id);
+          shortened.updated_at = saved.updated_at;
+          const index = state.recurrenceSeries.findIndex((item) => item.id === series.id);
+          state.recurrenceSeries[index] = shortened;
+          await repository.deleteSeriesEntries(series.id, state.user.id, cutDate);
+          state.entries = state.entries.filter(
+            (item) => item.series_id !== series.id || item.scheduled_date < cutDate,
+          );
+        } else {
+          await repository.deleteSeriesEntries(entry.series_id, state.user.id);
+          await repository.deleteRecurrenceSeries(entry.series_id, state.user.id);
+          state.entries = state.entries.filter((item) => item.series_id !== entry.series_id);
+          state.recurrenceSeries = state.recurrenceSeries.filter((item) => item.id !== entry.series_id);
+        }
+        seriesScopeDialog.close();
+        render();
+        show(scope === "this" ? "Ocorrência excluída." : scope === "future" ? "Esta e as próximas ocorrências foram excluídas." : "Série recorrente excluída.");
       }
 
       function deleteSelectedEntries() {
@@ -1344,9 +1640,17 @@ const defaultTypes = [
           (entry) => state.selectedEntries.has(entry.id),
         );
         state.entries = state.entries.filter(
-          (entry) => !state.selectedEntries.has(entry.id),
+          (entry) => !state.selectedEntries.has(entry.id) || Boolean(entry.series_id),
         );
-        deletedEntries.forEach((entry) => queueDelete(entry.id, entry.updated_at));
+        deletedEntries.forEach((entry) => {
+          if (entry.series_id) {
+            entry.detached_from_series = true;
+            entry.excluded_from_series = true;
+            queueUpsert(entry);
+          } else {
+            queueDelete(entry.id, entry.updated_at);
+          }
+        });
 
         save();
 
@@ -1357,15 +1661,27 @@ const defaultTypes = [
         );
       }
       function fillForm(entry) {
+        const series = entry.series_id
+          ? state.recurrenceSeries.find((item) => item.id === entry.series_id)
+          : null;
         dateInput.value = entry.date;
         valueInput.value = entry.value;
+        flowType.value = entry.flow_type || "expense";
         type.value = entry.type;
         desc.value = entry.description;
         detailInput.value = entry.detail;
         paidInput.checked = entry.paid;
-        recurrence.value = entry.installment ? "installments" : "single";
-        installmentsField.style.display = entry.installment ? "" : "none";
+        recurrence.value = series?.frequency || (entry.installment ? "installments" : "single");
         installments.value = entry.installment?.total ?? 2;
+        recurrenceInterval.value = series?.interval_value ?? 1;
+        customUnit.value = series?.custom_unit || "day";
+        endMode.value = series?.end_mode || "never";
+        endDate.value = series?.end_date || "";
+        occurrenceCount.value = series?.occurrence_count || 12;
+        businessDayAdjustment.value = series?.business_day_adjustment || "none";
+        editScopeField.hidden = !series;
+        editScope.value = "this";
+        updateEntryFormVisibility();
       }
 
       openModal.onclick = openNew;
@@ -1405,12 +1721,32 @@ const defaultTypes = [
       document
         .querySelectorAll("[data-close-settings]")
         .forEach((b) => (b.onclick = () => settingsDialog.close()));
+      document
+        .querySelectorAll("[data-close-series-scope]")
+        .forEach((button) => (button.onclick = () => seriesScopeDialog.close()));
+      seriesScopeDialog.onclick = async (event) => {
+        const button = event.target.closest("[data-series-delete-scope]");
+        if (!button) return;
+        const buttons = [...seriesScopeDialog.querySelectorAll("button")];
+        buttons.forEach((item) => { item.disabled = true; });
+        button.setAttribute("aria-busy", "true");
+        try {
+          await deleteRecurringScope(button.dataset.seriesDeleteScope);
+        } catch (error) {
+          console.error(error);
+          show("Não foi possível excluir a recorrência.");
+        } finally {
+          buttons.forEach((item) => { item.disabled = false; });
+          button.removeAttribute("aria-busy");
+        }
+      };
       type.onchange = (e) => addOption(e, "types", type);
       desc.onchange = (e) => addOption(e, "descriptions", desc);
-      recurrence.onchange = () => {
-        installmentsField.style.display =
-          recurrence.value === "installments" ? "" : "none";
-      };
+      [flowType, recurrence, recurrenceInterval, customUnit, endMode, endDate, occurrenceCount, businessDayAdjustment]
+        .forEach((control) => {
+          control.onchange = updateEntryFormVisibility;
+          control.oninput = updateEntryFormVisibility;
+        });
 
       [filterMonth, filterType, filterStatus].forEach((control) => {
         control.onchange = () => {
@@ -1588,38 +1924,75 @@ const defaultTypes = [
         e.preventDefault();
 
         const editing = !!state.editingId;
+        const editingEntry = state.entries.find((entry) => entry.id === state.editingId);
 
         const date = dateInput.value;
         const totalValue = Number(valueInput.value);
         const detail = detailInput.value.trim();
         const paid = paidInput.checked;
 
+        valueInput.setCustomValidity(
+          totalValue === 0 || ((isRecurringValue() || flowType.value === "income") && totalValue < 0)
+            ? "Informe um valor maior que zero."
+            : "",
+        );
+        endDate.setCustomValidity(
+          isRecurringValue() && endMode.value === "on_date" && endDate.value < date
+            ? "A data final deve ser igual ou posterior à data inicial."
+            : "",
+        );
+        if (!form.reportValidity()) return;
+
         const entry = {
           date,
           value: totalValue,
+          flow_type: flowType.value,
           type: type.value,
           description: desc.value,
           detail,
           paid,
         };
 
-        if (editing) {
-          if (!updateEntry(entry)) return;
-        } else {
-          createEntry(entry);
+        saveEntry.disabled = true;
+        saveEntry.setAttribute("aria-busy", "true");
+        saveEntry.textContent = "Salvando…";
+        try {
+          if (editing && editingEntry?.series_id) {
+            if (!await editRecurringSeries(editingEntry)) return;
+            state.editingId = null;
+          } else if (editing && isRecurringValue()) {
+            state.entries = state.entries.filter((item) => item.id !== editingEntry.id);
+            queueDelete(editingEntry.id, editingEntry.updated_at);
+            await createRecurringSeries();
+            state.editingId = null;
+          } else if (editing) {
+            if (!updateEntry(entry)) return;
+          } else if (isRecurringValue()) {
+            await createRecurringSeries();
+          } else {
+            createEntry(entry);
+          }
+
+          const synced = await save();
+          dialog.close();
+          render();
+          show(
+            synced
+              ? editing
+                ? "Lançamento atualizado e sincronizado."
+                : isRecurringValue()
+                  ? "Recorrência criada e sincronizada."
+                  : "Lançamento salvo e sincronizado."
+              : "Lançamento aguardando sincronização. Não feche esta página.",
+          );
+        } catch (error) {
+          console.error(error);
+          show("Não foi possível salvar a recorrência. Tente novamente.");
+        } finally {
+          saveEntry.disabled = false;
+          saveEntry.removeAttribute("aria-busy");
+          saveEntry.textContent = "Salvar lançamento";
         }
-
-        const synced = await save();
-        dialog.close();
-        render();
-
-        show(
-          synced
-            ? editing
-              ? "Lançamento atualizado e sincronizado."
-              : "Lançamento salvo e sincronizado."
-            : "Lançamento aguardando sincronização. Não feche esta página.",
-        );
       };
 
       async function startApp() {

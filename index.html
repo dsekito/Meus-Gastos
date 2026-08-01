@@ -1420,6 +1420,53 @@
 
         .modal-foot button { width: 100%; min-height: 48px; padding: 8px 10px; }
       }
+
+      .recurrence-fields {
+        display: contents;
+      }
+      .recurrence-summary {
+        grid-column: 1 / -1;
+        margin: 0;
+        padding: 10px 12px;
+        border: 1px solid #c7d9d0;
+        border-radius: 12px;
+        background: #eef2df;
+        color: var(--ink);
+        font-size: 14px;
+        line-height: 1.4;
+      }
+      .checkbox-label {
+        display: flex;
+        min-height: 48px;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+      }
+      .checkbox-label input {
+        width: 22px;
+        min-height: 22px;
+        margin: 0;
+      }
+      .entry-value.income { color: #16805c; }
+      .entry-flow {
+        padding: 2px 6px;
+        border-radius: 7px;
+        background: var(--soft);
+        color: var(--brand);
+        font-weight: 700;
+      }
+      .series-scope-actions {
+        display: grid;
+        gap: 8px;
+        padding: 0 22px 22px;
+      }
+      .series-scope-actions button {
+        min-height: 48px;
+        text-align: left;
+      }
+      @media (max-width: 768px) {
+        .series-scope-actions { padding: 12px 14px 14px; }
+      }
     </style>
   </head>
   <body>
@@ -1527,35 +1574,47 @@
       </section>
       <button class="primary mobile-new-entry" id="openModalMobile" type="button" hidden><span aria-hidden="true">＋</span> Novo lançamento</button>
     </main>
-    <dialog id="entryDialog">
+    <dialog id="entryDialog" aria-labelledby="entryDialogTitle">
       <form class="modal" id="entryForm">
         <div class="modal-head">
           <div>
-            <h2>Novo lançamento</h2>
+            <h2 id="entryDialogTitle">Novo lançamento</h2>
             <p>Registre uma despesa ou compromisso financeiro.</p>
           </div>
-          <button class="close" type="button" data-close>&times;</button>
+          <button class="close" type="button" data-close aria-label="Fechar formulário">&times;</button>
         </div>
         <div class="form-grid">
+          <div class="field wide">
+            <label for="flowType">Movimentação</label>
+            <select id="flowType" required>
+              <option value="expense">Despesa</option>
+              <option value="income">Receita</option>
+            </select>
+          </div>
           <div class="field">
-            <label for="date">Data</label>
+            <label for="date">Data inicial</label>
             <input id="date" type="date" required />
           </div>
           <div class="field">
-            <label for="value">Valor (negativo para reembolso)</label>
+            <label for="value">Valor</label>
             <input
               id="value"
               type="number"
               step="0.01"
-              placeholder="Ex.: -50,00"
+              inputmode="decimal"
+              placeholder="Ex.: 150,00"
               required
             />
           </div>
           <div class="field">
-            <label for="recurrence">Tipo do lançamento</label>
+            <label for="recurrence">Repetição</label>
             <select id="recurrence">
               <option value="single">Único</option>
               <option value="installments">Parcelado</option>
+              <option value="weekly">Semanal</option>
+              <option value="monthly">Mensal</option>
+              <option value="annual">Anual</option>
+              <option value="custom">Personalizada</option>
             </select>
           </div>
 
@@ -1563,6 +1622,56 @@
             <label for="installments"> Número de parcelas </label>
 
             <input id="installments" type="number" min="2" value="2" />
+          </div>
+
+          <div class="recurrence-fields" id="recurrenceFields" hidden>
+            <div class="field">
+              <label for="recurrenceInterval">Repetir a cada</label>
+              <input id="recurrenceInterval" type="number" min="1" max="99" value="1" inputmode="numeric" />
+            </div>
+            <div class="field" id="customUnitField" hidden>
+              <label for="customUnit">Unidade</label>
+              <select id="customUnit">
+                <option value="day">Dia(s)</option>
+                <option value="week">Semana(s)</option>
+                <option value="month">Mês(es)</option>
+                <option value="year">Ano(s)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="endMode">Término</label>
+              <select id="endMode">
+                <option value="never">Sem data final</option>
+                <option value="on_date">Em uma data</option>
+                <option value="after_occurrences">Após ocorrências</option>
+              </select>
+            </div>
+            <div class="field" id="endDateField" hidden>
+              <label for="endDate">Data final</label>
+              <input id="endDate" type="date" />
+            </div>
+            <div class="field" id="occurrenceCountField" hidden>
+              <label for="occurrenceCount">Quantidade</label>
+              <input id="occurrenceCount" type="number" min="1" max="5000" value="12" inputmode="numeric" />
+            </div>
+            <div class="field wide">
+              <label for="businessDayAdjustment">Se cair no fim de semana</label>
+              <select id="businessDayAdjustment">
+                <option value="none">Não ajustar</option>
+                <option value="previous">Mover para o dia útil anterior</option>
+                <option value="next">Mover para o próximo dia útil</option>
+              </select>
+            </div>
+            <p class="recurrence-summary" id="recurrenceSummary" aria-live="polite"></p>
+          </div>
+
+          <div class="field wide" id="editScopeField" hidden>
+            <label for="editScope">Aplicar alteração</label>
+            <select id="editScope">
+              <option value="this">Somente nesta ocorrência</option>
+              <option value="future">Nesta e nas próximas</option>
+              <option value="all">Em toda a série</option>
+            </select>
           </div>
 
           <div class="field">
@@ -1581,21 +1690,28 @@
               placeholder="Ex.: pagamento da fatura, nome da loja…"
             ></textarea>
           </div>
-          <div class="field wide">
-            <label
-              ><input
-                id="paid"
-                type="checkbox"
-                style="width: auto; margin-right: 8px"
-              />Marcar como pago</label
-            >
+          <div class="field wide" id="paidField">
+            <label class="checkbox-label"><input id="paid" type="checkbox" /><span id="paidLabel">Marcar como pago</span></label>
           </div>
         </div>
         <div class="modal-foot">
           <button class="secondary" type="button" data-close>Cancelar</button
-          ><button class="primary" type="submit">Salvar lançamento</button>
+          ><button class="primary" id="saveEntry" type="submit">Salvar lançamento</button>
         </div>
       </form>
+    </dialog>
+    <dialog id="seriesScopeDialog" aria-labelledby="seriesScopeTitle">
+      <div class="modal">
+        <div class="modal-head">
+          <div><h2 id="seriesScopeTitle">Excluir recorrência</h2><p>Escolha quais ocorrências serão removidas.</p></div>
+          <button class="close" type="button" data-close-series-scope aria-label="Fechar">&times;</button>
+        </div>
+        <div class="series-scope-actions">
+          <button class="secondary" type="button" data-series-delete-scope="this">Somente esta ocorrência</button>
+          <button class="secondary" type="button" data-series-delete-scope="future">Esta e as próximas</button>
+          <button class="secondary danger" type="button" data-series-delete-scope="all">Toda a série</button>
+        </div>
+      </div>
     </dialog>
     <dialog id="simulationDialog">
       <form class="modal" id="simulationForm">
@@ -1641,10 +1757,10 @@
 
     <div class="toast" id="toast"></div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="./js/domain.js?v=2026080109"></script>
+    <script src="./js/domain.js?v=2026080110"></script>
     <script src="./js/local-store.js?v=2026080106"></script>
-    <script src="./js/supabase-repository.js?v=2026080106"></script>
+    <script src="./js/supabase-repository.js?v=2026080110"></script>
     <script src="./js/sync-service.js?v=2026080106"></script>
-    <script src="./js/app.js?v=2026080109"></script>
+    <script src="./js/app.js?v=2026080110"></script>
   </body>
 </html>
