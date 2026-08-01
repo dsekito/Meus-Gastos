@@ -48,6 +48,7 @@ const defaultTypes = [
       const domain = window.MGDomain;
       const localStore = window.MGLocalStore;
       const repository = window.MGSupabaseRepository.create(supabaseClient);
+      let entriesChannel = null;
 
       const state = {
         types: defaultTypes,
@@ -370,6 +371,51 @@ const defaultTypes = [
         }
       }
 
+      function applyRealtimeEntry(payload) {
+        const id = payload.new?.id || payload.old?.id;
+        if (!id) return;
+
+        const hasPendingLocalChange = state.syncQueue.some((operation) =>
+          operation.type === "upsert"
+            ? operation.entry.id === id
+            : operation.id === id,
+        );
+        if (hasPendingLocalChange) return;
+
+        if (payload.eventType === "DELETE") {
+          state.entries = state.entries.filter((entry) => entry.id !== id);
+        } else {
+          const index = state.entries.findIndex((entry) => entry.id === id);
+          if (index >= 0) state.entries[index] = payload.new;
+          else state.entries.push(payload.new);
+          state.types = [...new Set([...state.types, payload.new.type])].sort();
+          state.descriptions = [
+            ...new Set([...state.descriptions, payload.new.description]),
+          ].sort();
+        }
+        saveLocal();
+        render();
+      }
+
+      function stopEntrySubscription() {
+        repository.removeChannel(entriesChannel);
+        entriesChannel = null;
+      }
+
+      function subscribeToEntryChanges() {
+        if (!state.user) return;
+        stopEntrySubscription();
+        entriesChannel = repository.subscribeToEntries(
+          state.user.id,
+          applyRealtimeEntry,
+          (status) => {
+            if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+              console.warn("Atualização em tempo real indisponível; usando recarga ao abrir o app.");
+            }
+          },
+        );
+      }
+
       async function syncSettings() {
         if (!state.user) return;
         await repository.upsertSettings(
@@ -400,11 +446,18 @@ const defaultTypes = [
         if (state.user) loadLocalForUser(state.user.id);
         updateAuthArea();
         if (state.user) {
-          normalizeEntryIds();
-          await syncEntries();
-          await loadCloudEntries();
-          await loadCloudSettings();
-          setSyncStatus("synced", "Dados sincronizados");
+          try {
+            normalizeEntryIds();
+            await syncEntries();
+            await loadCloudEntries();
+            await loadCloudSettings();
+            subscribeToEntryChanges();
+            setSyncStatus("synced", "Dados sincronizados");
+          } finally {
+            // Mesmo com uma falha temporária de rede, exibe o cache local sem
+            // depender de uma interação com os filtros para renderizar a lista.
+            render();
+          }
         } else {
           setSyncStatus("idle", "Entre para sincronizar");
         }
@@ -430,6 +483,7 @@ const defaultTypes = [
           return;
         }
         if (userId) clearLocalForUser(userId);
+        stopEntrySubscription();
         clearSessionState();
         updateAuthArea();
         setSyncStatus("idle", "Entre para sincronizar");
@@ -441,6 +495,7 @@ const defaultTypes = [
         supabaseClient.auth.onAuthStateChange((event, session) => {
           if (event === "SIGNED_OUT") {
             if (state.user?.id) clearLocalForUser(state.user.id);
+            stopEntrySubscription();
             clearSessionState();
             updateAuthArea();
             return;
@@ -1279,11 +1334,6 @@ const defaultTypes = [
 
       rows.addEventListener("pointerup", () => {
         clearTimeout(pressTimer);
-        if (longPressEntryId) {
-          setTimeout(() => {
-            longPressEntryId = null;
-          }, 100);
-        }
       });
 
       rows.addEventListener("pointerleave", () => {

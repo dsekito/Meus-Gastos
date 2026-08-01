@@ -41,6 +41,24 @@
         );
         if (error) throw error;
       },
+      subscribeToEntries(userId, onChange, onStatus) {
+        return client
+          .channel(`entries:${userId}`)
+          .on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "entries",
+              filter: `user_id=eq.${userId}`,
+            },
+            onChange,
+          )
+          .subscribe(onStatus);
+      },
+      removeChannel(channel) {
+        if (channel) client.removeChannel(channel);
+      },
     };
   }
 

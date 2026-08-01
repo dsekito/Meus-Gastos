@@ -35,6 +35,21 @@ with check ((select auth.uid()) = user_id);
 grant usage on schema public to authenticated;
 grant select, insert, update, delete on public.entries to authenticated;
 
+-- Permite que dispositivos autenticados recebam atualizações dos seus lançamentos.
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'entries'
+  ) then
+    alter publication supabase_realtime add table public.entries;
+  end if;
+end;
+$$;
+
 create table if not exists public.financial_settings (
   user_id uuid primary key references auth.users(id) on delete cascade default auth.uid(),
   current_balance numeric(12,2) not null default 10000,
