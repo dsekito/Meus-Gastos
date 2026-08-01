@@ -1036,6 +1036,151 @@
           bottom: 10px;
         }
       }
+
+      /* =======================================================
+         REDESIGN 2026 — DASHBOARD COMPACTO + CLAREZA ORGÂNICA
+         Camada estritamente visual: preserva marcação, IDs e fluxos.
+      ======================================================= */
+      :root {
+        --ink: #18332a;
+        --muted: #66766f;
+        --line: #dde5e0;
+        --paper: #fffefa;
+        --bg: #f5f6f0;
+        --brand: #145c44;
+        --brand-dark: #0b3d2e;
+        --soft: #eef2df;
+        --danger: #b42318;
+        --shadow: 0 16px 40px rgba(20, 92, 68, 0.09);
+      }
+
+      body { line-height: 1.5; }
+
+      :where(button, input, select, textarea):focus-visible {
+        outline: 3px solid rgba(20, 92, 68, 0.34);
+        outline-offset: 2px;
+      }
+
+      :where(button, input, select, textarea):disabled {
+        cursor: not-allowed;
+        opacity: 0.48;
+      }
+
+      button { transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease, opacity 0.15s ease; }
+      button:active:not(:disabled) { transform: scale(0.98); }
+
+      .auth-screen { background: radial-gradient(circle at 50% 12%, #dde8d8 0, transparent 38%), var(--bg); }
+      .auth-card { border-radius: 28px; border-color: var(--line); background: var(--paper); }
+      .auth-logo, .mark { background: var(--brand); border-radius: 16px; }
+      .google-button, .auth-button, .secondary { min-height: 48px; border-color: var(--line); border-radius: 14px; background: var(--paper); }
+      .google-button:hover, .auth-button:hover, .secondary:hover { background: var(--soft); }
+
+      .shell { max-width: 1180px; padding-top: 24px; }
+      .top { margin-bottom: 24px; }
+      .primary { min-height: 48px; border-radius: 14px; background: var(--brand); box-shadow: 0 10px 22px rgba(20, 92, 68, 0.2); }
+      .primary:hover { background: var(--brand-dark); }
+
+      .summary { gap: 14px; }
+      .card { border-color: var(--line); border-radius: 20px; background: var(--paper); box-shadow: 0 5px 18px rgba(20, 92, 68, 0.045); }
+      .card.balance-card { background: var(--brand); border-color: var(--brand); }
+      .balance-card .label, .balance-card .card-note { color: #dde8d8; }
+      .amount { color: var(--ink); font-variant-numeric: tabular-nums; }
+      .amount.good { color: #16805c; }
+
+      .panel { border-color: var(--line); border-radius: 24px; background: var(--paper); box-shadow: 0 7px 24px rgba(20, 92, 68, 0.055); }
+      .calendar-panel { background: var(--soft); border-color: #dde8d8; }
+      .calendar-controls input, .filters select, .filters input, input, select, textarea { min-height: 48px; border-color: var(--line); border-radius: 12px; font-size: 16px; }
+      .calendar-nav, .icon-button, .close, .entry-menu, .date-filter button { min-width: 48px; min-height: 48px; }
+      .calendar-nav { border-color: var(--line); border-radius: 12px; }
+      .calendar-balance { padding: 12px 16px; border-radius: 18px; background: var(--paper); }
+      .calendar-day { background: var(--paper); }
+      .calendar-day.selected { background: #dde8d8; }
+      .calendar-day:hover:not(.empty-day), .calendar-nav:hover { background: #e7eddf; }
+
+      .filters { gap: 10px; }
+      .filter-subtotal { padding: 10px 14px; border-radius: 14px; background: var(--bg); }
+      .date-filter { min-height: 48px; border-color: #c7d9d0; background: #dde8d8; }
+
+      .entry { padding: 16px; border-color: var(--line); }
+      .entry:hover, .entry:active { background: var(--soft); }
+      .entry.selected { background: #dde8d8 !important; border-left-color: var(--brand); }
+      .entry-value { font-variant-numeric: tabular-nums; }
+      .entry-menu { display: inline-grid; place-items: center; margin: -12px -12px -12px 0; border-radius: 12px; }
+      .entry-menu:hover { background: var(--soft); }
+
+      dialog { border-radius: 28px; background: var(--paper); }
+      dialog::backdrop { background: rgba(24, 51, 42, 0.55); backdrop-filter: blur(3px); }
+      .close { display: inline-grid; place-items: center; border-radius: 14px; }
+      .close:hover { background: var(--soft); }
+      .modal-foot { position: sticky; bottom: 0; padding-top: 12px; background: var(--paper); }
+
+      .context-menu { border-color: var(--line); border-radius: 18px; background: var(--paper); }
+      .context-menu button { min-height: 48px; background: var(--paper); font-size: 16px; }
+      .context-menu button:hover { background: var(--soft); }
+      .toast { border-radius: 16px; background: var(--ink); }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+      }
+
+      @media (max-width: 768px) {
+        .shell { padding: 0 16px 112px; }
+        .top {
+          margin: 0 -16px 20px;
+          padding: 12px 16px;
+          border-color: var(--line);
+          background: rgba(255, 254, 250, 0.97);
+          box-shadow: 0 6px 22px rgba(20, 92, 68, 0.07);
+        }
+        .mark { width: 44px; height: 44px; }
+        .auth-button { min-width: 48px; min-height: 48px; }
+        .sync-status { min-width: 12px; min-height: 12px; }
+
+        .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .summary .balance-card { grid-column: 1 / -1; padding: 22px; border-radius: 24px; }
+        .summary .paid-summary-card { display: block; }
+        .summary .card:not(.balance-card) { padding: 16px; }
+        .summary .card .label { min-height: 36px; font-size: 13px; }
+        .summary .amount { font-size: clamp(18px, 5.2vw, 22px); letter-spacing: -0.04em; }
+        .summary .balance-card .amount { font-size: 32px; }
+
+        .panel { border-radius: 24px; }
+        .panel-head { padding: 18px 16px 14px; }
+        .filters { padding: 0 16px 16px; }
+        .filters > * { flex-basis: 135px; }
+        .filter-subtotal { flex-basis: 100%; }
+
+        .calendar-head { padding: 18px 16px 14px; }
+        .calendar-toggle { min-height: 48px; align-items: center; }
+        .calendar-panel.compact .calendar-balance { padding: 16px; border-radius: 18px; background: var(--paper); }
+        .calendar-nav { width: 48px; height: 48px; }
+
+        .entry { padding: 16px; }
+        .entry-title, .entry-value { font-size: 16px; }
+        .entry-description { font-size: 14px; }
+        .status-button { min-height: 48px; padding: 0 4px; }
+
+        .mobile-new-entry {
+          min-height: 58px;
+          right: 16px;
+          bottom: max(20px, env(safe-area-inset-bottom));
+          padding: 14px 22px;
+          border-radius: 18px;
+          box-shadow: 0 14px 28px rgba(20, 92, 68, 0.28);
+        }
+
+        dialog { width: 100%; max-height: 92dvh; margin: auto 0 0; border-radius: 28px 28px 0 0; }
+        dialog .modal { max-height: 92dvh; padding: 20px 16px max(20px, env(safe-area-inset-bottom)); }
+        .modal-head { margin-bottom: 20px; }
+        .modal h2 { font-size: 21px; }
+        .modal p, label { font-size: 13px; }
+        .modal-foot { gap: 10px; }
+        .modal-foot button { min-height: 52px; }
+
+        .context-menu { right: 0; bottom: 0; left: 0; top: auto !important; width: 100%; border-radius: 24px 24px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+        .context-menu button { min-height: 56px; padding: 14px 20px; }
+        .toast { bottom: calc(92px + env(safe-area-inset-bottom)); left: 16px; right: 16px; }
+      }
     </style>
   </head>
   <body>
