@@ -1234,6 +1234,13 @@ const defaultTypes = [
       }
 
       function openContextMenu(button, id) {
+        const isSameOpenEntry =
+          state.activeEntry === id && !contextMenu.classList.contains("hidden");
+        if (isSameOpenEntry) {
+          closeContextMenu();
+          return;
+        }
+
         state.activeEntry = id;
         const rect = button.getBoundingClientRect();
         const viewportMargin = 8;
@@ -1273,6 +1280,7 @@ const defaultTypes = [
 
       function closeContextMenu() {
         contextMenu.classList.add("hidden");
+        contextMenu.style.visibility = "";
       }
 
       function handleMenuAction(action) {
@@ -1280,9 +1288,6 @@ const defaultTypes = [
         switch (action) {
           case "edit":
             editEntry();
-            break;
-          case "toggle-status":
-            toggleEntryStatus();
             break;
           case "delete":
             deleteEntry();
@@ -1692,6 +1697,20 @@ const defaultTypes = [
         if (!button) return;
         handleMenuAction(button.dataset.action);
       };
+
+      document.addEventListener("pointerdown", (event) => {
+        if (contextMenu.classList.contains("hidden")) return;
+        if (contextMenu.contains(event.target)) return;
+        if (event.target.closest(".entry-menu")) return;
+        closeContextMenu();
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") closeContextMenu();
+      });
+
+      window.addEventListener("resize", closeContextMenu);
+      window.addEventListener("scroll", closeContextMenu, true);
 
       calendarGrid.onclick = (event) => {
         const day = event.target.closest("[data-calendar-date]");
