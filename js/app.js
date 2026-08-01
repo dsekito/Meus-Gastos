@@ -1036,9 +1036,39 @@ const defaultTypes = [
       function openContextMenu(button, id) {
         state.activeEntry = id;
         const rect = button.getBoundingClientRect();
-        contextMenu.style.left = `${Math.min(rect.right - 220, window.innerWidth - 230)}px`;
-        contextMenu.style.top = `${rect.bottom + 6}px`;
+        const viewportMargin = 8;
+        const menuGap = 6;
+
+        // Exibe de forma invisível para medir o tamanho real antes de posicionar.
+        contextMenu.style.visibility = "hidden";
         contextMenu.classList.remove("hidden");
+        const menuRect = contextMenu.getBoundingClientRect();
+        const maxLeft = Math.max(
+          viewportMargin,
+          window.innerWidth - menuRect.width - viewportMargin,
+        );
+        const left = Math.max(
+          viewportMargin,
+          Math.min(rect.right - menuRect.width, maxLeft),
+        );
+        const fitsBelow =
+          rect.bottom + menuGap + menuRect.height + viewportMargin <=
+          window.innerHeight;
+        const preferredTop = fitsBelow
+          ? rect.bottom + menuGap
+          : rect.top - menuRect.height - menuGap;
+        const maxTop = Math.max(
+          viewportMargin,
+          window.innerHeight - menuRect.height - viewportMargin,
+        );
+        const top = Math.max(
+          viewportMargin,
+          Math.min(preferredTop, maxTop),
+        );
+
+        contextMenu.style.left = `${left}px`;
+        contextMenu.style.top = `${top}px`;
+        contextMenu.style.visibility = "";
       }
 
       function closeContextMenu() {
@@ -1319,11 +1349,23 @@ const defaultTypes = [
 
       let pressTimer = null;
       let longPressEntryId = null;
+      let pressPointerId = null;
+      let pressStartX = 0;
+      let pressStartY = 0;
+      const longPressMoveTolerance = 12;
+
+      function cancelLongPress() {
+        clearTimeout(pressTimer);
+        pressTimer = null;
+        pressPointerId = null;
+      }
 
       rows.addEventListener("pointerdown", (e) => {
         const card = e.target.closest("[data-entry]");
 
         if (!card) return;
+
+        if (!e.isPrimary || e.button !== 0) return;
 
         if (e.target.closest(".entry-menu")) return;
 
@@ -1331,22 +1373,39 @@ const defaultTypes = [
 
         if (state.selectionMode) return;
 
+        cancelLongPress();
+        longPressEntryId = null;
+        pressPointerId = e.pointerId;
+        pressStartX = e.clientX;
+        pressStartY = e.clientY;
+
         pressTimer = setTimeout(() => {
+          pressTimer = null;
+          pressPointerId = null;
           longPressEntryId = card.dataset.entry;
           enterSelectionMode(longPressEntryId);
         }, 500);
       });
 
-      rows.addEventListener("pointerup", () => {
-        clearTimeout(pressTimer);
+      rows.addEventListener("pointermove", (e) => {
+        if (pressTimer === null || e.pointerId !== pressPointerId) return;
+        const distance = Math.hypot(
+          e.clientX - pressStartX,
+          e.clientY - pressStartY,
+        );
+        if (distance > longPressMoveTolerance) cancelLongPress();
       });
 
-      rows.addEventListener("pointerleave", () => {
-        clearTimeout(pressTimer);
+      rows.addEventListener("pointerup", (e) => {
+        if (e.pointerId === pressPointerId) cancelLongPress();
       });
 
-      rows.addEventListener("pointercancel", () => {
-        clearTimeout(pressTimer);
+      rows.addEventListener("pointerleave", (e) => {
+        if (e.pointerId === pressPointerId) cancelLongPress();
+      });
+
+      rows.addEventListener("pointercancel", (e) => {
+        if (e.pointerId === pressPointerId) cancelLongPress();
       });
 
       rows.addEventListener("click", (e) => {
