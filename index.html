@@ -469,6 +469,8 @@
         padding: 0;
         border-radius: 18px;
         width: min(700px, calc(100% - 32px));
+        max-height: calc(100dvh - 32px);
+        margin: auto;
         box-shadow: 0 25px 80px rgba(16, 42, 67, 0.3);
       }
       dialog::backdrop {
@@ -476,6 +478,9 @@
       }
       .modal {
         padding: 22px;
+      }
+      .mobile-new-entry {
+        display: none;
       }
       .modal-head {
         display: flex;
@@ -771,7 +776,8 @@
 
         dialog {
           width: calc(100% - 16px);
-          margin: 8px;
+          max-height: calc(100dvh - 24px);
+          margin: auto;
           border-radius: 14px;
         }
 
@@ -863,7 +869,14 @@
         .settings-button .button-label,
         #signOut .button-label { display: none; }
 
-        #openModal {
+        .top #openModal {
+          display: none;
+        }
+
+        .mobile-new-entry {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
           position: fixed;
           z-index: 30;
           right: 16px;
@@ -873,6 +886,12 @@
           padding: 14px 18px;
           border-radius: 999px;
           box-shadow: 0 12px 24px rgba(18, 107, 91, 0.32);
+        }
+
+        dialog .modal {
+          max-height: calc(100dvh - 24px);
+          overflow-y: auto;
+          overscroll-behavior: contain;
         }
 
         .summary {
@@ -1105,6 +1124,7 @@
         <div class="entries" id="rows"></div>
       </section>
     </main>
+    <button class="primary mobile-new-entry" id="openModalMobile" type="button"><span aria-hidden="true">＋</span> Novo lançamento</button>
     <dialog id="entryDialog">
       <form class="modal" id="entryForm">
         <div class="modal-head">
@@ -1358,6 +1378,7 @@
         dateFilterLabel = document.querySelector("#dateFilterLabel"),
         clearDateFilter = document.querySelector("#clearDateFilter"),
         openModal = document.querySelector("#openModal"),
+        openModalMobile = document.querySelector("#openModalMobile"),
         rows = document.querySelector("#rows"),
         contextMenu = document.querySelector("#contextMenu"),
         authArea = document.querySelector("#authArea"),
@@ -2358,6 +2379,7 @@
       }
 
       openModal.onclick = openNew;
+      openModalMobile.onclick = openNew;
       openSettings.onclick = openSettingsDialog;
       document
         .querySelectorAll("[data-close]")
