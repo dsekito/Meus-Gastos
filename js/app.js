@@ -40,10 +40,17 @@ const defaultTypes = [
       const SUPABASE_URL = "https://gluyucuvvvfkztzjhbyj.supabase.co";
       const SUPABASE_PUBLISHABLE_KEY =
         "sb_publishable_KPlZr5eXf58-6-O89Gqr0A_OKIkj_Me";
-      const APP_URL = "https://dsekito.github.io/Meus-Gastos/";
+      const APP_URL = "https://meus-gastos-5ag.pages.dev/";
       const supabaseClient = window.supabase.createClient(
         SUPABASE_URL,
         SUPABASE_PUBLISHABLE_KEY,
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+            detectSessionInUrl: true,
+          },
+        },
       );
       const domain = window.MGDomain;
       const localStore = window.MGLocalStore;
@@ -226,20 +233,8 @@ const defaultTypes = [
         }
       };
 
-      function storageKey(name, userId = state.user?.id) {
-        return localStore.key(name, userId);
-      }
-
-      function readLocal(name, fallback) {
-        return localStore.read(name, state.user?.id, fallback);
-      }
-
       function saveLocal() {
-        localStore.save(state.user?.id, state);
-      }
-
-      function clearLocalForUser(userId) {
-        localStore.clear(userId);
+        // Não persistimos lançamentos, configurações ou fila de sincronização no navegador.
       }
 
       function clearSessionState() {
@@ -257,40 +252,9 @@ const defaultTypes = [
         };
       }
 
-      function loadLocalForUser(userId) {
-        state.types = readLocal("types", defaultTypes);
-        state.descriptions = readLocal("desc", defaultDescriptions);
-        state.entries = readLocal("entries", []);
-        state.settings = readLocal("settings", {
-          current_balance: 10000,
-          balance_reference_date: todayISO(),
-          income_day_15: 9365.96,
-          income_last_business_day: 8011.84,
-        });
-        state.syncQueue = readLocal("sync-queue", []);
-
-        const legacyUserId = localStorage.getItem("mg-user-id");
-        if (!state.entries.length && (!legacyUserId || legacyUserId === userId)) {
-          try {
-            const legacyEntries = JSON.parse(localStorage.getItem("mg-entries") || "[]");
-            if (legacyEntries.length) {
-              state.entries = legacyEntries;
-              state.types = JSON.parse(localStorage.getItem("mg-types") || "null") || defaultTypes;
-              state.descriptions = JSON.parse(localStorage.getItem("mg-desc") || "null") || defaultDescriptions;
-              state.settings = JSON.parse(localStorage.getItem("mg-settings") || "null") || state.settings;
-              state.syncQueue = legacyEntries.map((entry) => ({ type: "upsert", entry }));
-              saveLocal();
-              ["mg-types", "mg-desc", "mg-entries", "mg-settings", "mg-user-id"].forEach((key) =>
-                localStorage.removeItem(key),
-              );
-            }
-          } catch (error) {
-            console.warn("Não foi possível migrar o cache anterior.", error);
-          }
-        }
-        state.deletedEntryIds = new Set(
-          state.syncQueue.filter((operation) => operation.type === "delete").map((operation) => operation.id),
-        );
+      function resetStateForUser(user) {
+        clearSessionState();
+        state.user = user;
       }
 
       function queueUpsert(entry) {
@@ -443,7 +407,7 @@ const defaultTypes = [
       async function setCurrentUser(user) {
         if (state.user?.id === user?.id) return;
         state.user = user || null;
-        if (state.user) loadLocalForUser(state.user.id);
+        if (state.user) resetStateForUser(state.user);
         updateAuthArea();
         if (state.user) {
           let hasPendingSync = false;
@@ -485,13 +449,11 @@ const defaultTypes = [
       }
 
       async function signOut() {
-        const userId = state.user?.id;
         const { error } = await supabaseClient.auth.signOut();
         if (error) {
           show(`Não foi possível sair: ${error.message}`);
           return;
         }
-        if (userId) clearLocalForUser(userId);
         stopEntrySubscription();
         clearSessionState();
         updateAuthArea();
@@ -503,7 +465,6 @@ const defaultTypes = [
         updateAuthArea();
         supabaseClient.auth.onAuthStateChange((event, session) => {
           if (event === "SIGNED_OUT") {
-            if (state.user?.id) clearLocalForUser(state.user.id);
             stopEntrySubscription();
             clearSessionState();
             updateAuthArea();
@@ -1428,27 +1389,9 @@ const defaultTypes = [
       };
 
       async function startApp() {
+        localStore.clearLegacyCache();
         render();
         await initializeAuth();
-        window.MEUS_GASTOS_IMPORT?.then((entries) => {
-          if (state.user || localStorage.getItem("mg-imported") === "1") return;
-          state.entries = entries;
-          state.types = [
-            ...new Set([...state.types, ...entries.map((e) => e.type)]),
-          ].sort();
-          state.descriptions = [
-            ...new Set([
-              ...state.descriptions,
-              ...entries.map((e) => e.description),
-            ]),
-          ].sort();
-          localStorage.setItem("mg-imported", "1");
-          save();
-          render();
-          show(`${entries.length} registros importados.`);
-        }).catch(() =>
-          show("Não foi possível carregar os registros importados."),
-        );
       }
 
       startApp();
