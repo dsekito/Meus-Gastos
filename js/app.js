@@ -840,11 +840,11 @@ const defaultTypes = [
             minimumBalanceDate = date;
           }
           cells.push(`
-            <button class="calendar-day ${date === state.selectedCalendarDate ? "selected" : ""} ${income ? "has-income" : ""} ${costs ? "has-cost" : ""} ${projected < 0 ? "balance-negative" : "balance-positive"}" data-calendar-date="${date}" type="button">
+            <button class="calendar-day ${date === state.selectedCalendarDate ? "selected" : ""} ${income ? "has-income" : ""} ${costs ? "has-cost" : ""} ${projected < 0 ? "balance-negative" : "balance-positive"}" data-calendar-date="${date}" type="button" aria-label="Dia ${day}: saldo ${calendarMoney(projected)}, entrada ${calendarMoney(income)}, saída ${calendarMoney(costs)}">
               <span class="calendar-date">${day}</span>
-              ${income ? `<span class="calendar-income">+ ${calendarMoney(income)}</span>` : ""}
-              ${costs ? `<span class="calendar-cost">Gastos ${calendarMoney(costs)}</span>` : ""}
-              <span class="calendar-projection">${calendarMoney(projected)}</span>
+              <span class="calendar-metric calendar-projection"><span class="calendar-metric-label">Saldo</span><span class="calendar-metric-value">${calendarMoney(projected)}</span></span>
+              <span class="calendar-metric calendar-income"><span class="calendar-metric-label">Entrada</span><span class="calendar-metric-value">${calendarMoney(income)}</span></span>
+              <span class="calendar-metric calendar-cost"><span class="calendar-metric-label">Saída</span><span class="calendar-metric-value">${calendarMoney(costs)}</span></span>
             </button>
           `);
         }

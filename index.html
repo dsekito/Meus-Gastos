@@ -377,6 +377,7 @@
         border-right: 1px solid var(--line);
         background: #fff;
         cursor: pointer;
+        text-align: left;
       }
       .calendar-day:nth-child(7n) { border-right: 0; }
       .calendar-day.empty-day { background: #fbfcfe; cursor: default; }
@@ -384,15 +385,35 @@
       .calendar-day:hover:not(.empty-day) { background: #f1f7f5; }
       .calendar-day.balance-positive { box-shadow: inset 0 3px 0 #16a34a; }
       .calendar-day.balance-negative { box-shadow: inset 0 3px 0 var(--danger); }
-      .calendar-date { font-weight: 700; font-size: 13px; }
-      .calendar-income, .calendar-cost, .calendar-projection {
+      .calendar-date {
+        display: block;
+        margin-bottom: 8px;
+        padding-bottom: 7px;
+        border-bottom: 1px solid var(--line);
+        font-weight: 700;
+        font-size: 13px;
+      }
+      .calendar-metric {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 4px;
+        min-width: 0;
         margin-top: 5px;
         font-size: 11px;
         line-height: 1.25;
       }
+      .calendar-metric-label { color: var(--muted); font-weight: 600; }
+      .calendar-metric-value {
+        min-width: 0;
+        overflow: hidden;
+        font-weight: 700;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
       .calendar-income { color: var(--brand); }
       .calendar-cost { color: #b54708; }
-      .calendar-projection { color: var(--ink); font-weight: 700; }
+      .calendar-projection { color: var(--ink); }
       .calendar-day.balance-positive .calendar-projection { color: #15803d; }
       .calendar-day.balance-negative .calendar-projection { color: var(--danger); }
       .calendar-toggle {
@@ -1010,29 +1031,18 @@
           padding: 6px 4px;
         }
 
-        .calendar-date { font-size: 12px; }
-        .calendar-income, .calendar-cost { display: none; }
-        .calendar-projection {
-          margin-top: 7px;
-          font-size: 9px;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
+        .calendar-date {
+          margin-bottom: 5px;
+          padding-bottom: 4px;
+          font-size: 12px;
         }
-
-        .calendar-day.has-income .calendar-date::after,
-        .calendar-day.has-cost .calendar-date::after {
-          display: inline-block;
-          width: 5px;
-          height: 5px;
-          margin-left: 3px;
-          border-radius: 50%;
-          background: #b54708;
-          content: "";
-          vertical-align: middle;
+        .calendar-metric {
+          display: block;
+          margin-top: 4px;
+          font-size: 8px;
         }
-
-        .calendar-day.has-income .calendar-date::after { background: var(--brand); }
+        .calendar-metric-label,
+        .calendar-metric-value { display: block; }
 
         .modal {
           padding: 14px;
