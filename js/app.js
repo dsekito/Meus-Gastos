@@ -46,7 +46,7 @@ const defaultTypes = [
         SUPABASE_PUBLISHABLE_KEY,
         {
           auth: {
-            autoRefreshToken: false,
+            autoRefreshToken: true,
             persistSession: false,
             detectSessionInUrl: true,
           },
@@ -57,19 +57,25 @@ const defaultTypes = [
       const repository = window.MGSupabaseRepository.create(supabaseClient);
       let entriesChannel = null;
 
-      const state = {
-        types: defaultTypes,
+      function createDefaultSettings() {
+        return {
+          current_balance: 10000,
+          balance_reference_date: todayISO(),
+          income_day_15: 9365.96,
+          income_last_business_day: 8011.84,
+        };
+      }
 
-        descriptions: defaultDescriptions,
+      const state = {
+        types: [...defaultTypes],
+
+        descriptions: [...defaultDescriptions],
 
         entries: [],
 
-        settings: {
-            current_balance: 10000,
-            balance_reference_date: todayISO(),
-            income_day_15: 9365.96,
-            income_last_business_day: 8011.84,
-          },
+        settings: createDefaultSettings(),
+
+        settingsDirty: false,
 
         selectedCalendarDate: null,
 
@@ -242,14 +248,17 @@ const defaultTypes = [
         state.entries = [];
         state.syncQueue = [];
         state.deletedEntryIds = new Set();
-        state.types = defaultTypes;
-        state.descriptions = defaultDescriptions;
-        state.settings = {
-          current_balance: 10000,
-          balance_reference_date: todayISO(),
-          income_day_15: 9365.96,
-          income_last_business_day: 8011.84,
-        };
+        state.types = [...defaultTypes];
+        state.descriptions = [...defaultDescriptions];
+        state.settings = createDefaultSettings();
+        state.settingsDirty = false;
+        state.selectedCalendarDate = null;
+        state.filterDate = null;
+        state.calendarExpanded = false;
+        state.activeEntry = null;
+        state.editingId = null;
+        state.selectionMode = false;
+        state.selectedEntries = new Set();
       }
 
       function resetStateForUser(user) {
@@ -270,17 +279,34 @@ const defaultTypes = [
         setSyncStatus("syncing", "Sincronizando alterações...");
         try {
           await syncEntries();
-          await syncSettings();
+          if (state.settingsDirty) {
+            await syncSettings();
+            state.settingsDirty = false;
+          }
           setSyncStatus("synced", "Alterações sincronizadas");
           return true;
         } catch (error) {
           console.error(error);
           setSyncStatus("pending", "Sincronização pendente");
           show(
-            "Alteração salva neste aparelho. A sincronização será tentada novamente.",
+            "Alteração ainda não foi sincronizada. Mantenha esta página aberta.",
           );
           return false;
         }
+      }
+
+      function hasPendingChanges() {
+        return state.syncQueue.length > 0 || state.settingsDirty;
+      }
+
+      async function retryPendingSynchronization() {
+        if (!state.user || !hasPendingChanges()) return true;
+        const synced = await save();
+        if (synced) {
+          render();
+          show("Alterações pendentes foram sincronizadas.");
+        }
+        return synced;
       }
 
       function updateAuthArea() {
@@ -309,30 +335,27 @@ const defaultTypes = [
       async function loadCloudEntries() {
         setSyncStatus("syncing", "Carregando seus lançamentos...");
         const data = await fetchAllCloudEntries();
+        const entriesById = new Map(data.map((entry) => [entry.id, entry]));
 
-        if (data.length) {
-          state.entries = data;
-          state.types = [
-            ...new Set([...state.types, ...data.map((entry) => entry.type)]),
-          ].sort();
-          state.descriptions = [
-            ...new Set([
-              ...state.descriptions,
-              ...data.map((entry) => entry.description),
-            ]),
-          ].sort();
-          saveLocal();
-          render();
-          show("Lançamentos sincronizados.");
-          return;
+        for (const operation of state.syncQueue) {
+          if (operation.type === "delete") {
+            entriesById.delete(operation.id);
+          } else {
+            entriesById.set(operation.entry.id, operation.entry);
+          }
         }
 
-        if (state.entries.length) {
-          state.entries.forEach(queueUpsert);
-          await syncEntries();
-          render();
-          show("Lançamentos deste aparelho foram enviados para sua conta.");
-        }
+        state.entries = [...entriesById.values()];
+        state.types = [
+          ...new Set([...state.types, ...state.entries.map((entry) => entry.type)]),
+        ].sort();
+        state.descriptions = [
+          ...new Set([
+            ...state.descriptions,
+            ...state.entries.map((entry) => entry.description),
+          ]),
+        ].sort();
+        render();
       }
 
       function applyRealtimeEntry(payload) {
@@ -398,8 +421,10 @@ const defaultTypes = [
           };
           state.types = [...new Set([...defaultTypes, ...(data.types || [])])].sort();
           state.descriptions = [...new Set([...defaultDescriptions, ...(data.descriptions || [])])].sort();
+          state.settingsDirty = false;
         } else {
           await syncSettings();
+          state.settingsDirty = false;
         }
         saveLocal();
         render();
@@ -427,8 +452,7 @@ const defaultTypes = [
             subscribeToEntryChanges();
             if (!hasPendingSync) setSyncStatus("synced", "Dados sincronizados");
           } finally {
-            // Mesmo com uma falha temporária de rede, exibe o cache local sem
-            // depender de uma interação com os filtros para renderizar a lista.
+            // Mesmo com falha temporária de rede, a tela continua responsiva.
             render();
           }
         } else {
@@ -494,7 +518,19 @@ const defaultTypes = [
 
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState !== "visible" || !state.user) return;
-        loadCloudEntries().catch((error) => console.error(error));
+        retryPendingSynchronization()
+          .then(() => loadCloudEntries())
+          .catch((error) => console.error(error));
+      });
+
+      window.addEventListener("online", () => {
+        retryPendingSynchronization().catch((error) => console.error(error));
+      });
+
+      window.addEventListener("beforeunload", (event) => {
+        if (!state.user || !hasPendingChanges()) return;
+        event.preventDefault();
+        event.returnValue = "";
       });
       function fill(select, values, placeholder) {
         select.innerHTML =
@@ -942,7 +978,10 @@ const defaultTypes = [
         const value = prompt(`Digite a ${label}:`);
         if (value && value.trim()) {
           const clean = value.trim().toUpperCase();
-          if (!state[key].includes(clean)) state[key].push(clean);
+          if (!state[key].includes(clean)) {
+            state[key] = [...state[key], clean];
+            state.settingsDirty = true;
+          }
           save();
           fill(select, state[key], "Selecione");
           select.value = clean;
@@ -1267,19 +1306,12 @@ const defaultTypes = [
           income_day_15: Number(incomeDay15Input.value),
           income_last_business_day: Number(incomeLastBusinessDayInput.value),
         };
-        saveLocal();
-        setSyncStatus("syncing", "Sincronizando configurações...");
-        try {
-          await syncSettings();
-          setSyncStatus("synced", "Configurações sincronizadas");
-          settingsDialog.close();
-          render();
-          show("Configurações financeiras sincronizadas.");
-        } catch (error) {
-          console.error(error);
-          setSyncStatus("pending", "Sincronização pendente");
-          show("Não foi possível sincronizar as configurações.");
-        }
+        state.settingsDirty = true;
+        const synced = await save();
+        if (!synced) return;
+        settingsDialog.close();
+        render();
+        show("Configurações financeiras sincronizadas.");
       };
 
       let pressTimer = null;
@@ -1384,7 +1416,7 @@ const defaultTypes = [
             ? editing
               ? "Lançamento atualizado e sincronizado."
               : "Lançamento salvo e sincronizado."
-            : "Lançamento salvo neste aparelho; sincronização pendente.",
+            : "Lançamento aguardando sincronização. Não feche esta página.",
         );
       };
 
