@@ -220,6 +220,10 @@ const defaultTypes = [
         previousMonth = document.querySelector("#previousMonth"),
         nextMonth = document.querySelector("#nextMonth"),
         seriesScopeDialog = document.querySelector("#seriesScopeDialog"),
+        bulkDateDialog = document.querySelector("#bulkDateDialog"),
+        bulkDateForm = document.querySelector("#bulkDateForm"),
+        bulkDateInput = document.querySelector("#bulkDate"),
+        saveBulkDate = document.querySelector("#saveBulkDate"),
         saveEntry = document.querySelector("#saveEntry"),
         syncStatus = document.querySelector("#syncStatus");
 
@@ -247,6 +251,11 @@ const defaultTypes = [
 
         if (e.target.closest("#deleteSelection")) {
           deleteSelectedEntries();
+          return;
+        }
+
+        if (e.target.closest("#editDateSelection")) {
+          openBulkDateDialog();
           return;
         }
 
@@ -436,6 +445,7 @@ const defaultTypes = [
         for (const series of state.recurrenceSeries) {
           await materializeRecurrenceSeries(series);
         }
+
       }
 
       function applyRealtimeEntry(payload) {
@@ -861,6 +871,8 @@ const defaultTypes = [
               <button
                   id="exitSelection"
                   class="icon-button"
+                  type="button"
+                  aria-label="Cancelar seleção"
                   title="Cancelar seleção">
                   ←
               </button>
@@ -872,6 +884,8 @@ const defaultTypes = [
                               <button
                                   id="selectAll"
                                   class="icon-button"
+                                  type="button"
+                                  aria-label="Desmarcar todos os lançamentos"
                                   title="Desmarcar todos">
                                   ☒
                               </button>
@@ -880,6 +894,8 @@ const defaultTypes = [
                               <button
                                   id="selectAll"
                                   class="icon-button"
+                                  type="button"
+                                  aria-label="Selecionar todos os lançamentos filtrados"
                                   title="Selecionar todos">
                                   ☑
                               </button>
@@ -893,6 +909,8 @@ const defaultTypes = [
                       <button
                           id="markPaidSelection"
                           class="icon-button"
+                          type="button"
+                          aria-label="Marcar selecionados como pagos"
                           title="Marcar como pago">
                           ✔
                       </button>
@@ -901,6 +919,8 @@ const defaultTypes = [
                       <button
                           id="markPendingSelection"
                           class="icon-button"
+                          type="button"
+                          aria-label="Marcar selecionados como pendentes"
                           title="Marcar como pendente">
                           ↺
                       </button>
@@ -908,8 +928,19 @@ const defaultTypes = [
                   }
 
                   <button
+                      id="editDateSelection"
+                      class="icon-button"
+                      type="button"
+                      aria-label="Alterar data dos selecionados"
+                      title="Alterar data dos selecionados">
+                      <span aria-hidden="true">📅</span>
+                  </button>
+
+                  <button
                       id="deleteSelection"
                       class="icon-button"
+                      type="button"
+                      aria-label="Excluir selecionados"
                       title="Excluir selecionados">
                       🗑
                   </button>
@@ -1008,6 +1039,34 @@ const defaultTypes = [
 
       function isRecurringValue(value = recurrence.value) {
         return ["weekly", "monthly", "annual", "custom"].includes(value);
+      }
+
+      function openBulkDateDialog() {
+        if (state.selectedEntries.size === 0) return;
+        bulkDateInput.value = todayISO();
+        bulkDateDialog.showModal();
+        bulkDateInput.focus();
+      }
+
+      async function changeSelectedDate(newDate) {
+        let changed = 0;
+
+        for (const entry of state.entries) {
+          if (!state.selectedEntries.has(entry.id) || entry.date === newDate) continue;
+          entry.date = newDate;
+          if (entry.series_id) entry.detached_from_series = true;
+          queueUpsert(entry);
+          changed++;
+        }
+
+        if (changed > 0) await save();
+        bulkDateDialog.close();
+        exitSelectionMode();
+        show(
+          changed === 0
+            ? "Os lançamentos selecionados já estavam nessa data."
+            : `Data de ${changed} lançamento${changed !== 1 ? "s" : ""} alterada.`,
+        );
       }
 
       function recurrenceUnitLabel() {
@@ -1559,6 +1618,23 @@ const defaultTypes = [
       document
         .querySelectorAll("[data-close-series-scope]")
         .forEach((button) => (button.onclick = () => seriesScopeDialog.close()));
+      document
+        .querySelectorAll("[data-close-bulk-date]")
+        .forEach((button) => (button.onclick = () => bulkDateDialog.close()));
+      bulkDateForm.onsubmit = async (event) => {
+        event.preventDefault();
+        if (!bulkDateForm.reportValidity()) return;
+        saveBulkDate.disabled = true;
+        saveBulkDate.setAttribute("aria-busy", "true");
+        saveBulkDate.textContent = "Alterando…";
+        try {
+          await changeSelectedDate(bulkDateInput.value);
+        } finally {
+          saveBulkDate.disabled = false;
+          saveBulkDate.removeAttribute("aria-busy");
+          saveBulkDate.textContent = "Alterar data";
+        }
+      };
       seriesScopeDialog.onclick = async (event) => {
         const button = event.target.closest("[data-series-delete-scope]");
         if (!button) return;

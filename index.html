@@ -461,6 +461,8 @@
         font-weight: 700;
       }
       .icon-button {
+        min-width: 48px;
+        min-height: 48px;
         border: 0;
         background: none;
         cursor: pointer;
@@ -1682,6 +1684,27 @@
         </div>
       </div>
     </dialog>
+    <dialog id="bulkDateDialog" aria-labelledby="bulkDateTitle">
+      <form class="modal" id="bulkDateForm">
+        <div class="modal-head">
+          <div>
+            <h2 id="bulkDateTitle">Alterar data</h2>
+            <p id="bulkDateDescription">Escolha a nova data dos lançamentos selecionados.</p>
+          </div>
+          <button class="close" type="button" data-close-bulk-date aria-label="Fechar alteração de data">&times;</button>
+        </div>
+        <div class="form-grid">
+          <div class="field wide">
+            <label for="bulkDate">Nova data</label>
+            <input id="bulkDate" type="date" required aria-describedby="bulkDateDescription" />
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="secondary" type="button" data-close-bulk-date>Cancelar</button>
+          <button class="primary" id="saveBulkDate" type="submit">Alterar data</button>
+        </div>
+      </form>
+    </dialog>
     <dialog id="settingsDialog">
       <form class="modal" id="settingsForm">
         <div class="modal-head"><div><h2>Configurações financeiras</h2><p>Defina o saldo e os recebimentos usados na projeção.</p></div><button class="close" type="button" data-close-settings>&times;</button></div>
@@ -1706,6 +1729,6 @@
     <script src="./js/local-store.js?v=2026080106"></script>
     <script src="./js/supabase-repository.js?v=2026080110"></script>
     <script src="./js/sync-service.js?v=2026080106"></script>
-    <script src="./js/app.js?v=2026080110"></script>
+    <script src="./js/app.js?v=2026080111"></script>
   </body>
 </html>
