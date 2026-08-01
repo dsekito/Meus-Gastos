@@ -739,36 +739,6 @@
         color: var(--danger);
       }
 
-      .radar-panel { margin-bottom: 14px; padding: 10px 12px; border: 1px solid #cfe0d8; border-radius: 16px; background: var(--paper); box-shadow: 0 6px 18px rgba(16, 42, 67, 0.05); }
-      .radar-head, .radar-status, .radar-actions, .simulation-comparison { display: flex; align-items: center; }
-      .radar-head { width: 100%; min-height: 48px; justify-content: space-between; gap: 12px; padding: 0 4px; border: 0; border-radius: 12px; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
-      .radar-head:hover { background: var(--soft); }
-      .radar-head:focus-visible { outline: 3px solid rgba(20, 92, 68, 0.34); outline-offset: 2px; }
-      .radar-title { display: flex; min-width: 0; align-items: center; gap: 9px; }
-      .radar-icon { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; border-radius: 11px; background: var(--soft); color: var(--brand); font-size: 17px; }
-      .radar-heading { display: block; margin: 0; font-size: 16px; line-height: 1.2; font-weight: 700; }
-      .radar-title p { margin: 2px 0 0; color: var(--muted); font-size: 11px; line-height: 1.2; }
-      .radar-head .entry-chevron { flex: 0 0 28px; text-align: center; }
-      .radar-head[aria-expanded="true"] .entry-chevron { transform: rotate(180deg); }
-      #radarDetails[hidden] { display: none; }
-      .radar-status { gap: 8px; margin-top: 6px; padding: 7px 10px; border-radius: 10px; background: var(--soft); color: var(--brand-dark); font-size: 12px; line-height: 1.25; font-weight: 700; }
-      .radar-status.risk { background: #fef3f2; color: var(--danger); }
-      .radar-grid { display: grid; margin-top: 6px; }
-      .radar-metric { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 10px; background: var(--bg); }
-      .radar-metric span { color: var(--muted); font-size: 12px; line-height: 1.25; }
-      .radar-metric strong { margin-left: auto; font-size: 16px; letter-spacing: -0.03em; white-space: nowrap; }
-      .radar-metric small { color: var(--muted); font-size: 11px; white-space: nowrap; }
-      .radar-actions { justify-content: flex-end; margin-top: 6px; }
-      .radar-simulate { min-height: 48px; box-shadow: none; }
-      .simulation-result { margin-top: 18px; padding: 16px; border-radius: 16px; background: var(--soft); }
-      .simulation-comparison { justify-content: space-between; gap: 12px; }
-      .simulation-comparison div { flex: 1; }
-      .simulation-comparison span { display: block; color: var(--muted); font-size: 12px; }
-      .simulation-comparison strong { display: block; margin-top: 4px; font-size: 18px; }
-      .simulation-arrow { flex: 0 !important; color: var(--brand); font-size: 20px; }
-      .simulation-message { margin: 14px 0 0; color: var(--brand-dark); font-size: 13px; font-weight: 700; }
-      .simulation-message.risk { color: var(--danger); }
-
       /* =======================================================
        TABLET
     ======================================================= */
@@ -810,9 +780,6 @@
         .summary {
           grid-template-columns: 1fr;
         }
-
-        .radar-panel { padding: 10px; }
-        .radar-actions .primary { width: 100%; }
 
         dialog {
           width: calc(100% - 16px);
@@ -1233,12 +1200,6 @@
         .summary .balance-card .amount { font-size: clamp(19px, 5.3vw, 23px); }
         .summary .card-note { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 
-        #radarDetails { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
-        #radarDetails[hidden] { display: none; }
-        .radar-status { grid-column: 1 / -1; margin-top: 4px; }
-        .radar-grid, .radar-actions { margin-top: 0; }
-        .radar-actions .primary { width: auto; min-width: 112px; padding-inline: 12px; }
-
         .panel { border-radius: 24px; }
         .panel-head { padding: 18px 16px 14px; }
         .filters { padding: 0 16px 16px; }
@@ -1553,27 +1514,11 @@
           <div class="amount" id="pendingTotal">R$ 0,00</div>
         </article>
       </section>
-      <section class="radar-panel" aria-labelledby="radarTitle">
-        <button class="radar-head" id="toggleRadar" type="button" aria-expanded="true" aria-controls="radarDetails" aria-label="Minimizar Radar financeiro">
-          <span class="radar-title">
-            <span class="radar-icon" aria-hidden="true">◎</span>
-            <span><span class="radar-heading" id="radarTitle">Radar financeiro</span><p>Próximos 30 dias</p></span>
-          </span>
-          <span class="entry-chevron" aria-hidden="true">⌄</span>
-        </button>
-        <div id="radarDetails">
-          <div class="radar-status" id="radarStatus" role="status"><span aria-hidden="true">✓</span><span id="radarStatusText">Calculando sua projeção…</span></div>
-          <div class="radar-grid">
-            <article class="radar-metric"><span>Menor saldo previsto</span><strong id="radarMinimumBalance">R$ 0,00</strong><small id="radarMinimumDate">—</small></article>
-          </div>
-          <div class="radar-actions"><button class="primary radar-simulate" id="openSimulation" type="button" aria-label="Simular um gasto sem salvar lançamento">Simular gasto</button></div>
-        </div>
-      </section>
       <section class="panel calendar-panel">
         <div class="calendar-head">
           <div><h2>Projeção de saldo</h2><p id="calendarCaption">Selecione um mês para visualizar a projeção.</p></div>
           <div class="calendar-toolbar">
-            <div class="calendar-balance"><span id="selectedDateLabel">Saldo projetado</span><strong id="selectedBalance">R$ 0,00</strong></div>
+            <div class="calendar-balance" aria-live="polite"><span id="monthlyMinimumLabel">Menor saldo previsto no mês</span><strong id="monthlyMinimumBalance">R$ 0,00</strong></div>
             <div class="calendar-controls" aria-label="Navegação do calendário">
               <button class="calendar-nav" id="previousMonth" type="button" aria-label="Mês anterior">‹</button>
               <input id="filterMonth" type="month" aria-label="Mês do calendário e dos lançamentos" />
@@ -1750,27 +1695,6 @@
           <button class="secondary danger" type="button" data-series-delete-scope="all">Toda a série</button>
         </div>
       </div>
-    </dialog>
-    <dialog id="simulationDialog">
-      <form class="modal" id="simulationForm">
-        <div class="modal-head">
-          <div><h2>Simular gasto</h2><p>Veja o impacto na projeção sem salvar um lançamento.</p></div>
-          <button class="close" type="button" data-close-simulation aria-label="Fechar simulador">&times;</button>
-        </div>
-        <div class="form-grid">
-          <div class="field"><label for="simulationValue">Valor do gasto</label><input id="simulationValue" type="number" min="0.01" step="0.01" inputmode="decimal" required /></div>
-          <div class="field"><label for="simulationDate">Data do gasto</label><input id="simulationDate" type="date" required /></div>
-        </div>
-        <div class="simulation-result" id="simulationResult" aria-live="polite" hidden>
-          <div class="simulation-comparison">
-            <div><span>Menor saldo atual</span><strong id="simulationBefore">R$ 0,00</strong></div>
-            <div class="simulation-arrow" aria-hidden="true">→</div>
-            <div><span>Após o gasto</span><strong id="simulationAfter">R$ 0,00</strong></div>
-          </div>
-          <p class="simulation-message" id="simulationMessage"></p>
-        </div>
-        <div class="modal-foot"><button class="secondary" type="button" data-close-simulation>Fechar</button><button class="primary" id="runSimulation" type="submit">Simular</button></div>
-      </form>
     </dialog>
     <dialog id="settingsDialog">
       <form class="modal" id="settingsForm">

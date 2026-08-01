@@ -87,8 +87,6 @@ const defaultTypes = [
 
         calendarExpanded: false,
 
-        radarExpanded: true,
-
         activeEntry: null,
 
         editingId: null,
@@ -211,8 +209,8 @@ const defaultTypes = [
         calendarGrid = document.querySelector("#calendarGrid"),
         calendarPanel = document.querySelector(".calendar-panel"),
         calendarCaption = document.querySelector("#calendarCaption"),
-        selectedDateLabel = document.querySelector("#selectedDateLabel"),
-        selectedBalance = document.querySelector("#selectedBalance"),
+        monthlyMinimumLabel = document.querySelector("#monthlyMinimumLabel"),
+        monthlyMinimumBalance = document.querySelector("#monthlyMinimumBalance"),
         toggleCalendar = document.querySelector("#toggleCalendar"),
         settingsDialog = document.querySelector("#settingsDialog"),
         settingsForm = document.querySelector("#settingsForm"),
@@ -223,22 +221,6 @@ const defaultTypes = [
         balanceReferenceDateInput = document.querySelector("#balanceReferenceDate"),
         previousMonth = document.querySelector("#previousMonth"),
         nextMonth = document.querySelector("#nextMonth"),
-        radarStatus = document.querySelector("#radarStatus"),
-        radarStatusText = document.querySelector("#radarStatusText"),
-        radarMinimumBalance = document.querySelector("#radarMinimumBalance"),
-        radarMinimumDate = document.querySelector("#radarMinimumDate"),
-        toggleRadar = document.querySelector("#toggleRadar"),
-        radarDetails = document.querySelector("#radarDetails"),
-        openSimulation = document.querySelector("#openSimulation"),
-        simulationDialog = document.querySelector("#simulationDialog"),
-        simulationForm = document.querySelector("#simulationForm"),
-        simulationValue = document.querySelector("#simulationValue"),
-        simulationDate = document.querySelector("#simulationDate"),
-        simulationResult = document.querySelector("#simulationResult"),
-        simulationBefore = document.querySelector("#simulationBefore"),
-        simulationAfter = document.querySelector("#simulationAfter"),
-        simulationMessage = document.querySelector("#simulationMessage"),
-        runSimulation = document.querySelector("#runSimulation"),
         seriesScopeDialog = document.querySelector("#seriesScopeDialog"),
         saveEntry = document.querySelector("#saveEntry"),
         syncStatus = document.querySelector("#syncStatus");
@@ -836,46 +818,6 @@ const defaultTypes = [
         return domain.projectedBalance(date, state.settings, entryNet);
       }
 
-      function shortDate(date) {
-        if (!date) return "Sem recebimento previsto";
-        return new Date(`${date}T12:00`).toLocaleDateString("pt-BR", {
-          day: "2-digit",
-          month: "short",
-        });
-      }
-
-      function renderRadar() {
-        const radar = domain.financialRadar(state.entries, state.settings);
-        const hasRisk = Boolean(radar.firstRiskDate);
-        radarStatus.classList.toggle("risk", hasRisk);
-        radarStatus.firstElementChild.textContent = hasRisk ? "!" : "✓";
-        radarStatusText.textContent = hasRisk
-          ? `Atenção: saldo negativo previsto em ${shortDate(radar.firstRiskDate)}`
-          : "Tudo sob controle pelos próximos 30 dias";
-        radarMinimumBalance.textContent = money(radar.minimumBalance);
-        radarMinimumDate.textContent = `em ${shortDate(radar.minimumBalanceDate)}`;
-        radarDetails.hidden = !state.radarExpanded;
-        toggleRadar.setAttribute("aria-expanded", String(state.radarExpanded));
-        toggleRadar.setAttribute(
-          "aria-label",
-          state.radarExpanded ? "Minimizar Radar financeiro" : "Expandir Radar financeiro",
-        );
-      }
-
-      function simulateExpense(value, date) {
-        const horizon = Math.max(30, Math.round((new Date(`${date}T12:00`) - new Date(`${todayISO()}T12:00`)) / 86400000) + 1);
-        const before = domain.financialRadar(state.entries, state.settings, todayISO(), horizon);
-        const simulatedEntry = { date, value, paid: false };
-        const after = domain.financialRadar([...state.entries, simulatedEntry], state.settings, todayISO(), horizon);
-        simulationBefore.textContent = money(before.minimumBalance);
-        simulationAfter.textContent = money(after.minimumBalance);
-        simulationMessage.classList.toggle("risk", Boolean(after.firstRiskDate));
-        simulationMessage.textContent = after.firstRiskDate
-          ? `Com esse gasto, o saldo fica negativo em ${shortDate(after.firstRiskDate)}.`
-          : `O saldo permanece positivo; impacto de ${money(value)} no menor saldo previsto.`;
-        simulationResult.hidden = false;
-      }
-
       function renderCalendar() {
         const month = filterMonth.value;
         if (!month) return;
@@ -886,6 +828,8 @@ const defaultTypes = [
         const entryTotals = buildDailyEntryTotals();
         const entryNet = buildDailyEntryNet();
         const entryIncomeTotals = domain.dailyIncomeTotals(state.entries);
+        let minimumBalance = Infinity;
+        let minimumBalanceDate = `${month}-01`;
 
         if (!state.selectedCalendarDate?.startsWith(month)) {
           state.selectedCalendarDate = `${month}-01`;
@@ -904,6 +848,10 @@ const defaultTypes = [
           const costs = entryTotals.get(date) || 0;
           const income = getRecurringIncome(date) + (entryIncomeTotals.get(date) || 0);
           const projected = getProjectedBalance(date, entryNet);
+          if (projected < minimumBalance) {
+            minimumBalance = projected;
+            minimumBalanceDate = date;
+          }
           cells.push(`
             <button class="calendar-day ${date === state.selectedCalendarDate ? "selected" : ""} ${income ? "has-income" : ""} ${costs ? "has-cost" : ""} ${projected < 0 ? "balance-negative" : "balance-positive"}" data-calendar-date="${date}" type="button">
               <span class="calendar-date">${day}</span>
@@ -915,9 +863,8 @@ const defaultTypes = [
         }
         calendarGrid.innerHTML = cells.join("");
 
-        const selected = state.selectedCalendarDate;
-        selectedDateLabel.textContent = `Saldo em ${new Date(`${selected}T12:00`).toLocaleDateString("pt-BR")}`;
-        selectedBalance.textContent = calendarMoney(getProjectedBalance(selected, entryNet));
+        monthlyMinimumLabel.textContent = `Menor saldo em ${new Date(`${minimumBalanceDate}T12:00`).toLocaleDateString("pt-BR")}`;
+        monthlyMinimumBalance.textContent = calendarMoney(minimumBalance);
         calendarPanel.classList.toggle("compact", !state.calendarExpanded);
         toggleCalendar.setAttribute("aria-expanded", String(state.calendarExpanded));
         toggleCalendar.textContent = state.calendarExpanded
@@ -970,7 +917,6 @@ const defaultTypes = [
         );
 
         renderEntries(list);
-        renderRadar();
         renderCalendar();
 
         panelTitle.textContent = state.selectionMode
@@ -1686,34 +1632,6 @@ const defaultTypes = [
 
       openModal.onclick = openNew;
       openModalMobile.onclick = openNew;
-      toggleRadar.onclick = () => {
-        state.radarExpanded = !state.radarExpanded;
-        renderRadar();
-      };
-      openSimulation.onclick = () => {
-        simulationForm.reset();
-        simulationDate.value = todayISO();
-        simulationDate.min = todayISO();
-        simulationResult.hidden = true;
-        simulationDialog.showModal();
-        requestAnimationFrame(() => simulationValue.focus());
-      };
-      document
-        .querySelectorAll("[data-close-simulation]")
-        .forEach((button) => (button.onclick = () => simulationDialog.close()));
-      simulationForm.onsubmit = (event) => {
-        event.preventDefault();
-        if (!simulationForm.reportValidity()) return;
-        runSimulation.disabled = true;
-        runSimulation.setAttribute("aria-busy", "true");
-        runSimulation.textContent = "Calculando…";
-        requestAnimationFrame(() => {
-          simulateExpense(Number(simulationValue.value), simulationDate.value);
-          runSimulation.disabled = false;
-          runSimulation.removeAttribute("aria-busy");
-          runSimulation.textContent = "Simular";
-        });
-      };
       openSettings.onclick = openSettingsDialog;
       document
         .querySelectorAll("[data-close]")

@@ -131,31 +131,6 @@
     return balance;
   }
 
-  function financialRadar(entries, settings, fromDate = todayISO(), horizonDays = 30) {
-    const entryTotals = dailyEntryNet(entries);
-    const endDate = addDays(fromDate, Math.max(0, horizonDays - 1));
-    let minimumBalance = Infinity;
-    let minimumBalanceDate = fromDate;
-    let firstRiskDate = null;
-
-    for (let date = fromDate; date <= endDate; date = addDays(date, 1)) {
-      const balance = projectedBalance(date, settings, entryTotals);
-      if (balance < minimumBalance) {
-        minimumBalance = balance;
-        minimumBalanceDate = date;
-      }
-      if (!firstRiskDate && balance < 0) firstRiskDate = date;
-    }
-
-    return {
-      fromDate,
-      endDate,
-      minimumBalance,
-      minimumBalanceDate,
-      firstRiskDate,
-    };
-  }
-
   global.MGDomain = {
     todayISO,
     addDays,
@@ -168,6 +143,5 @@
     dailyEntryNet,
     dailyIncomeTotals,
     projectedBalance,
-    financialRadar,
   };
 })(window);
