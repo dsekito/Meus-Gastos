@@ -365,6 +365,7 @@ const defaultTypes = [
         if (state.entries.length) {
           state.entries.forEach(queueUpsert);
           await syncEntries();
+          render();
           show("Lançamentos deste aparelho foram enviados para sua conta.");
         }
       }
@@ -1257,7 +1258,7 @@ const defaultTypes = [
       };
 
       let pressTimer = null;
-      let longPressTriggered = false;
+      let longPressEntryId = null;
 
       rows.addEventListener("pointerdown", (e) => {
         const card = e.target.closest("[data-entry]");
@@ -1271,14 +1272,18 @@ const defaultTypes = [
         if (state.selectionMode) return;
 
         pressTimer = setTimeout(() => {
-          longPressTriggered = true;
-
-          enterSelectionMode(card.dataset.entry);
+          longPressEntryId = card.dataset.entry;
+          enterSelectionMode(longPressEntryId);
         }, 500);
       });
 
       rows.addEventListener("pointerup", () => {
         clearTimeout(pressTimer);
+        if (longPressEntryId) {
+          setTimeout(() => {
+            longPressEntryId = null;
+          }, 100);
+        }
       });
 
       rows.addEventListener("pointerleave", () => {
@@ -1294,11 +1299,13 @@ const defaultTypes = [
 
         if (!card) return;
 
-        if (longPressTriggered) {
-          longPressTriggered = false;
+        if (longPressEntryId === card.dataset.entry) {
+          longPressEntryId = null;
           e.preventDefault();
           return;
         }
+
+        longPressEntryId = null;
 
         if (state.selectionMode) {
           toggleSelection(card.dataset.entry);
