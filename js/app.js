@@ -922,7 +922,7 @@ const defaultTypes = [
         toggleCalendar.setAttribute("aria-expanded", String(state.calendarExpanded));
         toggleCalendar.textContent = state.calendarExpanded
           ? "Ocultar calendário"
-          : "Ver calendário completo";
+          : "Ver calendário";
       }
 
       function updateCount(entries) {

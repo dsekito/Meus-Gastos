@@ -170,15 +170,15 @@
       .summary {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-        gap: 16px;
-        margin-bottom: 24px;
+        gap: 12px;
+        margin-bottom: 18px;
       }
 
       .card {
         background: var(--paper);
         border: 1px solid var(--line);
         border-radius: 15px;
-        padding: 18px;
+        padding: 14px 16px;
         box-shadow: 0 3px 12px rgba(16, 42, 67, 0.025);
       }
       .card .label {
@@ -189,7 +189,7 @@
         font-size: 24px;
         font-weight: 750;
         letter-spacing: -1px;
-        margin-top: 7px;
+        margin-top: 4px;
       }
       .amount.warn {
         color: #b54708;
@@ -276,7 +276,7 @@
       .balance-card .amount { color: #fff; }
       .card-note {
         display: block;
-        margin-top: 7px;
+        margin-top: 4px;
         color: var(--muted);
         font-size: 12px;
       }
@@ -739,7 +739,7 @@
         color: var(--danger);
       }
 
-      .radar-panel { margin-bottom: 18px; padding: 12px; border: 1px solid #cfe0d8; border-radius: 18px; background: var(--paper); box-shadow: 0 6px 18px rgba(16, 42, 67, 0.05); }
+      .radar-panel { margin-bottom: 14px; padding: 10px 12px; border: 1px solid #cfe0d8; border-radius: 16px; background: var(--paper); box-shadow: 0 6px 18px rgba(16, 42, 67, 0.05); }
       .radar-head, .radar-status, .radar-actions, .simulation-comparison { display: flex; align-items: center; }
       .radar-head { width: 100%; min-height: 48px; justify-content: space-between; gap: 12px; padding: 0 4px; border: 0; border-radius: 12px; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
       .radar-head:hover { background: var(--soft); }
@@ -751,14 +751,14 @@
       .radar-head .entry-chevron { flex: 0 0 28px; text-align: center; }
       .radar-head[aria-expanded="true"] .entry-chevron { transform: rotate(180deg); }
       #radarDetails[hidden] { display: none; }
-      .radar-status { gap: 8px; margin-top: 8px; padding: 9px 11px; border-radius: 12px; background: var(--soft); color: var(--brand-dark); font-size: 13px; line-height: 1.25; font-weight: 700; }
+      .radar-status { gap: 8px; margin-top: 6px; padding: 7px 10px; border-radius: 10px; background: var(--soft); color: var(--brand-dark); font-size: 12px; line-height: 1.25; font-weight: 700; }
       .radar-status.risk { background: #fef3f2; color: var(--danger); }
-      .radar-grid { display: grid; margin-top: 8px; }
-      .radar-metric { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: 10px; padding: 10px 11px; border-radius: 12px; background: var(--bg); }
+      .radar-grid { display: grid; margin-top: 6px; }
+      .radar-metric { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 10px; background: var(--bg); }
       .radar-metric span { color: var(--muted); font-size: 12px; line-height: 1.25; }
       .radar-metric strong { margin-left: auto; font-size: 16px; letter-spacing: -0.03em; white-space: nowrap; }
       .radar-metric small { color: var(--muted); font-size: 11px; white-space: nowrap; }
-      .radar-actions { justify-content: flex-end; margin-top: 8px; }
+      .radar-actions { justify-content: flex-end; margin-top: 6px; }
       .radar-simulate { min-height: 48px; box-shadow: none; }
       .simulation-result { margin-top: 18px; padding: 16px; border-radius: 16px; background: var(--soft); }
       .simulation-comparison { justify-content: space-between; gap: 12px; }
@@ -978,7 +978,45 @@
         .calendar-panel.compact .calendar-grid { display: none; }
 
         .calendar-panel.compact .calendar-head {
-          gap: 8px;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 4px 8px;
+          padding-top: 10px;
+          padding-bottom: 10px;
+        }
+
+        .calendar-panel.compact .calendar-head > div:first-child {
+          min-width: 0;
+        }
+
+        .calendar-panel.compact .calendar-head h2,
+        .calendar-panel.compact .calendar-head p {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .calendar-panel.compact .calendar-head p {
+          margin-top: 1px;
+          font-size: 11px;
+        }
+
+        .calendar-panel.compact .calendar-toolbar {
+          grid-column: 1 / -1;
+          grid-row: 2;
+          min-height: 56px;
+          padding: 4px 6px 4px 10px;
+          border-radius: 14px;
+        }
+
+        .calendar-panel.compact .calendar-toggle {
+          grid-column: 2;
+          grid-row: 1;
+          justify-self: end;
+          min-height: 48px;
+          padding: 0 8px;
+          font-size: 12px;
         }
 
         .calendar-panel.compact .calendar-balance {
@@ -990,9 +1028,9 @@
 
         .calendar-panel.compact .calendar-balance strong {
           display: block;
-          margin-top: 4px;
+          margin-top: 1px;
           color: var(--brand);
-          font-size: 21px;
+          font-size: 19px;
         }
 
         .calendar-weekdays span {
@@ -1185,13 +1223,21 @@
         .auth-button { min-width: 48px; min-height: 48px; }
         .sync-status { min-width: 12px; min-height: 12px; }
 
-        .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
-        .summary .balance-card { grid-column: 1 / -1; padding: 22px; border-radius: 24px; }
+        .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+        .summary .balance-card { grid-column: auto; padding: 12px; border-radius: 16px; }
         .summary .paid-summary-card { display: block; }
-        .summary .card:not(.balance-card) { padding: 16px; }
-        .summary .card .label { min-height: 36px; font-size: 13px; }
-        .summary .amount { font-size: clamp(18px, 5.2vw, 22px); letter-spacing: -0.04em; }
-        .summary .balance-card .amount { font-size: 32px; }
+        .summary .card:not(.balance-card) { padding: 12px; }
+        .summary .card { min-width: 0; min-height: 82px; }
+        .summary .card .label { min-height: 20px; font-size: 12px; line-height: 1.2; }
+        .summary .amount { overflow: hidden; font-size: clamp(17px, 4.8vw, 21px); letter-spacing: -0.04em; text-overflow: ellipsis; white-space: nowrap; }
+        .summary .balance-card .amount { font-size: clamp(19px, 5.3vw, 23px); }
+        .summary .card-note { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+
+        #radarDetails { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+        #radarDetails[hidden] { display: none; }
+        .radar-status { grid-column: 1 / -1; margin-top: 4px; }
+        .radar-grid, .radar-actions { margin-top: 0; }
+        .radar-actions .primary { width: auto; min-width: 112px; padding-inline: 12px; }
 
         .panel { border-radius: 24px; }
         .panel-head { padding: 18px 16px 14px; }
@@ -1244,47 +1290,39 @@
       /* Galaxy Z Fold7 cover display: compact financial summary and filters. */
       @media (min-width: 390px) and (max-width: 480px) {
         .summary {
-          grid-template-columns: repeat(6, minmax(0, 1fr));
+          grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 8px;
           margin-bottom: 14px;
         }
 
         .summary .balance-card {
-          display: grid;
-          min-height: 92px;
-          grid-column: 1 / -1;
-          grid-template-columns: minmax(0, 1fr) auto;
-          grid-template-rows: auto auto;
-          align-items: center;
-          gap: 2px 12px;
-          padding: 13px 16px;
-          border-radius: 20px;
+          display: block;
+          min-height: 76px;
+          grid-column: auto;
+          padding: 10px;
+          border-radius: 14px;
         }
 
         .summary .balance-card .label {
-          min-height: 0;
-          align-self: end;
+          min-height: 16px;
           font-size: 12px;
         }
 
         .summary .balance-card .amount {
-          grid-row: 1 / 3;
-          grid-column: 2;
-          font-size: 25px;
+          font-size: clamp(17px, 4.8vw, 21px);
           letter-spacing: -0.045em;
         }
 
         .summary .balance-card .card-note {
-          align-self: start;
-          margin-top: 0;
-          font-size: 11px;
+          margin-top: 2px;
+          font-size: 9px;
         }
 
         .summary .card:not(.balance-card) {
           min-width: 0;
-          min-height: 72px;
-          grid-column: span 2;
-          padding: 10px 8px;
+          min-height: 76px;
+          grid-column: auto;
+          padding: 10px;
           border-radius: 14px;
           box-shadow: none;
         }
@@ -1294,14 +1332,14 @@
         }
 
         .summary .card:not(.balance-card) .label {
-          min-height: 28px;
-          font-size: 11px;
+          min-height: 16px;
+          font-size: 12px;
           line-height: 1.2;
         }
 
         .summary .card:not(.balance-card) .amount {
           overflow: hidden;
-          font-size: clamp(14px, 3.8vw, 16px);
+          font-size: clamp(17px, 4.8vw, 21px);
           letter-spacing: -0.035em;
           text-overflow: ellipsis;
           white-space: nowrap;
@@ -1542,7 +1580,7 @@
               <button class="calendar-nav" id="nextMonth" type="button" aria-label="Próximo mês">›</button>
             </div>
           </div>
-          <button class="calendar-toggle" id="toggleCalendar" type="button" aria-expanded="false">Ver calendário completo</button>
+          <button class="calendar-toggle" id="toggleCalendar" type="button" aria-expanded="false">Ver calendário</button>
         </div>
         <div class="calendar-weekdays"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div>
         <div class="calendar-grid" id="calendarGrid"></div>
