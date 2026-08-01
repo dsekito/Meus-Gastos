@@ -40,7 +40,7 @@ const defaultTypes = [
       const SUPABASE_URL = "https://gluyucuvvvfkztzjhbyj.supabase.co";
       const SUPABASE_PUBLISHABLE_KEY =
         "sb_publishable_KPlZr5eXf58-6-O89Gqr0A_OKIkj_Me";
-      const APP_URL = "https://meus-gastos-5ag.pages.dev/";
+      const APP_URL = "https://dsekito.github.io/Meus-Gastos/";
       const supabaseClient = window.supabase.createClient(
         SUPABASE_URL,
         SUPABASE_PUBLISHABLE_KEY,
