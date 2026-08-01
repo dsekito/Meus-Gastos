@@ -361,6 +361,15 @@
       .calendar-income { color: var(--brand); }
       .calendar-cost { color: #b54708; }
       .calendar-projection { color: var(--ink); font-weight: 700; }
+      .calendar-toggle {
+        display: none;
+        border: 0;
+        background: transparent;
+        color: var(--brand);
+        cursor: pointer;
+        font-weight: 700;
+        padding: 6px 0;
+      }
       .sync-status {
         display: inline-flex;
         align-items: center;
@@ -846,6 +855,7 @@
         }
 
         .summary .balance-card { grid-column: 1 / -1; }
+        .summary .paid-summary-card { display: none; }
         .card { padding: 14px; }
         .card .label { font-size: 12px; }
         .card-note { font-size: 11px; }
@@ -874,6 +884,29 @@
 
         .calendar-balance {
           text-align: left;
+        }
+
+        .calendar-toggle { display: inline-flex; }
+
+        .calendar-panel.compact .calendar-weekdays,
+        .calendar-panel.compact .calendar-grid { display: none; }
+
+        .calendar-panel.compact .calendar-head {
+          gap: 8px;
+        }
+
+        .calendar-panel.compact .calendar-balance {
+          width: 100%;
+          padding: 14px;
+          border-radius: 16px;
+          background: var(--soft);
+        }
+
+        .calendar-panel.compact .calendar-balance strong {
+          display: block;
+          margin-top: 4px;
+          color: var(--brand);
+          font-size: 21px;
         }
 
         .calendar-weekdays span {
@@ -996,7 +1029,7 @@
           <div class="label">Gastos do mês</div>
           <div class="amount warn" id="monthTotal">R$ 0,00</div>
         </article>
-        <article class="card">
+        <article class="card paid-summary-card">
           <div class="label">Já pago</div>
           <div class="amount good" id="paidTotal">R$ 0,00</div>
         </article>
@@ -1014,6 +1047,7 @@
             <button class="calendar-nav" id="nextMonth" type="button" aria-label="Próximo mês">›</button>
           </div>
           <div class="calendar-balance"><span id="selectedDateLabel">Saldo projetado</span><strong id="selectedBalance">R$ 0,00</strong></div>
+          <button class="calendar-toggle" id="toggleCalendar" type="button" aria-expanded="false">Ver calendário completo</button>
         </div>
         <div class="calendar-weekdays"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div>
         <div class="calendar-grid" id="calendarGrid"></div>
@@ -1207,6 +1241,8 @@
 
         selectedCalendarDate: null,
 
+        calendarExpanded: false,
+
         activeEntry: null,
 
         editingId: null,
@@ -1289,9 +1325,11 @@
         signInGoogleScreen = document.querySelector("#signInGoogleScreen"),
         filteredSubtotal = document.querySelector("#filteredSubtotal"),
         calendarGrid = document.querySelector("#calendarGrid"),
+        calendarPanel = document.querySelector(".calendar-panel"),
         calendarCaption = document.querySelector("#calendarCaption"),
         selectedDateLabel = document.querySelector("#selectedDateLabel"),
         selectedBalance = document.querySelector("#selectedBalance"),
+        toggleCalendar = document.querySelector("#toggleCalendar"),
         settingsDialog = document.querySelector("#settingsDialog"),
         settingsForm = document.querySelector("#settingsForm"),
         openSettings = document.querySelector("#openSettings"),
@@ -1727,7 +1765,9 @@
       }
 
       function getDailyNet(date, entryTotals) {
-        return (entryTotals.get(date) || 0) + getRecurringIncome(date);
+        // Lançamentos positivos são despesas; negativos representam reembolsos.
+        // Somente os recebimentos recorrentes entram como crédito automático.
+        return getRecurringIncome(date) - (entryTotals.get(date) || 0);
       }
 
       function getProjectedBalance(date, entryTotals) {
@@ -1785,6 +1825,11 @@
         const selected = state.selectedCalendarDate;
         selectedDateLabel.textContent = `Saldo em ${new Date(`${selected}T12:00`).toLocaleDateString("pt-BR")}`;
         selectedBalance.textContent = money(getProjectedBalance(selected, entryTotals));
+        calendarPanel.classList.toggle("compact", !state.calendarExpanded);
+        toggleCalendar.setAttribute("aria-expanded", String(state.calendarExpanded));
+        toggleCalendar.textContent = state.calendarExpanded
+          ? "Ocultar calendário"
+          : "Ver calendário completo";
       }
 
       function updateCount(entries) {
@@ -2306,6 +2351,11 @@
         const day = event.target.closest("[data-calendar-date]");
         if (!day) return;
         state.selectedCalendarDate = day.dataset.calendarDate;
+        renderCalendar();
+      };
+
+      toggleCalendar.onclick = () => {
+        state.calendarExpanded = !state.calendarExpanded;
         renderCalendar();
       };
 
