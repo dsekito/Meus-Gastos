@@ -47,7 +47,9 @@ const defaultTypes = [
         {
           auth: {
             autoRefreshToken: true,
-            persistSession: false,
+            // Mantém somente a sessão de autenticação no navegador. Lançamentos e
+            // configurações continuam sendo carregados exclusivamente da nuvem.
+            persistSession: true,
             detectSessionInUrl: true,
           },
         },
