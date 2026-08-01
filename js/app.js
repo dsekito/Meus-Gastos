@@ -446,13 +446,22 @@ const defaultTypes = [
         if (state.user) loadLocalForUser(state.user.id);
         updateAuthArea();
         if (state.user) {
+          let hasPendingSync = false;
           try {
             normalizeEntryIds();
-            await syncEntries();
+            try {
+              await syncEntries();
+            } catch (error) {
+              // Uma operação pendente não pode impedir a leitura da nuvem.
+              // A fila continua preservada para uma nova tentativa posterior.
+              hasPendingSync = true;
+              console.error(error);
+              setSyncStatus("pending", "Sincronização pendente");
+            }
             await loadCloudEntries();
             await loadCloudSettings();
             subscribeToEntryChanges();
-            setSyncStatus("synced", "Dados sincronizados");
+            if (!hasPendingSync) setSyncStatus("synced", "Dados sincronizados");
           } finally {
             // Mesmo com uma falha temporária de rede, exibe o cache local sem
             // depender de uma interação com os filtros para renderizar a lista.
