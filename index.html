@@ -623,6 +623,7 @@
         background: #fff;
         transition: background 0.15s ease;
       }
+      .entry[data-entry] { cursor: pointer; }
 
       .entry:last-child {
         border-bottom: 0;
@@ -1454,192 +1455,6 @@
       @media (max-width: 768px) {
         .series-scope-actions { padding: 12px 14px 14px; }
       }
-
-      /* Dashboard de projeção: saldo primeiro, evolução e linha do tempo. */
-      .forecast-hero {
-        margin-bottom: 20px;
-        padding: 28px;
-        border: 1px solid var(--line);
-        border-radius: 24px;
-        background: var(--paper);
-        box-shadow: 0 7px 24px rgba(18, 107, 91, 0.055);
-      }
-      .forecast-label {
-        color: var(--muted);
-        font-size: 14px;
-        font-weight: 800;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-      }
-      .forecast-balance {
-        margin-top: 4px;
-        color: var(--brand-dark);
-        font-size: clamp(42px, 7vw, 72px);
-        font-weight: 800;
-        letter-spacing: -0.055em;
-        line-height: 1.05;
-      }
-      .forecast-period { margin: 4px 0 0; color: var(--muted); font-size: 18px; }
-      .forecast-health {
-        display: flex;
-        min-height: 48px;
-        margin: 14px 0 0;
-        align-items: center;
-        color: var(--brand);
-        font-size: 16px;
-        font-weight: 750;
-      }
-      .forecast-health::before {
-        width: 22px;
-        height: 22px;
-        margin-right: 10px;
-        border: 2px solid currentColor;
-        border-radius: 50%;
-        content: "";
-      }
-      .forecast-health.negative { color: var(--danger); }
-      .forecast-reference { display: block; color: var(--muted); font-size: 13px; }
-      .forecast-totals {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        margin-top: 20px;
-        padding: 20px 0;
-        border-top: 1px solid var(--line);
-        border-bottom: 1px solid var(--line);
-      }
-      .forecast-totals > div { display: grid; gap: 3px; padding: 0 24px; }
-      .forecast-totals > div:first-child { padding-left: 0; border-right: 1px solid var(--line); }
-      .forecast-totals span { color: var(--muted); font-size: 14px; }
-      .forecast-totals strong { font-size: clamp(20px, 4vw, 30px); font-variant-numeric: tabular-nums; }
-      .forecast-totals .good { color: #16805c; }
-      .forecast-totals .warn { color: var(--danger); }
-      .forecast-chart-wrap { padding-top: 22px; }
-      .forecast-chart-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
-      .forecast-chart-head h2 { margin: 0; font-size: 18px; }
-      .forecast-chart-head span { color: var(--muted); font-size: 13px; }
-      #forecastChart { display: block; width: 100%; height: 180px; margin-top: 8px; }
-      .forecast-axis { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
-      .legacy-summary-values { display: none; }
-
-      .timeline-group { position: relative; padding-left: 34px; }
-      .timeline-group::before {
-        position: absolute;
-        top: 28px;
-        bottom: -20px;
-        left: 14px;
-        width: 1px;
-        background: #85a99e;
-        content: "";
-      }
-      .timeline-group:last-child::before { bottom: 24px; }
-      .timeline-day-head {
-        position: relative;
-        display: flex;
-        min-height: 72px;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-        border-bottom: 1px solid var(--line);
-      }
-      .timeline-day-head::before {
-        position: absolute;
-        left: -29px;
-        width: 13px;
-        height: 13px;
-        border: 4px solid var(--paper);
-        border-radius: 50%;
-        background: var(--brand);
-        box-shadow: 0 0 0 1px #85a99e;
-        content: "";
-      }
-      .timeline-day-head h3 { margin: 0; color: var(--brand); font-size: 20px; }
-      .timeline-day-head > div { display: grid; justify-items: end; }
-      .timeline-day-head span { color: var(--muted); font-size: 12px; }
-      .timeline-day-head strong { color: var(--brand); font-size: 19px; font-variant-numeric: tabular-nums; }
-      .timeline-entry {
-        display: grid;
-        min-height: 72px;
-        grid-template-columns: 16px minmax(0, 1fr) auto 56px;
-        align-items: center;
-        gap: 12px;
-        border-bottom: 1px solid var(--line);
-      }
-      .timeline-entry.selected { margin-left: -8px; padding-left: 8px; background: var(--soft); }
-      .timeline-dot { width: 12px; height: 12px; border-radius: 50%; }
-      .timeline-entry-copy { display: grid; min-width: 0; }
-      .timeline-entry-copy strong { overflow: hidden; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
-      .timeline-entry-copy span { overflow: hidden; color: var(--muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-      .timeline-entry-value { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
-      .timeline-entry-value.income { color: #16805c; }
-      .timeline-entry-value.expense { color: var(--danger); }
-      .timeline-entry .entry-menu { width: 56px; min-height: 48px; margin: 0; color: var(--muted); font-size: 12px; }
-      .calendar-panel { margin-top: 20px; }
-
-      @media (max-width: 768px) {
-        body { background: #fff; }
-        .shell { padding: 0 16px 104px; }
-        .top {
-          margin: 0;
-          padding: 14px 0 10px;
-          border: 0;
-          background: #fff;
-          box-shadow: none;
-        }
-        .brand .mark, .brand p, .signed-user, #openModal { display: none; }
-        .brand h1 { font-size: 25px; letter-spacing: -0.035em; }
-        .header-actions { gap: 4px; }
-        .settings-button, #signOut { padding: 0 10px; border: 0; background: transparent; }
-        .settings-button .button-label, #signOut .button-label { display: inline; font-size: 13px; }
-        .forecast-hero {
-          margin: 0 -16px 14px;
-          padding: 20px 16px 18px;
-          border-width: 0 0 1px;
-          border-radius: 0;
-          box-shadow: none;
-        }
-        .forecast-label { font-size: 13px; }
-        .forecast-balance { font-size: clamp(42px, 14vw, 58px); }
-        .forecast-period { font-size: 17px; }
-        .forecast-health { margin-top: 8px; }
-        .forecast-reference { display: none; }
-        .forecast-totals { margin-top: 8px; padding: 15px 0; }
-        .forecast-totals > div { padding: 0 14px; }
-        .forecast-totals strong { font-size: clamp(19px, 5.5vw, 24px); }
-        .forecast-chart-wrap { padding-top: 16px; }
-        .forecast-chart-head { align-items: flex-start; flex-direction: column; gap: 2px; }
-        .forecast-chart-head h2 { font-size: 17px; }
-        #forecastChart { height: 112px; }
-        .calendar-panel { margin-top: 14px; margin-bottom: 12px; border-radius: 16px; background: var(--bg); }
-        .calendar-panel .calendar-head { padding: 8px 12px; }
-        .calendar-panel .calendar-head > div:first-child, .calendar-panel .calendar-balance { display: none; }
-        .calendar-toolbar { padding: 0; }
-        .calendar-panel.compact .calendar-toolbar { display: flex; }
-        .calendar-toggle { margin-left: auto; }
-        .panel { margin: 0 -16px; border-width: 1px 0 0; border-radius: 0; box-shadow: none; }
-        .panel-head { padding: 18px 16px 10px; }
-        .panel-head h2 { font-size: 21px; }
-        .filters { flex-wrap: nowrap; padding: 0 16px 12px; overflow-x: auto; }
-        .filters > select { min-width: 150px; flex: 1 0 150px; }
-        .filters .filter-subtotal { display: none; }
-        .entries { padding: 0 16px; }
-        .timeline-group { padding-left: 28px; }
-        .timeline-group::before { left: 8px; }
-        .timeline-day-head::before { left: -25px; }
-        .timeline-day-head { min-height: 66px; }
-        .timeline-day-head h3 { font-size: 18px; }
-        .timeline-day-head strong { font-size: 17px; }
-        .timeline-entry { min-height: 70px; grid-template-columns: 12px minmax(0, 1fr) auto 48px; gap: 9px; }
-        .timeline-entry-copy strong, .timeline-entry-value { font-size: 15px; }
-        .timeline-entry .entry-menu { width: 48px; }
-        .mobile-new-entry {
-          right: 16px;
-          bottom: max(14px, env(safe-area-inset-bottom));
-          left: 16px;
-          width: calc(100% - 32px);
-          min-height: 56px;
-          border-radius: 14px;
-        }
-      }
     </style>
   </head>
   <body>
@@ -1665,34 +1480,49 @@
         <div class="header-actions">
           <span class="sync-status" id="syncStatus" data-state="idle">Aguardando sincronização</span>
           <div id="authArea"></div>
-          <button class="auth-button settings-button" id="openSettings" type="button" aria-label="Configurações financeiras" title="Configurações financeiras"><span class="button-label">Configurações</span></button>
-          <button class="primary" id="openModal">Novo lançamento</button>
+          <button class="auth-button settings-button" id="openSettings" type="button" aria-label="Configurações financeiras" title="Configurações financeiras"><span aria-hidden="true">⚙</span><span class="button-label">Configurações</span></button>
+          <button class="primary" id="openModal"><span aria-hidden="true">＋</span> Novo lançamento</button>
         </div>
       </header>
-      <section class="forecast-hero" aria-labelledby="forecastTitle">
-        <div class="forecast-label" id="forecastTitle">Saldo projetado</div>
-        <div class="forecast-balance" id="currentBalanceTotal">R$ 0,00</div>
-        <p class="forecast-period" id="forecastPeriod">até o fim do mês</p>
-        <p class="forecast-health" id="forecastHealth" aria-live="polite">Calculando projeção...</p>
-        <small class="forecast-reference" id="balanceReferenceSummary">Base de cálculo</small>
-        <div class="forecast-totals">
-          <div><span>Entradas</span><strong class="good" id="incomeTotal">R$ 0,00</strong></div>
-          <div><span>Saídas</span><strong class="warn" id="monthTotal">R$ 0,00</strong></div>
-        </div>
-        <div class="forecast-chart-wrap">
-          <div class="forecast-chart-head">
-            <h2>Projeção até o fim do mês</h2>
-            <span id="forecastMinimum">Menor saldo: R$ 0,00</span>
+      <section class="summary">
+        <article class="card balance-card">
+          <div class="label">Saldo disponível</div>
+          <div class="amount" id="currentBalanceTotal">R$ 0,00</div>
+          <small class="card-note" id="balanceReferenceSummary">Base de cálculo</small>
+        </article>
+        <article class="card">
+          <div class="label">Gastos do mês</div>
+          <div class="amount warn" id="monthTotal">R$ 0,00</div>
+        </article>
+        <article class="card paid-summary-card">
+          <div class="label">Já pago</div>
+          <div class="amount good" id="paidTotal">R$ 0,00</div>
+        </article>
+        <article class="card">
+          <div class="label">A pagar</div>
+          <div class="amount" id="pendingTotal">R$ 0,00</div>
+        </article>
+      </section>
+      <section class="panel calendar-panel">
+        <div class="calendar-head">
+          <div><h2>Projeção de saldo</h2><p id="calendarCaption">Selecione um mês para visualizar a projeção.</p></div>
+          <div class="calendar-toolbar">
+            <div class="calendar-balance" aria-live="polite"><span id="monthlyMinimumLabel">Menor saldo previsto no mês</span><strong id="monthlyMinimumBalance">R$ 0,00</strong></div>
+            <div class="calendar-controls" aria-label="Navegação do calendário">
+              <button class="calendar-nav" id="previousMonth" type="button" aria-label="Mês anterior">‹</button>
+              <input id="filterMonth" type="month" aria-label="Mês do calendário e dos lançamentos" />
+              <button class="calendar-nav" id="nextMonth" type="button" aria-label="Próximo mês">›</button>
+            </div>
           </div>
-          <canvas id="forecastChart" height="180" role="img" aria-label="Gráfico da projeção de saldo no mês"></canvas>
-          <div class="forecast-axis"><span id="forecastStartLabel">Hoje</span><span id="forecastMiddleLabel"></span><span id="forecastEndLabel">Fim do mês</span></div>
+          <button class="calendar-toggle" id="toggleCalendar" type="button" aria-expanded="false">Ver calendário</button>
         </div>
-        <div class="legacy-summary-values" aria-hidden="true"><span id="paidTotal">R$ 0,00</span><span id="pendingTotal">R$ 0,00</span></div>
+        <div class="calendar-weekdays"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div>
+        <div class="calendar-grid" id="calendarGrid"></div>
       </section>
       <section class="panel">
         <div class="panel-head">
           <div>
-            <h2 id="panelTitle">Próximos lançamentos</h2>
+            <h2 id="panelTitle">Lançamentos</h2>
             <span id="count">0 lançamentos</span>
           </div>
 
@@ -1707,30 +1537,14 @@
           <select id="filterStatus">
             <option value="">Todos os status</option>
             <option value="paid">Pagos</option>
-            <option value="pending">Em aberto</option>
+            <option value="pending" selected>Em aberto</option>
           </select>
           <div class="filter-subtotal">Subtotal filtrado<strong id="filteredSubtotal">R$ 0,00</strong></div>
         </div>
 
         <div class="entries" id="rows"></div>
       </section>
-      <section class="panel calendar-panel">
-        <div class="calendar-head">
-          <div><h2>Calendário financeiro</h2><p id="calendarCaption">Selecione um mês para visualizar a projeção.</p></div>
-          <div class="calendar-toolbar">
-            <div class="calendar-balance" aria-live="polite"><span id="monthlyMinimumLabel">Menor saldo previsto no mês</span><strong id="monthlyMinimumBalance">R$ 0,00</strong></div>
-            <div class="calendar-controls" aria-label="Navegação do calendário">
-              <button class="calendar-nav" id="previousMonth" type="button" aria-label="Mês anterior">‹</button>
-              <input id="filterMonth" type="month" aria-label="Mês do calendário e dos lançamentos" />
-              <button class="calendar-nav" id="nextMonth" type="button" aria-label="Próximo mês">›</button>
-            </div>
-          </div>
-          <button class="calendar-toggle" id="toggleCalendar" type="button" aria-expanded="false">Ver calendário</button>
-        </div>
-        <div class="calendar-weekdays"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div>
-        <div class="calendar-grid" id="calendarGrid"></div>
-      </section>
-      <button class="primary mobile-new-entry" id="openModalMobile" type="button" hidden>Novo lançamento</button>
+      <button class="primary mobile-new-entry" id="openModalMobile" type="button" hidden><span aria-hidden="true">＋</span> Novo lançamento</button>
     </main>
     <dialog id="entryDialog" aria-labelledby="entryDialogTitle">
       <form class="modal" id="entryForm">
