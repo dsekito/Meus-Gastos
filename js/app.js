@@ -1931,6 +1931,7 @@ const defaultTypes = [
 
       async function startApp() {
         localStore.clearLegacyCache();
+        filterStatus.value = "pending";
         render();
         await initializeAuth();
       }
