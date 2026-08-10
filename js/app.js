@@ -184,7 +184,6 @@ const defaultTypes = [
         filterMonth = document.querySelector("#filterMonth"),
         filterStatus = document.querySelector("#filterStatus"),
         monthTotal = document.querySelector("#monthTotal"),
-        incomeTotal = document.querySelector("#incomeTotal"),
         currentBalanceTotal = document.querySelector("#currentBalanceTotal"),
         balanceReferenceSummary = document.querySelector("#balanceReferenceSummary"),
         paidTotal = document.querySelector("#paidTotal"),
@@ -226,13 +225,6 @@ const defaultTypes = [
         bulkDateInput = document.querySelector("#bulkDate"),
         saveBulkDate = document.querySelector("#saveBulkDate"),
         saveEntry = document.querySelector("#saveEntry"),
-        forecastPeriod = document.querySelector("#forecastPeriod"),
-        forecastHealth = document.querySelector("#forecastHealth"),
-        forecastMinimum = document.querySelector("#forecastMinimum"),
-        forecastChart = document.querySelector("#forecastChart"),
-        forecastStartLabel = document.querySelector("#forecastStartLabel"),
-        forecastMiddleLabel = document.querySelector("#forecastMiddleLabel"),
-        forecastEndLabel = document.querySelector("#forecastEndLabel"),
         syncStatus = document.querySelector("#syncStatus");
 
       function todayISO() {
@@ -662,7 +654,7 @@ const defaultTypes = [
           ? (isIncome ? "Recebido" : "Pago")
           : (isIncome ? "A receber" : "Em aberto");
         return `
-          <div class="entry dense-entry ${selected ? "selected" : ""}" data-entry="${e.id}">
+          <div class="entry dense-entry ${selected ? "selected" : ""}" data-entry="${e.id}" role="button" tabindex="0" aria-label="Alterar status de ${esc(e.description)}. Status atual: ${statusLabel}">
             <div class="entry-content">
               <div class="entry-summary">
                 <div class="entry-header">
@@ -678,7 +670,7 @@ const defaultTypes = [
                     <span class="entry-type">${esc(e.type)}</span>
                     <span class="entry-flow">${isIncome ? "Receita" : "Despesa"}</span>
                     ${e.installment ? `<span class="entry-installment">${e.installment.current}/${e.installment.total}</span>` : ""}
-                    ${state.selectionMode ? "" : `<button class="status-button ${e.paid ? "paid" : "pending"}" data-toggle-status="${e.id}">${statusLabel}</button>`}
+                    ${state.selectionMode ? "" : `<button type="button" class="status-button ${e.paid ? "paid" : "pending"}" data-toggle-status="${e.id}" aria-label="Alterar status de ${esc(e.description)}. Status atual: ${statusLabel}">${statusLabel}</button>`}
                   </div>
                 </div>
               </div>
@@ -687,20 +679,10 @@ const defaultTypes = [
           </div>`;
       }
 
-      function updateSummary(entries, month) {
+      function updateSummary(entries) {
         const expenses = entries.filter((entry) => (entry.flow_type || "expense") === "expense");
-        const incomes = entries.filter((entry) => (entry.flow_type || "expense") === "income");
         monthTotal.textContent = money(
           expenses.reduce((a, e) => a + Number(e.value), 0),
-        );
-        const [year, monthNumber] = month.split("-").map(Number);
-        const daysInMonth = new Date(year, monthNumber, 0).getDate();
-        let recurringIncomeTotal = 0;
-        for (let day = 1; day <= daysInMonth; day += 1) {
-          recurringIncomeTotal += getRecurringIncome(`${month}-${String(day).padStart(2, "0")}`);
-        }
-        incomeTotal.textContent = money(
-          recurringIncomeTotal + incomes.reduce((a, e) => a + Number(e.value), 0),
         );
 
         paidTotal.textContent = money(
@@ -816,119 +798,10 @@ const defaultTypes = [
         count.textContent = `${entries.length} lançamento${entries.length === 1 ? "" : "s"}`;
       }
 
-      function timelineDateLabel(date) {
-        const formatted = new Date(`${date}T12:00`).toLocaleDateString("pt-BR", {
-          weekday: "short",
-          day: "numeric",
-          month: "short",
-        }).replaceAll(".", "");
-        if (date === todayISO()) return `Hoje, ${formatted.split(", ").at(-1)}`;
-        return formatted.charAt(0).toUpperCase() + formatted.slice(1);
-      }
-
-      function renderTimelineEntry(entry) {
-        const selected = state.selectedEntries.has(entry.id);
-        const isIncome = (entry.flow_type || "expense") === "income";
-        const statusLabel = entry.paid
-          ? (isIncome ? "Recebido" : "Pago")
-          : (isIncome ? "A receber" : "Em aberto");
-        return `
-          <div class="timeline-entry ${selected ? "selected" : ""}" data-entry="${entry.id}">
-            <span class="timeline-dot" style="background:${categoryColor(entry.type)}" aria-hidden="true"></span>
-            <div class="timeline-entry-copy">
-              <strong>${esc(entry.description)}</strong>
-              <span>${esc(entry.detail || entry.type)} · ${statusLabel}</span>
-            </div>
-            <div class="timeline-entry-value ${isIncome ? "income" : "expense"}">${isIncome ? "+ " : "− "}${money(entry.value)}</div>
-            ${state.selectionMode ? "" : `<button class="entry-menu" data-edit="${entry.id}" aria-label="Mais opções para ${esc(entry.description)}">Mais</button>`}
-          </div>`;
-      }
-
       function renderEntries(entries) {
-        if (!entries.length) {
-          rows.innerHTML = '<div class="empty">Nenhum lançamento encontrado.</div>';
-          return;
-        }
-        const entryNet = buildDailyEntryNet();
-        const groups = new Map();
-        entries.forEach((entry) => {
-          if (!groups.has(entry.date)) groups.set(entry.date, []);
-          groups.get(entry.date).push(entry);
-        });
-        rows.innerHTML = [...groups.entries()].map(([date, dailyEntries]) => `
-          <section class="timeline-group" aria-label="${timelineDateLabel(date)}">
-            <div class="timeline-day-head">
-              <h3>${timelineDateLabel(date)}</h3>
-              <div><span>Saldo após o dia</span><strong>${money(getProjectedBalance(date, entryNet))}</strong></div>
-            </div>
-            ${dailyEntries.map(renderTimelineEntry).join("")}
-          </section>
-        `).join("");
-      }
-
-      function renderForecast(month) {
-        const [year, monthNumber] = month.split("-").map(Number);
-        const daysInMonth = new Date(year, monthNumber, 0).getDate();
-        const monthStart = `${month}-01`;
-        const monthEnd = `${month}-${String(daysInMonth).padStart(2, "0")}`;
-        const start = todayISO().startsWith(month) ? todayISO() : monthStart;
-        const entryNet = buildDailyEntryNet();
-        const points = [];
-        for (let cursor = start; cursor <= monthEnd; cursor = domain.addDays(cursor, 1)) {
-          points.push({ date: cursor, value: getProjectedBalance(cursor, entryNet) });
-        }
-        if (!points.length) return;
-
-        const endBalance = points.at(-1).value;
-        const minimum = points.reduce((lowest, point) => point.value < lowest.value ? point : lowest, points[0]);
-        currentBalanceTotal.textContent = money(endBalance);
-        forecastPeriod.textContent = `até ${new Date(`${monthEnd}T12:00`).toLocaleDateString("pt-BR", { day: "numeric", month: "long" })}`;
-        forecastMinimum.textContent = `Menor saldo: ${money(minimum.value)}`;
-        forecastHealth.textContent = minimum.value >= 0
-          ? "Saldo positivo durante todo o mês"
-          : `Atenção: saldo negativo em ${new Date(`${minimum.date}T12:00`).toLocaleDateString("pt-BR", { day: "numeric", month: "short" }).replace(".", "")}`;
-        forecastHealth.classList.toggle("negative", minimum.value < 0);
-        forecastStartLabel.textContent = start === todayISO() ? "Hoje" : "Início do mês";
-        forecastMiddleLabel.textContent = `${Math.ceil(daysInMonth / 2)} ${new Date(`${month}-15T12:00`).toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}`;
-        forecastEndLabel.textContent = `${daysInMonth} ${new Date(`${monthEnd}T12:00`).toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}`;
-
-        const rect = forecastChart.getBoundingClientRect();
-        const width = Math.max(280, Math.round(rect.width));
-        const height = Math.max(112, Math.round(rect.height));
-        const ratio = window.devicePixelRatio || 1;
-        forecastChart.width = width * ratio;
-        forecastChart.height = height * ratio;
-        const ctx = forecastChart.getContext("2d");
-        ctx.scale(ratio, ratio);
-        ctx.clearRect(0, 0, width, height);
-        const pad = { top: 18, right: 10, bottom: 16, left: 2 };
-        const values = points.map((point) => point.value);
-        const low = Math.min(0, ...values);
-        const high = Math.max(0, ...values);
-        const span = Math.max(1, high - low);
-        const x = (index) => pad.left + (index / Math.max(1, points.length - 1)) * (width - pad.left - pad.right);
-        const y = (value) => pad.top + ((high - value) / span) * (height - pad.top - pad.bottom);
-
-        ctx.strokeStyle = "#a9b9c8";
-        ctx.setLineDash([5, 5]);
-        ctx.beginPath();
-        ctx.moveTo(pad.left, y(0));
-        ctx.lineTo(width - pad.right, y(0));
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        ctx.strokeStyle = minimum.value < 0 ? "#b42318" : "#126b5b";
-        ctx.lineWidth = 3;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        ctx.beginPath();
-        points.forEach((point, index) => index ? ctx.lineTo(x(index), y(point.value)) : ctx.moveTo(x(index), y(point.value)));
-        ctx.stroke();
-        ctx.fillStyle = ctx.strokeStyle;
-        ctx.beginPath();
-        ctx.arc(x(points.length - 1), y(endBalance), 5, 0, Math.PI * 2);
-        ctx.fill();
-        forecastChart.setAttribute("aria-label", `Projeção de saldo de ${money(points[0].value)} até ${money(endBalance)}. Menor saldo ${money(minimum.value)}.`);
+        rows.innerHTML = entries.length
+          ? entries.map(renderDenseEntry).join("")
+          : '<div class="empty">Nenhum lançamento encontrado.</div>';
       }
 
       function render() {
@@ -948,7 +821,10 @@ const defaultTypes = [
 
         const monthly = getMonthlyEntries(month);
 
-        updateSummary(monthly, month);
+        updateSummary(monthly);
+        currentBalanceTotal.textContent = money(
+          getProjectedBalance(todayISO(), buildDailyEntryNet()),
+        );
         const referenceDate = state.settings.balance_reference_date || todayISO();
         balanceReferenceSummary.textContent = `Saldo informado em ${new Date(`${referenceDate}T12:00`).toLocaleDateString("pt-BR")}`;
 
@@ -964,13 +840,12 @@ const defaultTypes = [
 
         renderEntries(list);
         renderCalendar();
-        renderForecast(month);
 
         panelTitle.textContent = state.selectionMode
           ? `${state.selectedEntries.size} selecionado${state.selectedEntries.size > 1 ? "s" : ""}`
           : state.filterDate
             ? `Lançamentos de ${new Date(`${state.filterDate}T12:00`).toLocaleDateString("pt-BR")}`
-            : "Próximos lançamentos";
+            : "Lançamentos";
 
         count.style.display = state.selectionMode ? "none" : "";
         dateFilterInfo.classList.toggle(
@@ -1822,10 +1697,7 @@ const defaultTypes = [
         if (event.key === "Escape") closeContextMenu();
       });
 
-      window.addEventListener("resize", () => {
-        closeContextMenu();
-        if (filterMonth.value) renderForecast(filterMonth.value);
-      });
+      window.addEventListener("resize", closeContextMenu);
       window.addEventListener("scroll", closeContextMenu, true);
 
       calendarGrid.onclick = (event) => {
@@ -1961,6 +1833,25 @@ const defaultTypes = [
           return;
         }
 
+        state.activeEntry = card.dataset.entry;
+        toggleEntryStatus();
+      });
+
+      rows.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        if (e.target !== e.target.closest("[data-entry]")) return;
+
+        const card = e.target.closest("[data-entry]");
+        if (!card) return;
+
+        e.preventDefault();
+        if (state.selectionMode) {
+          toggleSelection(card.dataset.entry);
+          return;
+        }
+
+        state.activeEntry = card.dataset.entry;
+        toggleEntryStatus();
       });
 
       form.onsubmit = async (e) => {
@@ -2040,25 +1931,6 @@ const defaultTypes = [
 
       async function startApp() {
         localStore.clearLegacyCache();
-        const previewHosts = new Set(["localhost", "127.0.0.1", "terminal.local"]);
-        const isLocalPreview = previewHosts.has(window.location.hostname) && new URLSearchParams(window.location.search).has("preview");
-        if (isLocalPreview) {
-          const previewEntries = [
-            { id: "10000000-0000-4000-8000-000000000001", date: todayISO(), value: 180, type: "ALIMENTAÇÃO", description: "Supermercado", detail: "Alimentação", paid: false, flow_type: "expense", created_at: new Date().toISOString() },
-            { id: "10000000-0000-4000-8000-000000000002", date: todayISO(), value: 10000, type: "TRABALHO", description: "Salário", detail: "Receita", paid: true, flow_type: "income", created_at: new Date().toISOString() },
-            { id: "10000000-0000-4000-8000-000000000003", date: domain.addDays(todayISO(), 1), value: 2200, type: "MORADIA", description: "Aluguel", detail: "Moradia", paid: false, flow_type: "expense", created_at: new Date().toISOString() },
-            { id: "10000000-0000-4000-8000-000000000004", date: domain.addDays(todayISO(), 1), value: 89.9, type: "SERVIÇOS", description: "Plano de celular", detail: "Serviços", paid: false, flow_type: "expense", created_at: new Date().toISOString() },
-            { id: "10000000-0000-4000-8000-000000000005", date: domain.addDays(todayISO(), 2), value: 500, type: "TRABALHO", description: "Freelance", detail: "Receita", paid: false, flow_type: "income", created_at: new Date().toISOString() },
-            { id: "10000000-0000-4000-8000-000000000006", date: domain.addDays(todayISO(), 2), value: 100, type: "TRANSPORTE", description: "Combustível", detail: "Transporte", paid: false, flow_type: "expense", created_at: new Date().toISOString() },
-          ];
-          state.user = { id: "preview", email: "preview@local", user_metadata: { full_name: "Prévia" } };
-          state.entries = previewEntries;
-          state.settings = { current_balance: 10000, balance_reference_date: todayISO(), income_day_15: 0, income_last_business_day: 0 };
-          updateAuthArea();
-          render();
-          setSyncStatus("synced", "Prévia local");
-          return;
-        }
         render();
         await initializeAuth();
       }
