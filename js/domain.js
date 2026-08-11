@@ -106,6 +106,29 @@
     }, new Map());
   }
 
+  function recentEntries(entries) {
+    return entries.filter((entry) => !entry.excluded_from_series).sort((a, b) => {
+      const aCreatedAt = String(a.created_at || `${a.date || ""}T00:00:00`);
+      const bCreatedAt = String(b.created_at || `${b.date || ""}T00:00:00`);
+      return bCreatedAt.localeCompare(aCreatedAt) ||
+        String(b.id || "").localeCompare(String(a.id || ""));
+    });
+  }
+
+  function recentEntryGroups(entries) {
+    const groups = new Map();
+    for (const entry of recentEntries(entries)) {
+      const key = entry.series_id
+        ? `series:${entry.series_id}`
+        : entry.installment
+          ? `installment:${entry.created_at || entry.date}:${entry.description}:${entry.type}`
+          : `entry:${entry.id}`;
+      if (!groups.has(key)) groups.set(key, { primary: entry, entries: [] });
+      groups.get(key).entries.push(entry);
+    }
+    return [...groups.values()];
+  }
+
   function projectedBalance(date, settings, entryTotals) {
     const referenceDate = settings.balance_reference_date || todayISO();
     let balance = Number(settings.current_balance);
@@ -127,6 +150,8 @@
     dailyEntryTotals,
     dailyEntryNet,
     dailyIncomeTotals,
+    recentEntries,
+    recentEntryGroups,
     projectedBalance,
   };
 })(window);

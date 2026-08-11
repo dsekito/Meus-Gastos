@@ -9,6 +9,8 @@ const {
   generateRecurringOccurrences,
   dailyEntryTotals,
   dailyEntryNet,
+  recentEntries,
+  recentEntryGroups,
   projectedBalance,
 } = global.MGDomain;
 
@@ -99,6 +101,27 @@ const entries = [
 assert.equal(dailyEntryTotals(entries).get("2026-08-02"), 100);
 assert.equal(dailyEntryNet(entries).get("2026-08-02"), -75);
 assert.equal(dailyEntryNet(entries).get("2026-08-03"), 10);
+
+assert.deepEqual(
+  recentEntries([
+    { id: "older", date: "2026-09-01", created_at: "2026-08-01T10:00:00.000Z" },
+    { id: "newer", date: "2026-01-01", created_at: "2026-08-10T10:00:00.000Z" },
+    { id: "legacy", date: "2026-07-01" },
+    { id: "excluded", date: "2026-12-01", excluded_from_series: true },
+  ]).map((entry) => entry.id),
+  ["newer", "older", "legacy"],
+);
+
+const groupedRecent = recentEntryGroups([
+  { id: "single", date: "2026-08-10", created_at: "2026-08-10T12:00:00.000Z" },
+  { id: "series-1", series_id: "rent", date: "2026-09-01", created_at: "2026-08-09T12:00:00.000Z" },
+  { id: "series-2", series_id: "rent", date: "2026-10-01", created_at: "2026-08-09T12:00:01.000Z" },
+  { id: "installment-1", description: "NOTEBOOK", type: "COMPRA", date: "2026-08-08", created_at: "2026-08-08T12:00:00.000Z", installment: { current: 1, total: 2 } },
+  { id: "installment-2", description: "NOTEBOOK", type: "COMPRA", date: "2026-09-08", created_at: "2026-08-08T12:00:00.000Z", installment: { current: 2, total: 2 } },
+]);
+assert.equal(groupedRecent.length, 3);
+assert.equal(groupedRecent[1].entries.length, 2);
+assert.equal(groupedRecent[2].entries.length, 2);
 
 assert.equal(
   projectedBalance(

@@ -1,4 +1,5 @@
 (function attachGoogleAuth(global) {
+  const SESSION_KEY = "meus-gastos-google-user";
   const SCOPES = [
     "openid",
     "email",
@@ -6,10 +7,36 @@
     "https://www.googleapis.com/auth/drive.appdata",
   ].join(" ");
 
-  function create({ clientId }) {
+  function create({ clientId, popupTimeoutMs = 15000 }) {
     let accessToken = null;
     let expiresAt = 0;
     let tokenClient = null;
+
+    function persistUser(user) {
+      try {
+        global.localStorage?.setItem(SESSION_KEY, JSON.stringify(user));
+      } catch (error) {
+        console.warn("Não foi possível persistir a sessão local.", error);
+      }
+    }
+
+    function restoreSession() {
+      try {
+        const saved = JSON.parse(global.localStorage?.getItem(SESSION_KEY) || "null");
+        return saved?.id ? saved : null;
+      } catch (error) {
+        console.warn("Não foi possível restaurar a sessão local.", error);
+        return null;
+      }
+    }
+
+    function forgetSession() {
+      try {
+        global.localStorage?.removeItem(SESSION_KEY);
+      } catch (error) {
+        console.warn("Não foi possível remover a sessão local.", error);
+      }
+    }
 
     function ensureConfigured() {
       if (!clientId || clientId.includes("SEU_CLIENT_ID")) {
@@ -34,20 +61,44 @@
     function signIn() {
       ensureConfigured();
       return new Promise((resolve, reject) => {
+        let finished = false;
+        const popupTimeout = setTimeout(() => {
+          if (finished) return;
+          finished = true;
+          clearToken();
+          reject(new Error("GOOGLE_POPUP_TIMEOUT"));
+        }, popupTimeoutMs);
+
+        function finish(callback) {
+          if (finished) return false;
+          finished = true;
+          clearTimeout(popupTimeout);
+          callback();
+          return true;
+        }
+
         tokenClient = google.accounts.oauth2.initTokenClient({
           client_id: clientId,
           scope: SCOPES,
           callback: async (response) => {
-            if (response.error) return reject(new Error(response.error));
+            if (response.error) {
+              finish(() => reject(new Error(response.error)));
+              return;
+            }
+            if (finished) return;
             accessToken = response.access_token;
             expiresAt = Date.now() + Math.max(0, Number(response.expires_in || 0) - 30) * 1000;
             try {
-              resolve(await fetchUser());
+              const user = await fetchUser();
+              finish(() => {
+                persistUser(user);
+                resolve(user);
+              });
             } catch (error) {
-              reject(error);
+              finish(() => reject(error));
             }
           },
-          error_callback: (error) => reject(new Error(error.type || "GOOGLE_OAUTH_ERROR")),
+          error_callback: (error) => finish(() => reject(new Error(error.type || "GOOGLE_OAUTH_ERROR"))),
         });
         tokenClient.requestAccessToken({ prompt: "select_account" });
       });
@@ -62,6 +113,7 @@
     // desconexão definitiva da conta e exigiria novo consentimento no próximo uso.
     function signOut() {
       clearToken();
+      forgetSession();
       return Promise.resolve();
     }
 
@@ -69,7 +121,9 @@
       signIn,
       signOut,
       clearToken,
+      restoreSession,
       getAccessToken: () => accessToken,
+      hasAccessToken: () => Boolean(accessToken),
       isAccessTokenExpired: () => !!accessToken && Date.now() >= expiresAt,
     };
   }

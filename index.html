@@ -49,6 +49,23 @@
         padding: 24px;
         place-items: center;
       }
+      .bootstrap-screen {
+        display: grid;
+        min-height: 100vh;
+        padding: 24px;
+        place-items: center;
+        text-align: center;
+      }
+      .bootstrap-card {
+        display: grid;
+        width: min(100%, 320px);
+        gap: 14px;
+        justify-items: center;
+        padding: 28px;
+        color: var(--muted);
+      }
+      .bootstrap-card strong { color: var(--ink); font-size: 18px; }
+      .bootstrap-card progress { width: 180px; accent-color: var(--brand); }
       .auth-card {
         width: min(100%, 390px);
         padding: 32px;
@@ -145,6 +162,11 @@
         display: flex;
         align-items: center;
         gap: 10px;
+      }
+      #authArea {
+        display: flex;
+        align-items: center;
+        gap: 6px;
       }
       .auth-button {
         border: 1px solid #cbd5e1;
@@ -442,6 +464,36 @@
       .sync-status[data-state="synced"]::before { background: #16a34a; }
       .sync-status[data-state="syncing"]::before { background: #f59e0b; }
       .sync-status[data-state="pending"]::before { background: #dc2626; }
+      .sync-status[data-state="conflict"]::before { background: #b42318; }
+      .sync-notice {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin: -14px 0 18px;
+        padding: 14px 16px;
+        border: 1px solid #d8c68d;
+        border-radius: 16px;
+        background: #fff8df;
+        color: var(--ink);
+      }
+      .sync-notice[hidden] { display: none; }
+      .sync-notice[data-state="syncing"] {
+        border-color: #c7d9d0;
+        background: #eef6f2;
+      }
+      .sync-notice[data-state="synced"] {
+        border-color: #bbd8ca;
+        background: #eff8f3;
+      }
+      .sync-notice[data-state="conflict"] {
+        border-color: #efb4ae;
+        background: #fff1f0;
+      }
+      .sync-notice-copy { display: grid; gap: 3px; }
+      .sync-notice strong { font-size: 16px; line-height: 1.3; }
+      .sync-notice p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+      .sync-notice button { flex: 0 0 auto; min-width: 148px; min-height: 48px; }
       .selection-actions {
         display: flex;
         align-items: center;
@@ -919,6 +971,7 @@
         }
 
         .settings-button,
+        #reconnectGoogle,
         #signOut {
           display: inline-flex;
           align-items: center;
@@ -927,6 +980,7 @@
         }
 
         .settings-button .button-label,
+        #reconnectGoogle .button-label,
         #signOut .button-label { display: none; }
 
         .top #openModal {
@@ -1229,6 +1283,13 @@
         .mark { width: 44px; height: 44px; }
         .auth-button { min-width: 48px; min-height: 48px; }
         .sync-status { min-width: 12px; min-height: 12px; }
+        .sync-notice {
+          align-items: stretch;
+          flex-direction: column;
+          margin: -8px 0 14px;
+          padding: 14px 16px;
+        }
+        .sync-notice button { width: 100%; }
 
         .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
         .summary .balance-card { grid-column: auto; padding: 12px; border-radius: 16px; }
@@ -1504,20 +1565,159 @@
       }
       .backup-actions {
         display: grid;
-        gap: 8px;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px 20px;
+        align-items: center;
         padding: 16px;
         border: 1px solid var(--line);
         border-radius: 14px;
         background: var(--soft);
       }
-      .backup-actions p { margin: 0; font-size: 14px; }
+      .backup-copy {
+        display: grid;
+        gap: 4px;
+        min-width: 0;
+      }
+      .backup-actions strong { font-size: 16px; line-height: 1.3; }
+      .backup-actions p { margin: 0; font-size: 14px; line-height: 1.45; }
+      .backup-actions button { min-width: 160px; min-height: 48px; }
+      .settings-group {
+        display: grid;
+        gap: 12px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: var(--paper);
+      }
+      .settings-group-head { display: grid; gap: 3px; }
+      .settings-group h3 { margin: 0; font-size: 17px; }
+      .settings-group-head p { margin: 0; font-size: 13px; }
+      .settings-fields {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .settings-data-actions { display: grid; gap: 10px; }
+      .settings-sync-summary {
+        padding: 12px 14px;
+        border-radius: 12px;
+        background: var(--soft);
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.45;
+      }
+      .settings-sync-summary strong { display: block; color: var(--ink); font-size: 15px; }
+      .settings-history-action {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px 20px;
+        align-items: center;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--paper);
+      }
+      .settings-history-action button { min-width: 160px; min-height: 48px; }
+      .recent-records-list {
+        display: grid;
+        flex: 1 1 auto;
+        gap: 10px;
+        min-height: 0;
+        padding: 12px 22px;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+      }
+      .recent-record {
+        display: grid;
+        gap: 8px;
+        padding: 14px 16px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--paper);
+      }
+      .recent-record-head,
+      .recent-record-meta {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .recent-record-title {
+        min-width: 0;
+        overflow: hidden;
+        font-size: 16px;
+        font-weight: 700;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .recent-record-value { flex: 0 0 auto; font-weight: 800; }
+      .recent-record-value.income { color: #16805c; }
+      .recent-record-group-count {
+        width: fit-content;
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: var(--soft);
+        color: var(--brand);
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .recent-record-meta {
+        align-items: flex-end;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.4;
+      }
+      .recent-record-meta span:last-child { text-align: right; }
+      .recent-record-actions { display: flex; justify-content: flex-end; }
+      .recent-record-actions button { min-width: 112px; min-height: 48px; }
+      .recent-records-empty {
+        padding: 28px 16px;
+        color: var(--muted);
+        text-align: center;
+      }
+      #recentRecordsDialog .modal {
+        display: flex;
+        max-height: calc(100dvh - 32px);
+        flex-direction: column;
+      }
+      .recent-records-shortcut { min-height: 48px; }
+      .conflict-actions {
+        display: grid;
+        gap: 10px;
+        padding: 0 22px 22px;
+      }
+      .conflict-actions button { min-height: 48px; text-align: left; }
       @media (max-width: 768px) {
         .series-scope-actions { padding: 12px 14px 14px; }
+        .backup-actions,
+        .settings-history-action {
+          grid-template-columns: 1fr;
+          gap: 14px;
+          padding: 14px;
+        }
+        .backup-actions button,
+        .settings-history-action button { width: 100%; }
+        .recent-records-list { padding: 10px 14px; }
+        .recent-record { padding: 12px 14px; }
+        .recent-record-meta { align-items: flex-start; flex-direction: column; gap: 3px; }
+        .recent-record-meta span:last-child { text-align: left; }
+        .recent-record-actions button { width: 100%; }
+        #recentRecordsDialog .modal-foot { grid-template-columns: 1fr; }
+        .settings-fields { grid-template-columns: 1fr; }
+        .settings-group { padding: 14px; }
+        .recent-records-shortcut { width: auto; }
+        .conflict-actions { padding: 0 14px 14px; }
       }
     </style>
   </head>
-  <body>
-    <section class="auth-screen" id="authScreen">
+  <body aria-busy="true">
+    <section class="bootstrap-screen" id="bootstrapScreen" role="status" aria-live="polite">
+      <div class="bootstrap-card">
+        <strong>Abrindo Meus Gastos</strong>
+        <span>Carregando seus dados com segurança…</span>
+        <progress aria-label="Carregando seus dados"></progress>
+      </div>
+    </section>
+    <section class="auth-screen" id="authScreen" hidden>
       <div class="auth-card">
         <div class="auth-logo">$</div>
         <h1>Meus Gastos</h1>
@@ -1537,12 +1737,19 @@
           </div>
         </div>
         <div class="header-actions">
-          <span class="sync-status" id="syncStatus" data-state="idle">Aguardando sincronização</span>
+          <span class="sync-status" id="syncStatus" data-state="idle" role="status" aria-live="polite" aria-atomic="true">Aguardando sincronização</span>
           <div id="authArea"></div>
           <button class="auth-button settings-button" id="openSettings" type="button" aria-label="Configurações financeiras" title="Configurações financeiras"><span aria-hidden="true">⚙</span><span class="button-label">Configurações</span></button>
           <button class="primary" id="openModal"><span aria-hidden="true">＋</span> Novo lançamento</button>
         </div>
       </header>
+      <section class="sync-notice" id="syncNotice" data-state="pending" aria-labelledby="syncNoticeTitle" hidden>
+        <div class="sync-notice-copy" aria-live="polite" aria-atomic="true">
+          <strong id="syncNoticeTitle">Sincronização pendente</strong>
+          <p id="syncNoticeDetail">Seus dados continuam salvos neste dispositivo.</p>
+        </div>
+        <button class="secondary" id="syncNoticeAction" type="button">Tentar novamente</button>
+      </section>
       <section class="summary">
         <article class="card balance-card">
           <div class="label">Saldo disponível</div>
@@ -1586,6 +1793,7 @@
           </div>
 
           <div id="selectionActions"></div>
+          <button class="secondary recent-records-shortcut" id="openRecentRecordsMain" type="button" aria-label="Abrir histórico de registros recentes">Histórico</button>
           <div class="date-filter" id="dateFilterInfo"><span id="dateFilterLabel"></span><button id="clearDateFilter" type="button" aria-label="Limpar filtro da data">×</button></div>
         </div>
         <div class="filters">
@@ -1765,20 +1973,77 @@
         </div>
       </form>
     </dialog>
-    <dialog id="settingsDialog">
+    <dialog id="settingsDialog" aria-labelledby="settingsTitle">
       <form class="modal" id="settingsForm">
-        <div class="modal-head"><div><h2>Configurações financeiras</h2><p>Defina o saldo usado na projeção.</p></div><button class="close" type="button" data-close-settings>&times;</button></div>
+        <div class="modal-head"><div><h2 id="settingsTitle">Configurações financeiras</h2><p>Ajuste a projeção e gerencie seus dados.</p></div><button class="close" type="button" data-close-settings aria-label="Fechar configurações">&times;</button></div>
         <div class="form-grid">
-          <div class="field"><label for="currentBalance">Saldo atual</label><input id="currentBalance" type="number" step="0.01" required></div>
-          <div class="field"><label for="balanceReferenceDate">Data-base do saldo</label><input id="balanceReferenceDate" type="date" required></div>
-          <section class="backup-actions wide" aria-labelledby="backupTitle">
-            <strong id="backupTitle">Backup manual</strong>
-            <p>Baixe uma cópia legível dos seus dados para guardar onde preferir.</p>
-            <button class="secondary" id="downloadBackup" type="button" aria-label="Baixar backup completo dos dados">Baixar backup</button>
+          <section class="settings-group wide" aria-labelledby="projectionSettingsTitle">
+            <div class="settings-group-head">
+              <h3 id="projectionSettingsTitle">Projeção financeira</h3>
+              <p>Estes valores definem o saldo usado nos cálculos.</p>
+            </div>
+            <div class="settings-fields">
+              <div class="field"><label for="currentBalance">Saldo atual</label><input id="currentBalance" type="number" step="0.01" required></div>
+              <div class="field"><label for="balanceReferenceDate">Data-base do saldo</label><input id="balanceReferenceDate" type="date" required></div>
+            </div>
+          </section>
+          <section class="settings-group wide" aria-labelledby="dataSettingsTitle">
+            <div class="settings-group-head">
+              <h3 id="dataSettingsTitle">Dados e histórico</h3>
+              <p>Consulte, sincronize ou exporte seus dados.</p>
+            </div>
+            <div class="settings-sync-summary" id="settingsSyncSummary" aria-live="polite"></div>
+            <div class="settings-data-actions">
+              <section class="settings-history-action" aria-labelledby="recentRecordsActionTitle">
+                <div class="backup-copy">
+                  <strong id="recentRecordsActionTitle">Registros recentes</strong>
+                  <p>Consulte os últimos lançamentos, ordenados pela data de cadastro.</p>
+                </div>
+                <button class="secondary" id="openRecentRecords" type="button" aria-label="Abrir os registros recentes">Ver registros</button>
+              </section>
+              <section class="backup-actions" aria-labelledby="backupTitle">
+                <div class="backup-copy">
+                  <strong id="backupTitle">Backup manual</strong>
+                  <p>Salve uma cópia completa dos seus dados em formato JSON.</p>
+                </div>
+                <button class="secondary" id="downloadBackup" type="button" aria-label="Baixar backup completo dos dados">Baixar backup</button>
+              </section>
+            </div>
           </section>
         </div>
-        <div class="modal-foot"><button class="secondary" type="button" data-close-settings>Cancelar</button><button class="primary" type="submit">Salvar configurações</button></div>
+        <div class="modal-foot"><button class="secondary" type="button" data-close-settings>Cancelar</button><button class="primary" id="saveSettings" type="submit">Salvar projeção</button></div>
       </form>
+    </dialog>
+    <dialog id="syncConflictDialog" aria-labelledby="syncConflictTitle">
+      <section class="modal">
+        <div class="modal-head">
+          <div>
+            <h2 id="syncConflictTitle">Resolver sincronização</h2>
+            <p>Os mesmos dados foram alterados em outro dispositivo.</p>
+          </div>
+          <button class="close" type="button" data-close-sync-conflict aria-label="Fechar resolução de sincronização">&times;</button>
+        </div>
+        <div class="conflict-actions">
+          <button class="secondary" id="useCloudVersion" type="button"><strong>Usar versão do Google Drive</strong><br><small>Descarta alterações pendentes deste dispositivo.</small></button>
+          <button class="primary" id="keepLocalVersion" type="button"><strong>Manter versão deste dispositivo</strong><br><small>Envia novamente suas alterações para o Google Drive.</small></button>
+        </div>
+      </section>
+    </dialog>
+    <dialog id="recentRecordsDialog" aria-labelledby="recentRecordsTitle">
+      <section class="modal">
+        <div class="modal-head">
+          <div>
+            <h2 id="recentRecordsTitle">Registros recentes</h2>
+            <p id="recentRecordsCount" aria-live="polite">Últimos 10 registros</p>
+          </div>
+          <button class="close" type="button" data-close-recent-records aria-label="Fechar registros recentes">&times;</button>
+        </div>
+        <div class="recent-records-list" id="recentRecordsList"></div>
+        <div class="modal-foot">
+          <button class="secondary" type="button" data-close-recent-records>Voltar</button>
+          <button class="primary" id="loadMoreRecentRecords" type="button">Ver mais 10</button>
+        </div>
+      </section>
     </dialog>
 
     <div id="contextMenu" class="context-menu hidden" role="menu" aria-label="Ações do registro">
@@ -1789,11 +2054,11 @@
     <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="./js/config.js?v=2026081001"></script>
-    <script src="./js/domain.js?v=2026081001"></script>
+    <script src="./js/domain.js?v=2026081003"></script>
     <script src="./js/local-store.js?v=2026081001"></script>
-    <script src="./js/google-auth.js?v=2026081001"></script>
+    <script src="./js/google-auth.js?v=2026081003"></script>
     <script src="./js/google-drive-repository.js?v=2026081001"></script>
     <script src="./js/sync-service.js?v=2026080106"></script>
-    <script src="./js/app.js?v=2026081001"></script>
+    <script src="./js/app.js?v=2026081007"></script>
   </body>
 </html>

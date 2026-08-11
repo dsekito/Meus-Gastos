@@ -97,6 +97,10 @@ const defaultTypes = [
         deletedEntryIds: new Set(),
 
         syncQueue: [],
+
+        lastSyncedAt: null,
+
+        syncConflict: null,
       };
       const synchronization = window.MGSyncService.create({
         state,
@@ -212,7 +216,19 @@ const defaultTypes = [
         openSettings = document.querySelector("#openSettings"),
         currentBalanceInput = document.querySelector("#currentBalance"),
         balanceReferenceDateInput = document.querySelector("#balanceReferenceDate"),
+        saveSettings = document.querySelector("#saveSettings"),
         downloadBackup = document.querySelector("#downloadBackup"),
+        openRecentRecords = document.querySelector("#openRecentRecords"),
+        openRecentRecordsMain = document.querySelector("#openRecentRecordsMain"),
+        recentRecordsDialog = document.querySelector("#recentRecordsDialog"),
+        recentRecordsList = document.querySelector("#recentRecordsList"),
+        recentRecordsCount = document.querySelector("#recentRecordsCount"),
+        loadMoreRecentRecords = document.querySelector("#loadMoreRecentRecords"),
+        settingsSyncSummary = document.querySelector("#settingsSyncSummary"),
+        bootstrapScreen = document.querySelector("#bootstrapScreen"),
+        syncConflictDialog = document.querySelector("#syncConflictDialog"),
+        useCloudVersion = document.querySelector("#useCloudVersion"),
+        keepLocalVersion = document.querySelector("#keepLocalVersion"),
         previousMonth = document.querySelector("#previousMonth"),
         nextMonth = document.querySelector("#nextMonth"),
         seriesScopeDialog = document.querySelector("#seriesScopeDialog"),
@@ -221,15 +237,123 @@ const defaultTypes = [
         bulkDateInput = document.querySelector("#bulkDate"),
         saveBulkDate = document.querySelector("#saveBulkDate"),
         saveEntry = document.querySelector("#saveEntry"),
-        syncStatus = document.querySelector("#syncStatus");
+        syncStatus = document.querySelector("#syncStatus"),
+        syncNotice = document.querySelector("#syncNotice"),
+        syncNoticeTitle = document.querySelector("#syncNoticeTitle"),
+        syncNoticeDetail = document.querySelector("#syncNoticeDetail"),
+        syncNoticeAction = document.querySelector("#syncNoticeAction");
+
+      let recentRecordsVisible = 10;
+      let recentRecordsReturnToSettings = false;
+      let returnToRecentAfterEdit = false;
 
       function todayISO() {
         return domain.todayISO();
       }
 
+      function pendingSyncCount() {
+        return state.syncQueue.length + (state.settingsDirty ? 1 : 0);
+      }
+
+      function formatLastSync() {
+        if (!state.lastSyncedAt) return "Ainda não sincronizado neste dispositivo";
+        const value = new Date(state.lastSyncedAt);
+        if (Number.isNaN(value.getTime())) return "Última sincronização indisponível";
+        const sameDay = value.toDateString() === new Date().toDateString();
+        const time = value.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+        return sameDay
+          ? `Google Drive atualizado hoje às ${time}`
+          : `Google Drive atualizado em ${value.toLocaleDateString("pt-BR")} às ${time}`;
+      }
+
+      function updateSettingsSyncSummary(stateName) {
+        if (!settingsSyncSummary) return;
+        const pending = pendingSyncCount();
+        const pendingLabel = `${pending} alteração${pending === 1 ? "" : "ões"} aguardando envio`;
+        const title = stateName === "conflict"
+          ? "Conflito de sincronização"
+          : pending > 0
+            ? pendingLabel
+            : "Dados protegidos";
+        settingsSyncSummary.innerHTML = `<strong>${title}</strong>${formatLastSync()}. Os dados também ficam salvos neste dispositivo.`;
+      }
+
       function setSyncStatus(stateName, message) {
+        const pending = pendingSyncCount();
+        const pendingLabel = `${pending} alteração${pending === 1 ? "" : "ões"} aguardando envio`;
         syncStatus.dataset.state = stateName;
-        syncStatus.textContent = message;
+        syncNotice.dataset.state = stateName;
+        updateSettingsSyncSummary(stateName);
+
+        if (stateName === "synced") {
+          syncStatus.textContent = "Tudo sincronizado";
+          syncStatus.setAttribute("aria-label", `${formatLastSync()}; tudo sincronizado`);
+          syncNotice.hidden = false;
+          syncNoticeAction.hidden = true;
+          syncNoticeTitle.textContent = "Tudo sincronizado";
+          syncNoticeDetail.textContent = `${formatLastSync()}. Seus dados também estão salvos neste dispositivo.`;
+          return;
+        }
+
+        if (stateName === "idle") {
+          syncStatus.textContent = message;
+          syncStatus.setAttribute("aria-label", message);
+          syncNotice.hidden = true;
+          return;
+        }
+
+        syncNotice.hidden = false;
+        syncNoticeAction.hidden = stateName === "syncing";
+
+        if (stateName === "syncing") {
+          syncStatus.textContent = "Sincronizando";
+          syncStatus.setAttribute("aria-label", message);
+          syncNoticeTitle.textContent = "Sincronizando com o Google Drive";
+          syncNoticeDetail.textContent = pending > 0 ? `Enviando ${pendingLabel}.` : "Conferindo os dados deste dispositivo com o Google Drive.";
+          return;
+        }
+
+        if (stateName === "conflict") {
+          syncStatus.textContent = "Conflito de sincronização";
+          syncStatus.setAttribute("aria-label", "Conflito de sincronização precisa ser resolvido");
+          syncNoticeTitle.textContent = "Alterações em dois dispositivos";
+          syncNoticeDetail.textContent = "Escolha qual versão deve ser mantida antes de continuar a sincronização.";
+          syncNoticeAction.hidden = false;
+          syncNoticeAction.textContent = "Resolver conflito";
+          return;
+        }
+
+        if (!navigator.onLine) {
+          syncStatus.textContent = "Sem conexão";
+          syncStatus.setAttribute("aria-label", "Sem conexão com a internet");
+          syncNoticeTitle.textContent = "Sem conexão com a internet";
+          syncNoticeDetail.textContent = pending > 0
+            ? `${pendingLabel.charAt(0).toUpperCase() + pendingLabel.slice(1)}. Tudo continua salvo neste dispositivo.`
+            : "Seus dados estão disponíveis neste dispositivo. A conexão será verificada automaticamente quando voltar.";
+          syncNoticeAction.hidden = true;
+          return;
+        }
+
+        if (state.user && !googleAuth.hasAccessToken()) {
+          syncStatus.textContent = "Reconexão necessária";
+          syncStatus.setAttribute("aria-label", "Reconecte o Google para sincronizar");
+          syncNoticeTitle.textContent = "Reconecte sua conta Google";
+          syncNoticeDetail.textContent = pending > 0
+            ? `${pendingLabel.charAt(0).toUpperCase() + pendingLabel.slice(1)}. Reconecte para enviar ao Google Drive.`
+            : "Seus dados continuam disponíveis neste dispositivo. Reconecte para conferir o Google Drive.";
+          syncNoticeAction.hidden = false;
+          syncNoticeAction.textContent = "Reconectar Google";
+          return;
+        }
+
+        syncStatus.textContent = "Sincronização pendente";
+        syncStatus.setAttribute("aria-label", `${pendingLabel}; tente novamente`);
+        syncNoticeTitle.textContent = "Não foi possível sincronizar agora";
+        syncNoticeDetail.textContent = pending > 0
+          ? `${pendingLabel.charAt(0).toUpperCase() + pendingLabel.slice(1)}. Tudo continua salvo neste dispositivo.`
+          : "Os dados continuam salvos neste dispositivo. Tente conferir o Google Drive novamente.";
+        syncNoticeAction.hidden = false;
+        syncNoticeAction.textContent = "Tentar novamente";
       }
 
       selectionActions.onclick = (e) => {
@@ -276,6 +400,8 @@ const defaultTypes = [
           types: state.types,
           descriptions: state.descriptions,
           syncQueue: state.syncQueue,
+          lastSyncedAt: state.lastSyncedAt,
+          syncConflict: state.syncConflict,
           savedAt: new Date().toISOString(),
         }).catch((error) => console.error("Não foi possível salvar os dados locais.", error));
       }
@@ -290,6 +416,8 @@ const defaultTypes = [
         state.types = [...new Set([...defaultTypes, ...(cached.types || [])])].sort();
         state.descriptions = [...new Set([...defaultDescriptions, ...(cached.descriptions || [])])].sort();
         state.syncQueue = cached.syncQueue || [];
+        state.lastSyncedAt = cached.lastSyncedAt || null;
+        state.syncConflict = cached.syncConflict || null;
         state.deletedEntryIds = new Set(
           state.syncQueue.filter((item) => item.type === "delete").map((item) => item.id),
         );
@@ -305,6 +433,8 @@ const defaultTypes = [
         state.descriptions = [...defaultDescriptions];
         state.settings = createDefaultSettings();
         state.settingsDirty = false;
+        state.lastSyncedAt = null;
+        state.syncConflict = null;
         state.selectedCalendarDate = null;
         state.filterDate = null;
         state.calendarExpanded = false;
@@ -329,8 +459,19 @@ const defaultTypes = [
         synchronization.queueDelete(id, baseUpdatedAt);
       }
 
+      function isSyncConflict(error) {
+        return error?.message === "GOOGLE_DRIVE_CONFLICT" || error?.message?.startsWith("CONFLICT:");
+      }
+
+      async function markSynchronizationComplete() {
+        state.lastSyncedAt = new Date().toISOString();
+        state.syncConflict = null;
+        await saveLocal();
+        setSyncStatus("synced", "Tudo sincronizado");
+      }
+
       async function save() {
-        saveLocal();
+        await saveLocal();
         setSyncStatus("syncing", "Sincronizando alterações...");
         try {
           await syncEntries();
@@ -338,21 +479,24 @@ const defaultTypes = [
             await syncSettings();
             state.settingsDirty = false;
           }
-          setSyncStatus("synced", "Alterações sincronizadas");
+          await markSynchronizationComplete();
           return true;
         } catch (error) {
           console.error(error);
-          setSyncStatus("pending", "Sincronização pendente");
-          if (error.message === "GOOGLE_AUTH_EXPIRED") {
+          if (["GOOGLE_AUTH_EXPIRED", "GOOGLE_AUTH_REQUIRED"].includes(error.message)) {
             await expireGoogleSession();
-            show("Sua sessão Google expirou. Entre novamente; suas alterações estão salvas neste dispositivo.");
+            show("Seus dados estão salvos neste dispositivo. Reconecte o Google para sincronizar.");
             return false;
           }
-          show(
-            error.message === "GOOGLE_DRIVE_CONFLICT" || error.message?.startsWith("CONFLICT:")
-              ? "Os dados mudaram em outro aparelho. Reabra o aplicativo antes de tentar novamente."
-              : "Alteração salva neste dispositivo e aguardando conexão para sincronizar.",
-          );
+          if (isSyncConflict(error)) {
+            state.syncConflict = { message: error.message, occurredAt: new Date().toISOString() };
+            await saveLocal();
+            setSyncStatus("conflict", "Conflito de sincronização");
+            show("Há alterações em dois dispositivos. Escolha qual versão deseja manter.");
+            return false;
+          }
+          setSyncStatus("pending", "Sincronização pendente");
+          show("Alteração salva neste dispositivo e aguardando conexão para sincronizar.");
           return false;
         }
       }
@@ -382,7 +526,10 @@ const defaultTypes = [
         }
 
         const name = state.user.user_metadata?.full_name || state.user.email;
-        authArea.innerHTML = `<span class="signed-user" title="${esc(state.user.email || "")}">${esc(name || "Usuário")}</span><button class="auth-button" id="signOut" type="button" aria-label="Sair da conta" title="Sair da conta"><span aria-hidden="true">⎋</span><span class="button-label">Sair</span></button>`;
+        const reconnectButton = googleAuth.hasAccessToken()
+          ? ""
+          : '<button class="auth-button" id="reconnectGoogle" type="button" aria-label="Reconectar ao Google para sincronizar" title="Reconectar ao Google"><span aria-hidden="true">↻</span><span class="button-label">Reconectar</span></button>';
+        authArea.innerHTML = `<span class="signed-user" title="${esc(state.user.email || "")}">${esc(name || "Usuário")}</span>${reconnectButton}<button class="auth-button" id="signOut" type="button" aria-label="Sair da conta" title="Sair da conta"><span aria-hidden="true">⎋</span><span class="button-label">Sair</span></button>`;
       }
 
       async function syncEntries() {
@@ -502,15 +649,20 @@ const defaultTypes = [
         render();
       }
       async function setCurrentUser(user) {
-        if (state.user?.id === user?.id) return;
+        const isSameUser = state.user?.id === user?.id;
         state.user = user || null;
-        if (state.user) {
+        if (state.user && !isSameUser) {
           resetStateForUser(state.user);
           await loadLocal(state.user.id);
           render();
         }
         updateAuthArea();
         if (state.user) {
+          if (!googleAuth.hasAccessToken()) {
+            setSyncStatus(state.syncConflict ? "conflict" : "pending", state.syncConflict ? "Conflito de sincronização" : "Reconecte o Google para sincronizar");
+            render();
+            return;
+          }
           let hasPendingSync = false;
           try {
             normalizeEntryIds();
@@ -521,13 +673,18 @@ const defaultTypes = [
               // A fila continua preservada para uma nova tentativa posterior.
               hasPendingSync = true;
               console.error(error);
-              setSyncStatus("pending", "Sincronização pendente");
+              if (isSyncConflict(error)) {
+                state.syncConflict = { message: error.message, occurredAt: new Date().toISOString() };
+                setSyncStatus("conflict", "Conflito de sincronização");
+              } else {
+                setSyncStatus("pending", "Sincronização pendente");
+              }
             }
             await loadCloudEntries();
             await loadCloudSettings();
             await loadCloudRecurrenceSeries();
-            await saveLocal();
-            if (!hasPendingSync) setSyncStatus("synced", "Dados sincronizados");
+            if (!hasPendingSync) await markSynchronizationComplete();
+            else await saveLocal();
           } finally {
             // Mesmo com falha temporária de rede, a tela continua responsiva.
             render();
@@ -537,26 +694,36 @@ const defaultTypes = [
         }
       }
 
-      async function signInWithGoogle() {
+      async function signInWithGoogle(trigger = signInGoogleScreen) {
         if (window.location.protocol === "file:") {
           show("Abra o site publicado para entrar com Google.");
           return;
         }
-        signInGoogleScreen.disabled = true;
-        signInGoogleScreen.setAttribute("aria-busy", "true");
-        signInGoogleScreen.textContent = "Conectando…";
+        const triggerLabel = trigger.querySelector(".button-label");
+        const originalLabel = triggerLabel?.textContent || trigger.textContent;
+        trigger.disabled = true;
+        trigger.setAttribute("aria-busy", "true");
+        if (triggerLabel) triggerLabel.textContent = "Conectando…";
+        else trigger.textContent = "Conectando…";
         try {
           const user = await googleAuth.signIn();
           await setCurrentUser(user);
         } catch (error) {
           console.error(error);
-          show(error.message === "GOOGLE_CLIENT_ID_NOT_CONFIGURED"
-            ? "Configure o Client ID do Google antes de entrar."
-            : "Não foi possível entrar com o Google.");
+          show(
+            error.message === "GOOGLE_CLIENT_ID_NOT_CONFIGURED"
+              ? "Configure o Client ID do Google antes de entrar."
+              : error.message === "GOOGLE_POPUP_TIMEOUT"
+                ? "O Google não abriu neste navegador. Use o Chrome ou Edge para entrar."
+                : "Não foi possível entrar com o Google.",
+          );
         } finally {
-          signInGoogleScreen.disabled = false;
-          signInGoogleScreen.removeAttribute("aria-busy");
-          signInGoogleScreen.textContent = "Continuar com Google";
+          if (trigger.isConnected) {
+            trigger.disabled = false;
+            trigger.removeAttribute("aria-busy");
+            if (triggerLabel) triggerLabel.textContent = originalLabel;
+            else trigger.textContent = originalLabel;
+          }
         }
       }
 
@@ -573,23 +740,154 @@ const defaultTypes = [
         await saveLocal();
         googleAuth.clearToken();
         repository.reset();
-        clearSessionState();
         updateAuthArea();
-        setSyncStatus("pending", "Entre novamente para sincronizar");
+        setSyncStatus("pending", "Reconecte o Google para sincronizar");
         render();
       }
 
       async function initializeAuth() {
-        updateAuthArea();
-        setSyncStatus("idle", "Entre para acessar seu Google Drive");
+        try {
+          const restoredUser = googleAuth.restoreSession();
+          if (restoredUser) {
+            await setCurrentUser(restoredUser);
+          } else {
+            updateAuthArea();
+            setSyncStatus("idle", "Entre para acessar seu Google Drive");
+          }
+        } finally {
+          bootstrapScreen.hidden = true;
+          document.body.setAttribute("aria-busy", "false");
+          updateAuthArea();
+        }
+      }
+
+      async function retrySynchronization(trigger = null) {
+        if (!state.user) return;
+        if (!navigator.onLine) {
+          setSyncStatus("pending", "Sem conexão");
+          return;
+        }
+        if (!googleAuth.hasAccessToken()) {
+          if (trigger) await signInWithGoogle(trigger);
+          else setSyncStatus("pending", "Reconecte o Google para sincronizar");
+          return;
+        }
+
+        const originalLabel = trigger?.textContent;
+        if (trigger) {
+          trigger.disabled = true;
+          trigger.setAttribute("aria-busy", "true");
+          trigger.textContent = "Sincronizando...";
+        }
+        setSyncStatus("syncing", "Sincronizando com o Google Drive");
+
+        try {
+          await repository.load();
+          await retryPendingSynchronization();
+          await loadCloudEntries();
+          await loadCloudSettings();
+          await loadCloudRecurrenceSeries();
+          await markSynchronizationComplete();
+          render();
+          show("Dados sincronizados com o Google Drive.");
+        } catch (error) {
+          console.error(error);
+          if (["GOOGLE_AUTH_EXPIRED", "GOOGLE_AUTH_REQUIRED"].includes(error.message)) {
+            await expireGoogleSession();
+          } else if (isSyncConflict(error)) {
+            state.syncConflict = { message: error.message, occurredAt: new Date().toISOString() };
+            await saveLocal();
+            setSyncStatus("conflict", "Conflito de sincronização");
+          } else {
+            setSyncStatus("pending", "Sincronização pendente");
+          }
+        } finally {
+          if (trigger?.isConnected) {
+            trigger.disabled = false;
+            trigger.removeAttribute("aria-busy");
+            trigger.textContent = originalLabel;
+          }
+        }
+      }
+
+      function openSyncConflictDialog() {
+        if (!syncConflictDialog.open) syncConflictDialog.showModal();
+      }
+
+      async function runConflictAction(button, loadingLabel, task) {
+        const buttons = [useCloudVersion, keepLocalVersion];
+        const originalContent = button.innerHTML;
+        buttons.forEach((item) => { item.disabled = true; });
+        button.setAttribute("aria-busy", "true");
+        button.textContent = loadingLabel;
+        try {
+          await task();
+        } catch (error) {
+          console.error(error);
+          state.syncConflict = state.syncConflict || { message: error.message, occurredAt: new Date().toISOString() };
+          await saveLocal();
+          if (["GOOGLE_AUTH_EXPIRED", "GOOGLE_AUTH_REQUIRED"].includes(error.message)) {
+            await expireGoogleSession();
+          } else {
+            setSyncStatus("conflict", "Conflito de sincronização");
+          }
+          show("Não foi possível concluir a escolha. Seus dados continuam salvos neste dispositivo.");
+        } finally {
+          buttons.forEach((item) => { item.disabled = false; });
+          button.removeAttribute("aria-busy");
+          button.innerHTML = originalContent;
+        }
+      }
+
+      async function useGoogleDriveVersion() {
+        await runConflictAction(useCloudVersion, "Carregando dados do Drive...", async () => {
+          state.syncQueue = [];
+          state.deletedEntryIds = new Set();
+          state.settingsDirty = false;
+          state.syncConflict = null;
+          repository.reset();
+          await repository.load();
+          await loadCloudEntries();
+          await loadCloudSettings();
+          await loadCloudRecurrenceSeries();
+          await markSynchronizationComplete();
+          syncConflictDialog.close();
+          render();
+          show("Versão do Google Drive carregada.");
+        });
+      }
+
+      async function keepDeviceVersion() {
+        await runConflictAction(keepLocalVersion, "Enviando dados deste dispositivo...", async () => {
+          state.syncQueue = state.syncQueue.map((operation) => ({ ...operation, baseUpdatedAt: null }));
+          state.syncConflict = null;
+          await saveLocal();
+          repository.reset();
+          syncConflictDialog.close();
+          await retrySynchronization();
+        });
       }
 
       authArea.onclick = async (event) => {
-        if (event.target.closest("#signInGoogle")) await signInWithGoogle();
+        const signInButton = event.target.closest("#signInGoogle, #reconnectGoogle");
+        if (signInButton) await signInWithGoogle(signInButton);
         if (event.target.closest("#signOut")) await signOut();
       };
 
-      signInGoogleScreen.onclick = () => signInWithGoogle();
+      signInGoogleScreen.onclick = () => signInWithGoogle(signInGoogleScreen);
+      syncNoticeAction.onclick = async () => {
+        if (state.syncConflict) {
+          if (!googleAuth.hasAccessToken()) await signInWithGoogle(syncNoticeAction);
+          if (googleAuth.hasAccessToken()) openSyncConflictDialog();
+          return;
+        }
+        await retrySynchronization(syncNoticeAction);
+      };
+      useCloudVersion.onclick = useGoogleDriveVersion;
+      keepLocalVersion.onclick = keepDeviceVersion;
+      document
+        .querySelectorAll("[data-close-sync-conflict]")
+        .forEach((button) => (button.onclick = () => syncConflictDialog.close()));
 
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState !== "visible" || !state.user) return;
@@ -604,7 +902,11 @@ const defaultTypes = [
       });
 
       window.addEventListener("online", () => {
-        retryPendingSynchronization().catch((error) => console.error(error));
+        retrySynchronization().catch((error) => console.error(error));
+      });
+
+      window.addEventListener("offline", () => {
+        if (state.user) setSyncStatus("pending", "Sem conexão");
       });
 
       window.addEventListener("beforeunload", (event) => {
@@ -831,6 +1133,7 @@ const defaultTypes = [
             : "Lançamentos";
 
         count.style.display = state.selectionMode ? "none" : "";
+        openRecentRecordsMain.hidden = state.selectionMode;
         dateFilterInfo.classList.toggle(
           "visible",
           Boolean(state.filterDate) && !state.selectionMode,
@@ -1104,6 +1407,7 @@ const defaultTypes = [
       }
 
       function openNew() {
+        returnToRecentAfterEdit = false;
         state.editingId = null;
         modalTitle.textContent = "Novo lançamento";
         form.reset();
@@ -1124,25 +1428,105 @@ const defaultTypes = [
       function openSettingsDialog() {
         currentBalanceInput.value = state.settings.current_balance;
         balanceReferenceDateInput.value = state.settings.balance_reference_date || todayISO();
+        updateSettingsSyncSummary(syncStatus.dataset.state);
         settingsDialog.showModal();
       }
 
-      function downloadManualBackup() {
-        const backup = {
-          schemaVersion: 1,
-          exportedAt: new Date().toISOString(),
-          entries: state.entries,
-          recurrenceSeries: state.recurrenceSeries,
-          settings: { ...state.settings, types: state.types, descriptions: state.descriptions },
-        };
-        const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = `meus-gastos-backup-${todayISO()}.json`;
-        anchor.click();
-        setTimeout(() => URL.revokeObjectURL(url), 0);
-        show("Backup preparado para download.");
+      function getRecentRecordGroups() {
+        return domain.recentEntryGroups(state.entries);
+      }
+
+      function formatCreatedAt(entry) {
+        if (!entry.created_at) return "Data de cadastro indisponível";
+        const createdAt = new Date(entry.created_at);
+        if (Number.isNaN(createdAt.getTime())) return "Data de cadastro indisponível";
+        return `Cadastrado em ${createdAt.toLocaleDateString("pt-BR")} às ${createdAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+      }
+
+      function renderRecentRecords() {
+        const groups = getRecentRecordGroups();
+        const visibleGroups = groups.slice(0, recentRecordsVisible);
+
+        recentRecordsList.innerHTML = visibleGroups.length
+          ? visibleGroups.map((group) => {
+              const entry = group.primary;
+              const isIncome = (entry.flow_type || "expense") === "income";
+              const status = entry.paid
+                ? (isIncome ? "Recebido" : "Pago")
+                : (isIncome ? "A receber" : "Em aberto");
+              const groupLabel = group.entries.length > 1
+                ? `${group.entries.length} lançamentos agrupados`
+                : "";
+              const recordKind = entry.series_id
+                ? "Série recorrente"
+                : entry.installment
+                  ? "Parcelamento"
+                  : status;
+              return `<article class="recent-record">
+                <div class="recent-record-head">
+                  <span class="recent-record-title" title="${esc(entry.description)}">${esc(entry.description)}</span>
+                  <span class="recent-record-value ${isIncome ? "income" : ""}">${isIncome ? "+ " : ""}${money(entry.value)}</span>
+                </div>
+                ${groupLabel ? `<span class="recent-record-group-count">${groupLabel}</span>` : ""}
+                <div class="recent-record-meta">
+                  <span>${new Date(`${entry.date}T12:00`).toLocaleDateString("pt-BR")} · ${esc(entry.type)} · ${recordKind}</span>
+                  <span>${formatCreatedAt(entry)}</span>
+                </div>
+                <div class="recent-record-actions">
+                  <button class="secondary" type="button" data-edit-recent="${entry.id}" aria-label="Editar ${esc(entry.description)}">Editar</button>
+                </div>
+              </article>`;
+            }).join("") + (visibleGroups.length >= groups.length ? '<div class="recent-records-empty">Você chegou ao fim do histórico.</div>' : "")
+          : '<div class="recent-records-empty">Nenhum registro cadastrado ainda.</div>';
+
+        recentRecordsCount.textContent = groups.length
+          ? `Exibindo ${visibleGroups.length} de ${groups.length} cadastro${groups.length === 1 ? "" : "s"}, do mais recente ao mais antigo`
+          : "Nenhum registro encontrado";
+        loadMoreRecentRecords.hidden = visibleGroups.length >= groups.length;
+      }
+
+      function openRecentRecordsDialog(returnToSettings = false) {
+        recentRecordsReturnToSettings = returnToSettings;
+        recentRecordsVisible = 10;
+        renderRecentRecords();
+        if (settingsDialog.open) settingsDialog.close();
+        recentRecordsDialog.showModal();
+      }
+
+      function closeRecentRecordsDialog() {
+        recentRecordsDialog.close();
+        if (recentRecordsReturnToSettings) settingsDialog.showModal();
+      }
+
+      async function downloadManualBackup() {
+        const originalLabel = downloadBackup.textContent;
+        downloadBackup.disabled = true;
+        downloadBackup.setAttribute("aria-busy", "true");
+        downloadBackup.textContent = "Preparando...";
+
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        try {
+          const backup = {
+            schemaVersion: 1,
+            exportedAt: new Date().toISOString(),
+            entries: state.entries,
+            recurrenceSeries: state.recurrenceSeries,
+            settings: { ...state.settings, types: state.types, descriptions: state.descriptions },
+          };
+          const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const anchor = document.createElement("a");
+          anchor.href = url;
+          anchor.download = `meus-gastos-backup-${todayISO()}.json`;
+          anchor.click();
+          setTimeout(() => URL.revokeObjectURL(url), 0);
+          show("Backup preparado para download.");
+        } finally {
+          downloadBackup.disabled = false;
+          downloadBackup.removeAttribute("aria-busy");
+          downloadBackup.textContent = originalLabel;
+        }
       }
 
       function addOption(event, key, select) {
@@ -1285,13 +1669,23 @@ const defaultTypes = [
         return state.entries.find((e) => e.id === state.activeEntry);
       }
 
-      function editEntry() {
-        const entry = getActiveEntry();
+      function editEntry(entryOverride = null, returnToHistory = false) {
+        const entry = entryOverride || getActiveEntry();
         if (!entry) return;
+        returnToRecentAfterEdit = returnToHistory;
+        if (recentRecordsDialog.open) recentRecordsDialog.close();
         state.editingId = entry.id;
         modalTitle.textContent = "Editar lançamento";
         fillForm(entry);
         dialog.showModal();
+      }
+
+      function closeEntryDialog() {
+        dialog.close();
+        if (!returnToRecentAfterEdit) return;
+        returnToRecentAfterEdit = false;
+        renderRecentRecords();
+        recentRecordsDialog.showModal();
       }
 
       function generateId() {
@@ -1651,12 +2045,43 @@ const defaultTypes = [
       openModalMobile.onclick = openNew;
       openSettings.onclick = openSettingsDialog;
       downloadBackup.onclick = downloadManualBackup;
+      openRecentRecords.onclick = () => openRecentRecordsDialog(true);
+      openRecentRecordsMain.onclick = () => openRecentRecordsDialog(false);
+      loadMoreRecentRecords.onclick = async () => {
+        loadMoreRecentRecords.disabled = true;
+        loadMoreRecentRecords.setAttribute("aria-busy", "true");
+        loadMoreRecentRecords.textContent = "Carregando...";
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        recentRecordsVisible += 10;
+        renderRecentRecords();
+        loadMoreRecentRecords.disabled = false;
+        loadMoreRecentRecords.removeAttribute("aria-busy");
+        loadMoreRecentRecords.textContent = "Ver mais 10";
+      };
+      recentRecordsList.onclick = (event) => {
+        const editButton = event.target.closest("[data-edit-recent]");
+        if (!editButton) return;
+        const entry = state.entries.find((item) => item.id === editButton.dataset.editRecent);
+        editEntry(entry, true);
+      };
       document
         .querySelectorAll("[data-close]")
-        .forEach((b) => (b.onclick = () => dialog.close()));
+        .forEach((b) => (b.onclick = closeEntryDialog));
+      dialog.addEventListener("cancel", (event) => {
+        if (!returnToRecentAfterEdit) return;
+        event.preventDefault();
+        closeEntryDialog();
+      });
       document
         .querySelectorAll("[data-close-settings]")
         .forEach((b) => (b.onclick = () => settingsDialog.close()));
+      document
+        .querySelectorAll("[data-close-recent-records]")
+        .forEach((button) => (button.onclick = closeRecentRecordsDialog));
+      recentRecordsDialog.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        closeRecentRecordsDialog();
+      });
       document
         .querySelectorAll("[data-close-series-scope]")
         .forEach((button) => (button.onclick = () => seriesScopeDialog.close()));
@@ -1764,16 +2189,26 @@ const defaultTypes = [
 
       settingsForm.onsubmit = async (event) => {
         event.preventDefault();
+        if (!settingsForm.reportValidity()) return;
+        saveSettings.disabled = true;
+        saveSettings.setAttribute("aria-busy", "true");
+        saveSettings.textContent = "Salvando...";
         state.settings = {
           current_balance: Number(currentBalanceInput.value),
           balance_reference_date: balanceReferenceDateInput.value,
         };
         state.settingsDirty = true;
-        const synced = await save();
-        if (!synced) return;
-        settingsDialog.close();
-        render();
-        show("Configurações financeiras sincronizadas.");
+        try {
+          const synced = await save();
+          if (!synced) return;
+          settingsDialog.close();
+          render();
+          show("Projeção financeira salva e sincronizada.");
+        } finally {
+          saveSettings.disabled = false;
+          saveSettings.removeAttribute("aria-busy");
+          saveSettings.textContent = "Salvar projeção";
+        }
       };
 
       let pressTimer = null;
@@ -1948,7 +2383,7 @@ const defaultTypes = [
           }
 
           const synced = await save();
-          dialog.close();
+          closeEntryDialog();
           render();
           show(
             synced
