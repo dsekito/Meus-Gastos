@@ -456,9 +456,35 @@
       .status-button {
         border: 0;
         background: none;
-        padding: 0;
+        min-width: 48px;
+        min-height: 48px;
+        padding: 0 8px;
         cursor: pointer;
         font-weight: 700;
+        border-radius: 10px;
+        transition: background 0.15s ease, opacity 0.15s ease;
+      }
+      .status-button:disabled { cursor: wait; opacity: 0.72; }
+      .status-button:not(:disabled):active { background: rgba(20, 92, 68, 0.1); transform: scale(0.97); }
+      .status-button:focus-visible { outline: 3px solid rgba(20, 92, 68, 0.28); outline-offset: 2px; }
+      .status-pending { pointer-events: none; }
+      .status-pending .status-button-label::after {
+        content: "";
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        margin-left: 7px;
+        border: 2px solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        vertical-align: -2px;
+        animation: status-spin 0.7s linear infinite;
+      }
+      .entry.status-changed { animation: status-confirmed 0.7s ease-out; }
+      @keyframes status-spin { to { transform: rotate(360deg); } }
+      @keyframes status-confirmed {
+        0%, 45% { background: #dcfce7; }
+        100% { background: #fff; }
       }
       .icon-button {
         min-width: 48px;
@@ -600,10 +626,34 @@
         transform: translateY(12px);
         transition: 0.2s;
         pointer-events: none;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        z-index: 1000;
       }
       .toast.show {
         opacity: 1;
         transform: none;
+        pointer-events: auto;
+      }
+      .toast button {
+        min-width: 48px;
+        min-height: 48px;
+        margin: -10px -8px -10px 0;
+        padding: 0 8px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: #86efac;
+        cursor: pointer;
+        font: inherit;
+        font-weight: 800;
+      }
+      .toast button:active { background: rgba(255, 255, 255, 0.12); }
+      .toast button:focus-visible { outline: 3px solid #fff; outline-offset: -3px; }
+      @media (prefers-reduced-motion: reduce) {
+        .entry.status-changed { animation: none; background: #dcfce7; }
+        .status-pending .status-button-label::after { animation-duration: 1.4s; }
       }
 
       /* =======================================================
@@ -1452,6 +1502,15 @@
         min-height: 48px;
         text-align: left;
       }
+      .backup-actions {
+        display: grid;
+        gap: 8px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--soft);
+      }
+      .backup-actions p { margin: 0; font-size: 14px; }
       @media (max-width: 768px) {
         .series-scope-actions { padding: 12px 14px 14px; }
       }
@@ -1462,8 +1521,8 @@
       <div class="auth-card">
         <div class="auth-logo">$</div>
         <h1>Meus Gastos</h1>
-        <p>Entre com sua conta Google para acessar seus lançamentos.</p>
-        <button class="google-button" id="signInGoogleScreen" type="button">
+        <p>Seus dados ficam neste dispositivo e no seu próprio Google Drive.</p>
+        <button class="google-button" id="signInGoogleScreen" type="button" aria-label="Continuar com sua conta Google">
           Continuar com Google
         </button>
       </div>
@@ -1714,6 +1773,11 @@
           <div class="field"><label for="balanceReferenceDate">Data-base do saldo</label><input id="balanceReferenceDate" type="date" required></div>
           <div class="field"><label for="incomeDay15">Recebimento do dia 15</label><input id="incomeDay15" type="number" step="0.01" required></div>
           <div class="field wide"><label for="incomeLastBusinessDay">Recebimento do último dia útil</label><input id="incomeLastBusinessDay" type="number" step="0.01" required></div>
+          <section class="backup-actions wide" aria-labelledby="backupTitle">
+            <strong id="backupTitle">Backup manual</strong>
+            <p>Baixe uma cópia legível dos seus dados para guardar onde preferir.</p>
+            <button class="secondary" id="downloadBackup" type="button" aria-label="Baixar backup completo dos dados">Baixar backup</button>
+          </section>
         </div>
         <div class="modal-foot"><button class="secondary" type="button" data-close-settings>Cancelar</button><button class="primary" type="submit">Salvar configurações</button></div>
       </form>
@@ -1724,11 +1788,13 @@
       <button type="button" role="menuitem" data-action="delete" class="danger">🗑 Excluir</button>
     </div>
 
-    <div class="toast" id="toast"></div>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="./js/config.js?v=2026081001"></script>
     <script src="./js/domain.js?v=2026080110"></script>
-    <script src="./js/local-store.js?v=2026080106"></script>
-    <script src="./js/supabase-repository.js?v=2026080110"></script>
+    <script src="./js/local-store.js?v=2026081001"></script>
+    <script src="./js/google-auth.js?v=2026081001"></script>
+    <script src="./js/google-drive-repository.js?v=2026081001"></script>
     <script src="./js/sync-service.js?v=2026080106"></script>
     <script src="./js/app.js?v=2026080111"></script>
   </body>
