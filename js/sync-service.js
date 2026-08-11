@@ -25,6 +25,26 @@
 
     async function syncEntries(userId) {
       normalizeEntryIds();
+      if (state.syncQueue.length && repository.applyEntryOperations) {
+        const operations = state.syncQueue.map((operation) =>
+          operation.type === "delete"
+            ? { ...operation }
+            : { ...operation, entry: { ...operation.entry } },
+        );
+        const saved = await repository.applyEntryOperations(operations, userId);
+        const versions = new Map(saved.map((entry) => [entry.id, entry.updated_at]));
+        for (const operation of operations) {
+          if (operation.type === "delete") {
+            state.deletedEntryIds.delete(operation.id);
+            continue;
+          }
+          const entry = state.entries.find((item) => item.id === operation.entry.id);
+          if (entry) entry.updated_at = versions.get(entry.id) || entry.updated_at;
+        }
+        state.syncQueue.splice(0, operations.length);
+        await persist();
+        return;
+      }
       while (state.syncQueue.length) {
         const operation = state.syncQueue[0];
         if (operation.type === "delete") {
@@ -38,7 +58,7 @@
           if (entry) entry.updated_at = saved.updated_at;
         }
         state.syncQueue.shift();
-        persist();
+        await persist();
       }
     }
 

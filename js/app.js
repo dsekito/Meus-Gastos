@@ -37,27 +37,15 @@ const defaultTypes = [
         "RECORRENTE",
       ];
 
-      const SUPABASE_URL = "https://gluyucuvvvfkztzjhbyj.supabase.co";
-      const SUPABASE_PUBLISHABLE_KEY =
-        "sb_publishable_KPlZr5eXf58-6-O89Gqr0A_OKIkj_Me";
-      const APP_URL = "https://dsekito.github.io/Meus-Gastos/";
-      const supabaseClient = window.supabase.createClient(
-        SUPABASE_URL,
-        SUPABASE_PUBLISHABLE_KEY,
-        {
-          auth: {
-            autoRefreshToken: true,
-            // Mantém somente a sessão de autenticação no navegador. Lançamentos e
-            // configurações continuam sendo carregados exclusivamente da nuvem.
-            persistSession: true,
-            detectSessionInUrl: true,
-          },
-        },
-      );
       const domain = window.MGDomain;
       const localStore = window.MGLocalStore;
-      const repository = window.MGSupabaseRepository.create(supabaseClient);
-      let entriesChannel = null;
+      const googleAuth = window.MGGoogleAuth.create({
+        clientId: window.MG_CONFIG?.googleClientId,
+      });
+      const repository = window.MGGoogleDriveRepository.create({
+        getAccessToken: googleAuth.getAccessToken,
+        isAccessTokenExpired: googleAuth.isAccessTokenExpired,
+      });
 
       function createDefaultSettings() {
         return {
@@ -94,6 +82,10 @@ const defaultTypes = [
         selectionMode: false,
 
         selectedEntries: new Set(),
+
+        pendingStatusEntries: new Set(),
+
+        recentlyChangedEntry: null,
 
         user: null,
 
@@ -217,6 +209,7 @@ const defaultTypes = [
         incomeDay15Input = document.querySelector("#incomeDay15"),
         incomeLastBusinessDayInput = document.querySelector("#incomeLastBusinessDay"),
         balanceReferenceDateInput = document.querySelector("#balanceReferenceDate"),
+        downloadBackup = document.querySelector("#downloadBackup"),
         previousMonth = document.querySelector("#previousMonth"),
         nextMonth = document.querySelector("#nextMonth"),
         seriesScopeDialog = document.querySelector("#seriesScopeDialog"),
@@ -271,7 +264,32 @@ const defaultTypes = [
       };
 
       function saveLocal() {
-        // Não persistimos lançamentos, configurações ou fila de sincronização no navegador.
+        if (!state.user) return Promise.resolve();
+        return localStore.save(state.user.id, {
+          entries: state.entries,
+          recurrenceSeries: state.recurrenceSeries,
+          settings: state.settings,
+          settingsDirty: state.settingsDirty,
+          types: state.types,
+          descriptions: state.descriptions,
+          syncQueue: state.syncQueue,
+          savedAt: new Date().toISOString(),
+        }).catch((error) => console.error("Não foi possível salvar os dados locais.", error));
+      }
+
+      async function loadLocal(userId) {
+        const cached = await localStore.load(userId);
+        if (!cached) return;
+        state.entries = cached.entries || [];
+        state.recurrenceSeries = cached.recurrenceSeries || [];
+        state.settings = { ...createDefaultSettings(), ...(cached.settings || {}) };
+        state.settingsDirty = !!cached.settingsDirty;
+        state.types = [...new Set([...defaultTypes, ...(cached.types || [])])].sort();
+        state.descriptions = [...new Set([...defaultDescriptions, ...(cached.descriptions || [])])].sort();
+        state.syncQueue = cached.syncQueue || [];
+        state.deletedEntryIds = new Set(
+          state.syncQueue.filter((item) => item.type === "delete").map((item) => item.id),
+        );
       }
 
       function clearSessionState() {
@@ -291,6 +309,8 @@ const defaultTypes = [
         state.editingId = null;
         state.selectionMode = false;
         state.selectedEntries = new Set();
+        state.pendingStatusEntries = new Set();
+        state.recentlyChangedEntry = null;
       }
 
       function resetStateForUser(user) {
@@ -320,8 +340,15 @@ const defaultTypes = [
         } catch (error) {
           console.error(error);
           setSyncStatus("pending", "Sincronização pendente");
+          if (error.message === "GOOGLE_AUTH_EXPIRED") {
+            await expireGoogleSession();
+            show("Sua sessão Google expirou. Entre novamente; suas alterações estão salvas neste dispositivo.");
+            return false;
+          }
           show(
-            "Alteração ainda não foi sincronizada. Mantenha esta página aberta.",
+            error.message === "GOOGLE_DRIVE_CONFLICT" || error.message?.startsWith("CONFLICT:")
+              ? "Os dados mudaram em outro aparelho. Reabra o aplicativo antes de tentar novamente."
+              : "Alteração salva neste dispositivo e aguardando conexão para sincronizar.",
           );
           return false;
         }
@@ -448,51 +475,6 @@ const defaultTypes = [
 
       }
 
-      function applyRealtimeEntry(payload) {
-        const id = payload.new?.id || payload.old?.id;
-        if (!id) return;
-
-        const hasPendingLocalChange = state.syncQueue.some((operation) =>
-          operation.type === "upsert"
-            ? operation.entry.id === id
-            : operation.id === id,
-        );
-        if (hasPendingLocalChange) return;
-
-        if (payload.eventType === "DELETE") {
-          state.entries = state.entries.filter((entry) => entry.id !== id);
-        } else {
-          const index = state.entries.findIndex((entry) => entry.id === id);
-          if (index >= 0) state.entries[index] = payload.new;
-          else state.entries.push(payload.new);
-          state.types = [...new Set([...state.types, payload.new.type])].sort();
-          state.descriptions = [
-            ...new Set([...state.descriptions, payload.new.description]),
-          ].sort();
-        }
-        saveLocal();
-        render();
-      }
-
-      function stopEntrySubscription() {
-        repository.removeChannel(entriesChannel);
-        entriesChannel = null;
-      }
-
-      function subscribeToEntryChanges() {
-        if (!state.user) return;
-        stopEntrySubscription();
-        entriesChannel = repository.subscribeToEntries(
-          state.user.id,
-          applyRealtimeEntry,
-          (status) => {
-            if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-              console.warn("Atualização em tempo real indisponível; usando recarga ao abrir o app.");
-            }
-          },
-        );
-      }
-
       async function syncSettings() {
         if (!state.user) return;
         await repository.upsertSettings(
@@ -522,7 +504,11 @@ const defaultTypes = [
       async function setCurrentUser(user) {
         if (state.user?.id === user?.id) return;
         state.user = user || null;
-        if (state.user) resetStateForUser(state.user);
+        if (state.user) {
+          resetStateForUser(state.user);
+          await loadLocal(state.user.id);
+          render();
+        }
         updateAuthArea();
         if (state.user) {
           let hasPendingSync = false;
@@ -540,7 +526,7 @@ const defaultTypes = [
             await loadCloudEntries();
             await loadCloudSettings();
             await loadCloudRecurrenceSeries();
-            subscribeToEntryChanges();
+            await saveLocal();
             if (!hasPendingSync) setSyncStatus("synced", "Dados sincronizados");
           } finally {
             // Mesmo com falha temporária de rede, a tela continua responsiva.
@@ -556,48 +542,46 @@ const defaultTypes = [
           show("Abra o site publicado para entrar com Google.");
           return;
         }
-        const { error } = await supabaseClient.auth.signInWithOAuth({
-          provider: "google",
-          options: { redirectTo: APP_URL },
-        });
-        if (error) show(`Não foi possível iniciar o login: ${error.message}`);
+        signInGoogleScreen.disabled = true;
+        signInGoogleScreen.setAttribute("aria-busy", "true");
+        signInGoogleScreen.textContent = "Conectando…";
+        try {
+          const user = await googleAuth.signIn();
+          await setCurrentUser(user);
+        } catch (error) {
+          console.error(error);
+          show(error.message === "GOOGLE_CLIENT_ID_NOT_CONFIGURED"
+            ? "Configure o Client ID do Google antes de entrar."
+            : "Não foi possível entrar com o Google.");
+        } finally {
+          signInGoogleScreen.disabled = false;
+          signInGoogleScreen.removeAttribute("aria-busy");
+          signInGoogleScreen.textContent = "Continuar com Google";
+        }
       }
 
       async function signOut() {
-        const { error } = await supabaseClient.auth.signOut();
-        if (error) {
-          show(`Não foi possível sair: ${error.message}`);
-          return;
-        }
-        stopEntrySubscription();
+        await googleAuth.signOut();
+        repository.reset();
         clearSessionState();
         updateAuthArea();
         setSyncStatus("idle", "Entre para sincronizar");
         show("Sessão encerrada.");
       }
 
+      async function expireGoogleSession() {
+        await saveLocal();
+        googleAuth.clearToken();
+        repository.reset();
+        clearSessionState();
+        updateAuthArea();
+        setSyncStatus("pending", "Entre novamente para sincronizar");
+        render();
+      }
+
       async function initializeAuth() {
         updateAuthArea();
-        supabaseClient.auth.onAuthStateChange((event, session) => {
-          if (event === "SIGNED_OUT") {
-            stopEntrySubscription();
-            clearSessionState();
-            updateAuthArea();
-            return;
-          }
-          if (event === "SIGNED_IN") {
-            setCurrentUser(session?.user).catch((error) => {
-              console.error(error);
-              show("Não foi possível carregar seus lançamentos.");
-            });
-          }
-        });
-        const { data, error } = await supabaseClient.auth.getSession();
-        if (error) {
-          show("Não foi possível verificar o login.");
-          return;
-        }
-        await setCurrentUser(data.session?.user);
+        setSyncStatus("idle", "Entre para acessar seu Google Drive");
       }
 
       authArea.onclick = async (event) => {
@@ -609,7 +593,8 @@ const defaultTypes = [
 
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState !== "visible" || !state.user) return;
-        retryPendingSynchronization()
+        repository.load()
+          .then(() => retryPendingSynchronization())
           .then(async () => {
             await loadCloudEntries();
             await loadCloudRecurrenceSeries();
@@ -649,12 +634,14 @@ const defaultTypes = [
       }
       function renderDenseEntry(e) {
         const selected = state.selectedEntries.has(e.id);
+        const statusPending = state.pendingStatusEntries.has(e.id);
+        const statusChanged = state.recentlyChangedEntry === e.id;
         const isIncome = (e.flow_type || "expense") === "income";
         const statusLabel = e.paid
           ? (isIncome ? "Recebido" : "Pago")
           : (isIncome ? "A receber" : "Em aberto");
         return `
-          <div class="entry dense-entry ${selected ? "selected" : ""}" data-entry="${e.id}" role="button" tabindex="0" aria-label="Alterar status de ${esc(e.description)}. Status atual: ${statusLabel}">
+          <div class="entry dense-entry ${selected ? "selected" : ""} ${statusPending ? "status-pending" : ""} ${statusChanged ? "status-changed" : ""}" data-entry="${e.id}" role="button" tabindex="0" aria-disabled="${statusPending}" aria-busy="${statusPending}" aria-label="Alterar status de ${esc(e.description)}. Status atual: ${statusLabel}">
             <div class="entry-content">
               <div class="entry-summary">
                 <div class="entry-header">
@@ -670,7 +657,7 @@ const defaultTypes = [
                     <span class="entry-type">${esc(e.type)}</span>
                     <span class="entry-flow">${isIncome ? "Receita" : "Despesa"}</span>
                     ${e.installment ? `<span class="entry-installment">${e.installment.current}/${e.installment.total}</span>` : ""}
-                    ${state.selectionMode ? "" : `<button type="button" class="status-button ${e.paid ? "paid" : "pending"}" data-toggle-status="${e.id}" aria-label="Alterar status de ${esc(e.description)}. Status atual: ${statusLabel}">${statusLabel}</button>`}
+                    ${state.selectionMode ? "" : `<button type="button" class="status-button ${e.paid ? "paid" : "pending"}" data-toggle-status="${e.id}" aria-label="Alterar status de ${esc(e.description)}. Status atual: ${statusLabel}" aria-pressed="${e.paid}" ${statusPending ? "disabled" : ""}><span class="status-button-label">${statusPending ? "Salvando" : statusLabel}</span></button>`}
                   </div>
                 </div>
               </div>
@@ -1146,6 +1133,24 @@ const defaultTypes = [
         settingsDialog.showModal();
       }
 
+      function downloadManualBackup() {
+        const backup = {
+          schemaVersion: 1,
+          exportedAt: new Date().toISOString(),
+          entries: state.entries,
+          recurrenceSeries: state.recurrenceSeries,
+          settings: { ...state.settings, types: state.types, descriptions: state.descriptions },
+        };
+        const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = `meus-gastos-backup-${todayISO()}.json`;
+        anchor.click();
+        setTimeout(() => URL.revokeObjectURL(url), 0);
+        show("Backup preparado para download.");
+      }
+
       function addOption(event, key, select) {
         if (event.target.value !== "__new__") return;
         const label = key === "types" ? "novo tipo" : "nova descrição";
@@ -1167,10 +1172,26 @@ const defaultTypes = [
         d.setMonth(d.getMonth() + months);
         return d.toISOString().slice(0, 10);
       }
-      function show(msg) {
-        toast.textContent = msg;
+      let toastTimer = null;
+      function show(msg, action = null) {
+        clearTimeout(toastTimer);
+        toast.replaceChildren();
+        const message = document.createElement("span");
+        message.textContent = msg;
+        toast.appendChild(message);
+        if (action) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.textContent = action.label;
+          button.onclick = () => {
+            clearTimeout(toastTimer);
+            toast.classList.remove("show");
+            action.onClick();
+          };
+          toast.appendChild(button);
+        }
         toast.classList.add("show");
-        setTimeout(() => toast.classList.remove("show"), 2400);
+        toastTimer = setTimeout(() => toast.classList.remove("show"), action ? 5000 : 2400);
       }
 
       function enterSelectionMode(id) {
@@ -1473,20 +1494,45 @@ const defaultTypes = [
         }
       }
 
-      function toggleEntryStatus() {
+      async function toggleEntryStatus() {
         const entry = getActiveEntry();
-        if (!entry) return;
+        if (!entry || state.pendingStatusEntries.has(entry.id)) return;
+        const previousPaid = entry.paid;
         entry.paid = !entry.paid;
+        state.pendingStatusEntries.add(entry.id);
+        state.recentlyChangedEntry = entry.id;
         queueUpsert(entry);
         closeContextMenu();
-        save();
+        render();
+        if (navigator.vibrate) navigator.vibrate(20);
+        const synced = await save();
+        state.pendingStatusEntries.delete(entry.id);
         render();
         const isIncome = (entry.flow_type || "expense") === "income";
-        show(
-          entry.paid
+        const successMessage = synced ? (entry.paid
             ? (isIncome ? "Receita marcada como recebida." : "Lançamento marcado como pago.")
-            : (isIncome ? "Receita marcada como a receber." : "Lançamento marcado como pendente."),
-        );
+            : (isIncome ? "Receita marcada como a receber." : "Lançamento marcado como pendente."))
+          : "Status salvo neste dispositivo. Sincronização pendente.";
+        show(successMessage, {
+          label: "Desfazer",
+          onClick: async () => {
+            if (state.pendingStatusEntries.has(entry.id)) return;
+            entry.paid = previousPaid;
+            state.pendingStatusEntries.add(entry.id);
+            state.recentlyChangedEntry = entry.id;
+            queueUpsert(entry);
+            render();
+            await save();
+            state.pendingStatusEntries.delete(entry.id);
+            render();
+            show("Alteração desfeita.");
+          },
+        });
+        setTimeout(() => {
+          if (state.recentlyChangedEntry !== entry.id) return;
+          state.recentlyChangedEntry = null;
+          render();
+        }, 700);
       }
 
       function deleteEntry() {
@@ -1538,6 +1584,7 @@ const defaultTypes = [
           state.recurrenceSeries = state.recurrenceSeries.filter((item) => item.id !== entry.series_id);
         }
         seriesScopeDialog.close();
+        await saveLocal();
         render();
         show(scope === "this" ? "Ocorrência excluída." : scope === "future" ? "Esta e as próximas ocorrências foram excluídas." : "Série recorrente excluída.");
       }
@@ -1609,6 +1656,7 @@ const defaultTypes = [
       openModal.onclick = openNew;
       openModalMobile.onclick = openNew;
       openSettings.onclick = openSettingsDialog;
+      downloadBackup.onclick = downloadManualBackup;
       document
         .querySelectorAll("[data-close]")
         .forEach((b) => (b.onclick = () => dialog.close()));
@@ -1917,7 +1965,7 @@ const defaultTypes = [
                 : isRecurringValue()
                   ? "Recorrência criada e sincronizada."
                   : "Lançamento salvo e sincronizado."
-              : "Lançamento aguardando sincronização. Não feche esta página.",
+              : "Lançamento salvo neste dispositivo e aguardando sincronização.",
           );
         } catch (error) {
           console.error(error);
