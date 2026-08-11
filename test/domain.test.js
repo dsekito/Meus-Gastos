@@ -106,8 +106,6 @@ assert.equal(
     {
       current_balance: 1000,
       balance_reference_date: "2026-08-01",
-      income_day_15: 0,
-      income_last_business_day: 0,
     },
     dailyEntryNet(entries),
   ),

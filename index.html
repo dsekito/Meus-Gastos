@@ -1767,12 +1767,10 @@
     </dialog>
     <dialog id="settingsDialog">
       <form class="modal" id="settingsForm">
-        <div class="modal-head"><div><h2>Configurações financeiras</h2><p>Defina o saldo e os recebimentos usados na projeção.</p></div><button class="close" type="button" data-close-settings>&times;</button></div>
+        <div class="modal-head"><div><h2>Configurações financeiras</h2><p>Defina o saldo usado na projeção.</p></div><button class="close" type="button" data-close-settings>&times;</button></div>
         <div class="form-grid">
           <div class="field"><label for="currentBalance">Saldo atual</label><input id="currentBalance" type="number" step="0.01" required></div>
           <div class="field"><label for="balanceReferenceDate">Data-base do saldo</label><input id="balanceReferenceDate" type="date" required></div>
-          <div class="field"><label for="incomeDay15">Recebimento do dia 15</label><input id="incomeDay15" type="number" step="0.01" required></div>
-          <div class="field wide"><label for="incomeLastBusinessDay">Recebimento do último dia útil</label><input id="incomeLastBusinessDay" type="number" step="0.01" required></div>
           <section class="backup-actions wide" aria-labelledby="backupTitle">
             <strong id="backupTitle">Backup manual</strong>
             <p>Baixe uma cópia legível dos seus dados para guardar onde preferir.</p>
@@ -1791,11 +1789,11 @@
     <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="./js/config.js?v=2026081001"></script>
-    <script src="./js/domain.js?v=2026080110"></script>
+    <script src="./js/domain.js?v=2026081001"></script>
     <script src="./js/local-store.js?v=2026081001"></script>
     <script src="./js/google-auth.js?v=2026081001"></script>
     <script src="./js/google-drive-repository.js?v=2026081001"></script>
     <script src="./js/sync-service.js?v=2026080106"></script>
-    <script src="./js/app.js?v=2026080111"></script>
+    <script src="./js/app.js?v=2026081001"></script>
   </body>
 </html>

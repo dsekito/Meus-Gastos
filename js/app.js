@@ -51,8 +51,13 @@ const defaultTypes = [
         return {
           current_balance: 10000,
           balance_reference_date: todayISO(),
-          income_day_15: 9365.96,
-          income_last_business_day: 8011.84,
+        };
+      }
+
+      function normalizeSettings(settings = {}) {
+        return {
+          current_balance: Number(settings.current_balance ?? 10000),
+          balance_reference_date: settings.balance_reference_date || todayISO(),
         };
       }
 
@@ -206,8 +211,6 @@ const defaultTypes = [
         settingsForm = document.querySelector("#settingsForm"),
         openSettings = document.querySelector("#openSettings"),
         currentBalanceInput = document.querySelector("#currentBalance"),
-        incomeDay15Input = document.querySelector("#incomeDay15"),
-        incomeLastBusinessDayInput = document.querySelector("#incomeLastBusinessDay"),
         balanceReferenceDateInput = document.querySelector("#balanceReferenceDate"),
         downloadBackup = document.querySelector("#downloadBackup"),
         previousMonth = document.querySelector("#previousMonth"),
@@ -282,7 +285,7 @@ const defaultTypes = [
         if (!cached) return;
         state.entries = cached.entries || [];
         state.recurrenceSeries = cached.recurrenceSeries || [];
-        state.settings = { ...createDefaultSettings(), ...(cached.settings || {}) };
+        state.settings = normalizeSettings(cached.settings);
         state.settingsDirty = !!cached.settingsDirty;
         state.types = [...new Set([...defaultTypes, ...(cached.types || [])])].sort();
         state.descriptions = [...new Set([...defaultDescriptions, ...(cached.descriptions || [])])].sort();
@@ -487,10 +490,7 @@ const defaultTypes = [
       async function loadCloudSettings() {
         const data = await repository.fetchSettings();
         if (data) {
-          state.settings = {
-            ...data,
-            balance_reference_date: data.balance_reference_date || todayISO(),
-          };
+          state.settings = normalizeSettings(data);
           state.types = [...new Set([...defaultTypes, ...(data.types || [])])].sort();
           state.descriptions = [...new Set([...defaultDescriptions, ...(data.descriptions || [])])].sort();
           state.settingsDirty = false;
@@ -711,10 +711,6 @@ const defaultTypes = [
           );
       }
 
-      function getRecurringIncome(date) {
-        return domain.recurringIncome(date, state.settings);
-      }
-
       function buildDailyEntryTotals() {
         return domain.dailyEntryTotals(state.entries);
       }
@@ -755,7 +751,7 @@ const defaultTypes = [
         for (let day = 1; day <= daysInMonth; day++) {
           const date = `${month}-${String(day).padStart(2, "0")}`;
           const costs = entryTotals.get(date) || 0;
-          const income = getRecurringIncome(date) + (entryIncomeTotals.get(date) || 0);
+          const income = entryIncomeTotals.get(date) || 0;
           const projected = getProjectedBalance(date, entryNet);
           if (projected < minimumBalance) {
             minimumBalance = projected;
@@ -1128,8 +1124,6 @@ const defaultTypes = [
       function openSettingsDialog() {
         currentBalanceInput.value = state.settings.current_balance;
         balanceReferenceDateInput.value = state.settings.balance_reference_date || todayISO();
-        incomeDay15Input.value = state.settings.income_day_15;
-        incomeLastBusinessDayInput.value = state.settings.income_last_business_day;
         settingsDialog.showModal();
       }
 
@@ -1773,8 +1767,6 @@ const defaultTypes = [
         state.settings = {
           current_balance: Number(currentBalanceInput.value),
           balance_reference_date: balanceReferenceDateInput.value,
-          income_day_15: Number(incomeDay15Input.value),
-          income_last_business_day: Number(incomeLastBusinessDayInput.value),
         };
         state.settingsDirty = true;
         const synced = await save();
