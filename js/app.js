@@ -51,6 +51,10 @@ const descriptionOptionsByType = {
 
         customDescriptionOptionsByType: {},
 
+        hiddenTypes: [],
+
+        hiddenDescriptionsByType: {},
+
         entries: [],
 
         recurrenceSeries: [],
@@ -203,8 +207,26 @@ const descriptionOptionsByType = {
         balanceReferenceDateInput = document.querySelector("#balanceReferenceDate"),
         saveSettings = document.querySelector("#saveSettings"),
         downloadBackup = document.querySelector("#downloadBackup"),
+        deleteTypeOption = document.querySelector("#deleteTypeOption"),
+        deleteTypeOptionButton = document.querySelector("#deleteTypeOptionButton"),
+        deleteDescriptionType = document.querySelector("#deleteDescriptionType"),
+        deleteDescriptionOption = document.querySelector("#deleteDescriptionOption"),
+        deleteDescriptionOptionButton = document.querySelector("#deleteDescriptionOptionButton"),
         openRecentRecords = document.querySelector("#openRecentRecords"),
         openRecentRecordsMain = document.querySelector("#openRecentRecordsMain"),
+        openRecordsManager = document.querySelector("#openRecordsManager"),
+        recordsManagerDialog = document.querySelector("#recordsManagerDialog"),
+        recordsManagerList = document.querySelector("#recordsManagerList"),
+        recordsManagerCount = document.querySelector("#recordsManagerCount"),
+        managerFilterType = document.querySelector("#managerFilterType"),
+        managerFilterDescription = document.querySelector("#managerFilterDescription"),
+        managerFilterStatus = document.querySelector("#managerFilterStatus"),
+        managerSelectAll = document.querySelector("#managerSelectAll"),
+        managerMarkPaid = document.querySelector("#managerMarkPaid"),
+        managerMarkPending = document.querySelector("#managerMarkPending"),
+        managerBulkType = document.querySelector("#managerBulkType"),
+        managerBulkDescription = document.querySelector("#managerBulkDescription"),
+        managerApplyChanges = document.querySelector("#managerApplyChanges"),
         recentRecordsDialog = document.querySelector("#recentRecordsDialog"),
         recentRecordsList = document.querySelector("#recentRecordsList"),
         recentRecordsCount = document.querySelector("#recentRecordsCount"),
@@ -231,6 +253,7 @@ const descriptionOptionsByType = {
       let recentRecordsVisible = 10;
       let recentRecordsReturnToSettings = false;
       let returnToRecentAfterEdit = false;
+      const managerSelectedEntries = new Set();
 
       function todayISO() {
         return domain.todayISO();
@@ -405,6 +428,8 @@ const descriptionOptionsByType = {
           types: state.types,
           descriptions: state.descriptions,
           customDescriptionOptionsByType: state.customDescriptionOptionsByType,
+          hiddenTypes: state.hiddenTypes,
+          hiddenDescriptionsByType: state.hiddenDescriptionsByType,
           syncQueue: state.syncQueue,
           lastSyncedAt: state.lastSyncedAt,
           syncConflict: state.syncConflict,
@@ -422,6 +447,8 @@ const descriptionOptionsByType = {
         state.types = [...new Set([...defaultTypes, ...(cached.types || [])])].sort();
         state.descriptions = [...new Set([...defaultDescriptions, ...(cached.descriptions || [])])].sort();
         state.customDescriptionOptionsByType = cached.customDescriptionOptionsByType || {};
+        state.hiddenTypes = cached.hiddenTypes || [];
+        state.hiddenDescriptionsByType = cached.hiddenDescriptionsByType || {};
         state.syncQueue = cached.syncQueue || [];
         state.lastSyncedAt = cached.lastSyncedAt || null;
         state.syncConflict = cached.syncConflict || null;
@@ -439,6 +466,8 @@ const descriptionOptionsByType = {
         state.types = [...defaultTypes];
         state.descriptions = [...defaultDescriptions];
         state.customDescriptionOptionsByType = {};
+        state.hiddenTypes = [];
+        state.hiddenDescriptionsByType = {};
         state.settings = createDefaultSettings();
         state.settingsDirty = false;
         state.lastSyncedAt = null;
@@ -645,6 +674,8 @@ const descriptionOptionsByType = {
           state.types,
           state.descriptions,
           state.customDescriptionOptionsByType,
+          state.hiddenTypes,
+          state.hiddenDescriptionsByType,
         );
       }
       async function loadCloudSettings() {
@@ -654,6 +685,8 @@ const descriptionOptionsByType = {
           state.types = [...new Set([...defaultTypes, ...(data.types || [])])].sort();
           state.descriptions = [...new Set([...defaultDescriptions, ...(data.descriptions || [])])].sort();
           state.customDescriptionOptionsByType = data.customDescriptionOptionsByType || {};
+          state.hiddenTypes = data.hiddenTypes || [];
+          state.hiddenDescriptionsByType = data.hiddenDescriptionsByType || {};
           state.settingsDirty = false;
         } else {
           await syncSettings();
@@ -951,15 +984,17 @@ const descriptionOptionsByType = {
       }
 
       function entryTypeOptions(selectedType = "") {
-        return [...state.types, ...defaultTypes, selectedType];
+        return [...state.types, ...defaultTypes, selectedType]
+          .filter((option) => option === selectedType || !state.hiddenTypes.includes(option));
       }
 
       function entryDescriptionOptions(selectedType, selectedDescription = "") {
+        const hidden = state.hiddenDescriptionsByType[selectedType] || [];
         return [
           ...(descriptionOptionsByType[selectedType] || []),
           ...(state.customDescriptionOptionsByType[selectedType] || []),
           selectedDescription,
-        ];
+        ].filter((option) => option === selectedDescription || !hidden.includes(option));
       }
 
       function renderEntryOptions() {
@@ -970,6 +1005,121 @@ const descriptionOptionsByType = {
         fill(desc, entryDescriptionOptions(selectedType, selectedDescription), "Selecione", true);
         desc.value = selectedDescription;
         desc.disabled = !selectedType;
+      }
+
+      function renderOptionManagement() {
+        const selectedType = deleteTypeOption.value;
+        const descriptionType = deleteDescriptionType.value;
+        const selectedDescription = deleteDescriptionOption.value;
+        fill(deleteTypeOption, entryTypeOptions(), "Selecione o tipo");
+        deleteTypeOption.value = selectedType;
+        fill(deleteDescriptionType, entryTypeOptions(), "Selecione o tipo");
+        deleteDescriptionType.value = descriptionType;
+        fill(deleteDescriptionOption, entryDescriptionOptions(descriptionType), "Selecione a descrição");
+        deleteDescriptionOption.value = selectedDescription;
+        deleteDescriptionOption.disabled = !descriptionType;
+      }
+
+      async function removeTypeOption() {
+        const option = deleteTypeOption.value;
+        if (!option || !confirm(`Excluir a opção de tipo “${option}”? Os lançamentos atuais não serão alterados.`)) return;
+        state.types = state.types.filter((item) => item !== option);
+        state.hiddenTypes = sortedOptions([...state.hiddenTypes, option]);
+        state.settingsDirty = true;
+        await save();
+        renderOptionManagement();
+        render();
+        show(`Tipo “${option}” removido das opções.`);
+      }
+
+      async function removeDescriptionOption() {
+        const selectedType = deleteDescriptionType.value;
+        const option = deleteDescriptionOption.value;
+        if (!selectedType || !option || !confirm(`Excluir a descrição “${option}” de “${selectedType}”? Os lançamentos atuais não serão alterados.`)) return;
+        state.customDescriptionOptionsByType[selectedType] = (state.customDescriptionOptionsByType[selectedType] || []).filter((item) => item !== option);
+        state.hiddenDescriptionsByType = {
+          ...state.hiddenDescriptionsByType,
+          [selectedType]: sortedOptions([...(state.hiddenDescriptionsByType[selectedType] || []), option]),
+        };
+        state.settingsDirty = true;
+        await save();
+        renderOptionManagement();
+        render();
+        show(`Descrição “${option}” removida das opções de ${selectedType}.`);
+      }
+
+      function managerFilteredEntries() {
+        return state.entries
+          .filter((entry) => !entry.excluded_from_series)
+          .filter((entry) => !managerFilterType.value || entry.type === managerFilterType.value)
+          .filter((entry) => !managerFilterDescription.value || entry.description === managerFilterDescription.value)
+          .filter((entry) => !managerFilterStatus.value || (managerFilterStatus.value === "paid" ? entry.paid : !entry.paid))
+          .sort((a, b) => b.date.localeCompare(a.date));
+      }
+
+      function renderRecordsManager() {
+        const selectedType = managerFilterType.value;
+        const selectedDescription = managerFilterDescription.value;
+        const selectedBulkType = managerBulkType.value;
+        const selectedBulkDescription = managerBulkDescription.value;
+        fill(managerFilterType, sortedOptions(state.entries.map((entry) => entry.type)), "Todos os tipos");
+        managerFilterType.value = selectedType;
+        fill(managerFilterDescription, sortedOptions(state.entries
+          .filter((entry) => !selectedType || entry.type === selectedType)
+          .map((entry) => entry.description)), "Todas as descrições");
+        managerFilterDescription.value = selectedDescription;
+        fill(managerBulkType, entryTypeOptions(), "Não alterar");
+        managerBulkType.value = selectedBulkType;
+        fill(managerBulkDescription, selectedBulkType ? entryDescriptionOptions(selectedBulkType) : [], "Não alterar");
+        managerBulkDescription.value = selectedBulkDescription;
+        managerBulkDescription.disabled = !selectedBulkType;
+
+        const entries = managerFilteredEntries();
+        const allSelected = entries.length > 0 && entries.every((entry) => managerSelectedEntries.has(entry.id));
+        managerSelectAll.textContent = allSelected ? "Desmarcar filtrados" : "Selecionar filtrados";
+        recordsManagerCount.textContent = `${entries.length} registro${entries.length === 1 ? "" : "s"} encontrado${entries.length === 1 ? "" : "s"} · ${managerSelectedEntries.size} selecionado${managerSelectedEntries.size === 1 ? "" : "s"}`;
+        recordsManagerList.innerHTML = entries.length
+          ? entries.map((entry) => `<article class="managed-record">
+              <input type="checkbox" data-manager-select="${entry.id}" ${managerSelectedEntries.has(entry.id) ? "checked" : ""} aria-label="Selecionar ${esc(entry.description)}" />
+              <div><strong>${esc(entry.description)}</strong><small>${new Date(`${entry.date}T12:00`).toLocaleDateString("pt-BR")} · ${esc(entry.type)} · ${entry.paid ? "Pago" : "Em aberto"} · ${money(entry.value)}</small></div>
+              <button class="secondary" type="button" data-manager-edit="${entry.id}" aria-label="Editar ${esc(entry.description)}">✏</button>
+            </article>`).join("")
+          : '<div class="recent-records-empty">Nenhum registro encontrado com estes filtros.</div>';
+      }
+
+      async function applyManagerChanges({ paid = null, includeFields = false } = {}) {
+        if (!managerSelectedEntries.size) {
+          show("Selecione ao menos um registro.");
+          return;
+        }
+        const nextType = includeFields ? managerBulkType.value : "";
+        const nextDescription = includeFields ? managerBulkDescription.value : "";
+        let changed = 0;
+        state.entries.forEach((entry) => {
+          if (!managerSelectedEntries.has(entry.id)) return;
+          let changedEntry = false;
+          if (paid !== null && entry.paid !== paid) { entry.paid = paid; changedEntry = true; }
+          if (nextType && entry.type !== nextType) { entry.type = nextType; changedEntry = true; }
+          if (nextDescription && entry.description !== nextDescription) { entry.description = nextDescription; changedEntry = true; }
+          if (changedEntry) {
+            if (entry.series_id) entry.detached_from_series = true;
+            queueUpsert(entry);
+            changed++;
+          }
+        });
+        if (!changed) { show("Nenhuma alteração necessária nos registros selecionados."); return; }
+        managerApplyChanges.disabled = true;
+        managerApplyChanges.setAttribute("aria-busy", "true");
+        try {
+          await save();
+          managerSelectedEntries.clear();
+          renderRecordsManager();
+          render();
+          show(`${changed} registro${changed === 1 ? "" : "s"} atualizado${changed === 1 ? "" : "s"}.`);
+        } finally {
+          managerApplyChanges.disabled = false;
+          managerApplyChanges.removeAttribute("aria-busy");
+        }
       }
       function formatDay(date) {
         return new Date(date + "T12:00").toLocaleDateString("pt-BR", {
@@ -1039,7 +1189,8 @@ const descriptionOptionsByType = {
 
         filterType.innerHTML =
           '<option value="">Todos os tipos</option>' +
-          state.types.map((x) => `<option>${esc(x)}</option>`).join("");
+          sortedOptions([...entryTypeOptions(), ...state.entries.map((entry) => entry.type)])
+            .map((x) => `<option>${esc(x)}</option>`).join("");
 
         filterType.value = selected;
       }
@@ -1142,6 +1293,7 @@ const descriptionOptionsByType = {
 
       function render() {
         renderEntryOptions();
+        renderOptionManagement();
 
         renderFilterTypes();
 
@@ -1567,6 +1719,8 @@ const descriptionOptionsByType = {
               types: state.types,
               descriptions: state.descriptions,
               customDescriptionOptionsByType: state.customDescriptionOptionsByType,
+              hiddenTypes: state.hiddenTypes,
+              hiddenDescriptionsByType: state.hiddenDescriptionsByType,
             },
           };
           const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
@@ -2123,8 +2277,52 @@ const descriptionOptionsByType = {
       openModalMobile.onclick = openNew;
       openSettings.onclick = openSettingsDialog;
       downloadBackup.onclick = downloadManualBackup;
+      deleteTypeOptionButton.onclick = removeTypeOption;
+      deleteDescriptionOptionButton.onclick = removeDescriptionOption;
+      deleteDescriptionType.onchange = renderOptionManagement;
       openRecentRecords.onclick = () => openRecentRecordsDialog(true);
       openRecentRecordsMain.onclick = () => openRecentRecordsDialog(false);
+      openRecordsManager.onclick = () => {
+        managerSelectedEntries.clear();
+        managerFilterType.value = "";
+        managerFilterDescription.value = "";
+        managerFilterStatus.value = "";
+        managerBulkType.value = "";
+        managerBulkDescription.value = "";
+        renderRecordsManager();
+        settingsDialog.close();
+        recordsManagerDialog.showModal();
+      };
+      [managerFilterType, managerFilterDescription, managerFilterStatus].forEach((control) => {
+        control.onchange = renderRecordsManager;
+      });
+      managerBulkType.onchange = () => {
+        managerBulkDescription.value = "";
+        renderRecordsManager();
+      };
+      managerSelectAll.onclick = () => {
+        const entries = managerFilteredEntries();
+        const allSelected = entries.length > 0 && entries.every((entry) => managerSelectedEntries.has(entry.id));
+        entries.forEach((entry) => allSelected ? managerSelectedEntries.delete(entry.id) : managerSelectedEntries.add(entry.id));
+        renderRecordsManager();
+      };
+      managerMarkPaid.onclick = () => applyManagerChanges({ paid: true });
+      managerMarkPending.onclick = () => applyManagerChanges({ paid: false });
+      managerApplyChanges.onclick = () => applyManagerChanges({ includeFields: true });
+      recordsManagerList.onchange = (event) => {
+        const id = event.target.dataset.managerSelect;
+        if (!id) return;
+        if (event.target.checked) managerSelectedEntries.add(id);
+        else managerSelectedEntries.delete(id);
+        renderRecordsManager();
+      };
+      recordsManagerList.onclick = (event) => {
+        const button = event.target.closest("[data-manager-edit]");
+        if (!button) return;
+        const entry = state.entries.find((item) => item.id === button.dataset.managerEdit);
+        recordsManagerDialog.close();
+        editEntry(entry);
+      };
       loadMoreRecentRecords.onclick = async () => {
         loadMoreRecentRecords.disabled = true;
         loadMoreRecentRecords.setAttribute("aria-busy", "true");
@@ -2166,6 +2364,9 @@ const descriptionOptionsByType = {
       document
         .querySelectorAll("[data-close-bulk-date]")
         .forEach((button) => (button.onclick = () => bulkDateDialog.close()));
+      document
+        .querySelectorAll("[data-close-records-manager]")
+        .forEach((button) => (button.onclick = () => recordsManagerDialog.close()));
       bulkDateForm.onsubmit = async (event) => {
         event.preventDefault();
         if (!bulkDateForm.reportValidity()) return;

@@ -195,9 +195,9 @@
       async deleteGeneratedEntries(seriesId, _userId, fromDate = null) { await deleteWhere("entries", (item) => item.series_id === seriesId && !item.detached_from_series && (!fromDate || item.scheduled_date >= fromDate)); },
       async deleteSeriesEntries(seriesId, _userId, fromDate = null) { await deleteWhere("entries", (item) => item.series_id === seriesId && (!fromDate || item.scheduled_date >= fromDate)); },
       async fetchSettings() { await ensureLoaded(); return structuredClone(document.settings); },
-      async upsertSettings(_userId, settings, types, descriptions, customDescriptionOptionsByType = {}) {
+      async upsertSettings(_userId, settings, types, descriptions, customDescriptionOptionsByType = {}, hiddenTypes = [], hiddenDescriptionsByType = {}) {
         await ensureLoaded();
-        document.settings = { ...settings, types, descriptions, customDescriptionOptionsByType, updated_at: new Date().toISOString() };
+        document.settings = { ...settings, types, descriptions, customDescriptionOptionsByType, hiddenTypes, hiddenDescriptionsByType, updated_at: new Date().toISOString() };
         await persist();
       },
     };

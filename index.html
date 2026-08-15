@@ -1618,6 +1618,19 @@
         background: var(--paper);
       }
       .settings-history-action button { min-width: 160px; min-height: 48px; }
+      .option-manager { display: grid; gap: 10px; }
+      .option-manager-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; }
+      .option-manager-row button { min-width: 122px; min-height: 48px; }
+      .records-manager-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 0 22px 12px; }
+      .records-manager-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 0 22px 14px; }
+      .records-manager-actions button { min-height: 48px; }
+      .records-manager-list { display: grid; flex: 1 1 auto; gap: 8px; min-height: 0; padding: 0 22px 14px; overflow-y: auto; overscroll-behavior: contain; }
+      .managed-record { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+      .managed-record input { width: 24px; height: 24px; min-width: 24px; accent-color: var(--brand); }
+      .managed-record strong, .managed-record small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .managed-record small { margin-top: 3px; color: var(--muted); }
+      .managed-record button { min-width: 48px; min-height: 48px; }
+      #recordsManagerDialog .modal { display: flex; max-height: calc(100dvh - 32px); flex-direction: column; }
       .recent-records-list {
         display: grid;
         flex: 1 1 auto;
@@ -1703,6 +1716,11 @@
         .recent-record-actions button { width: 100%; }
         #recentRecordsDialog .modal-foot { grid-template-columns: 1fr; }
         .settings-fields { grid-template-columns: 1fr; }
+        .option-manager-row,
+        .records-manager-filters { grid-template-columns: 1fr; }
+        .records-manager-actions { grid-template-columns: 1fr; padding: 0 14px 12px; }
+        .records-manager-list { padding: 0 14px 12px; }
+        .records-manager-filters { padding: 0 14px 10px; }
         .settings-group { padding: 14px; }
         .recent-records-shortcut { width: auto; }
         .conflict-actions { padding: 0 14px 14px; }
@@ -1986,6 +2004,23 @@
               <div class="field"><label for="balanceReferenceDate">Data-base do saldo</label><input id="balanceReferenceDate" type="date" required></div>
             </div>
           </section>
+          <section class="settings-group wide" aria-labelledby="optionsSettingsTitle">
+            <div class="settings-group-head">
+              <h3 id="optionsSettingsTitle">Opções de lançamento</h3>
+              <p>Remover uma opção não altera os lançamentos já cadastrados.</p>
+            </div>
+            <div class="option-manager">
+              <div class="option-manager-row">
+                <div class="field"><label for="deleteTypeOption">Tipo</label><select id="deleteTypeOption"><option value="">Selecione o tipo</option></select></div>
+                <button class="secondary danger" id="deleteTypeOptionButton" type="button" aria-label="Excluir tipo selecionado">Excluir tipo</button>
+              </div>
+              <div class="option-manager-row">
+                <div class="field"><label for="deleteDescriptionType">Tipo da descrição</label><select id="deleteDescriptionType"><option value="">Selecione o tipo</option></select></div>
+                <div class="field"><label for="deleteDescriptionOption">Descrição</label><select id="deleteDescriptionOption" disabled><option value="">Selecione a descrição</option></select></div>
+                <button class="secondary danger" id="deleteDescriptionOptionButton" type="button" aria-label="Excluir descrição selecionada">Excluir descrição</button>
+              </div>
+            </div>
+          </section>
           <section class="settings-group wide" aria-labelledby="dataSettingsTitle">
             <div class="settings-group-head">
               <h3 id="dataSettingsTitle">Dados e histórico</h3>
@@ -1999,6 +2034,13 @@
                   <p>Consulte os últimos lançamentos, ordenados pela data de cadastro.</p>
                 </div>
                 <button class="secondary" id="openRecentRecords" type="button" aria-label="Abrir os registros recentes">Ver registros</button>
+              </section>
+              <section class="settings-history-action" aria-labelledby="recordsManagerActionTitle">
+                <div class="backup-copy">
+                  <strong id="recordsManagerActionTitle">Gerenciar todos os registros</strong>
+                  <p>Filtre e altere Tipo, Descrição ou Status de vários lançamentos.</p>
+                </div>
+                <button class="secondary" id="openRecordsManager" type="button" aria-label="Abrir gerenciamento de todos os registros">Gerenciar registros</button>
               </section>
               <section class="backup-actions" aria-labelledby="backupTitle">
                 <div class="backup-copy">
@@ -2042,6 +2084,32 @@
           <button class="secondary" type="button" data-close-recent-records>Voltar</button>
           <button class="primary" id="loadMoreRecentRecords" type="button">Ver mais 10</button>
         </div>
+      </section>
+    </dialog>
+    <dialog id="recordsManagerDialog" aria-labelledby="recordsManagerTitle">
+      <section class="modal">
+        <div class="modal-head">
+          <div>
+            <h2 id="recordsManagerTitle">Gerenciar registros</h2>
+            <p id="recordsManagerCount" aria-live="polite">Filtre e selecione os lançamentos para editar em lote.</p>
+          </div>
+          <button class="close" type="button" data-close-records-manager aria-label="Fechar gerenciamento de registros">&times;</button>
+        </div>
+        <div class="records-manager-filters">
+          <div class="field"><label for="managerFilterType">Tipo</label><select id="managerFilterType"><option value="">Todos os tipos</option></select></div>
+          <div class="field"><label for="managerFilterDescription">Descrição</label><select id="managerFilterDescription"><option value="">Todas as descrições</option></select></div>
+          <div class="field"><label for="managerFilterStatus">Status</label><select id="managerFilterStatus"><option value="">Todos os status</option><option value="paid">Pagos</option><option value="pending">Em aberto</option></select></div>
+        </div>
+        <div class="records-manager-actions">
+          <button class="secondary" id="managerSelectAll" type="button">Selecionar filtrados</button>
+          <button class="secondary" id="managerMarkPaid" type="button">Marcar como pago</button>
+          <button class="secondary" id="managerMarkPending" type="button">Marcar em aberto</button>
+          <div class="field"><label for="managerBulkType">Novo tipo</label><select id="managerBulkType"><option value="">Não alterar</option></select></div>
+          <div class="field"><label for="managerBulkDescription">Nova descrição</label><select id="managerBulkDescription" disabled><option value="">Não alterar</option></select></div>
+          <button class="primary" id="managerApplyChanges" type="button">Aplicar alterações</button>
+        </div>
+        <div class="records-manager-list" id="recordsManagerList"></div>
+        <div class="modal-foot"><button class="secondary" type="button" data-close-records-manager>Fechar</button></div>
       </section>
     </dialog>
 
