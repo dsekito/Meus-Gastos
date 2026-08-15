@@ -1812,6 +1812,7 @@
 
           <div id="selectionActions"></div>
           <button class="secondary recent-records-shortcut" id="openRecentRecordsMain" type="button" aria-label="Abrir histórico de registros recentes">Histórico</button>
+          <button class="secondary recent-records-shortcut" id="openRecordsManagerMain" type="button" aria-label="Gerenciar todos os registros">Gerenciar</button>
           <div class="date-filter" id="dateFilterInfo"><span id="dateFilterLabel"></span><button id="clearDateFilter" type="button" aria-label="Limpar filtro da data">×</button></div>
         </div>
         <div class="filters">
@@ -2023,25 +2024,11 @@
           </section>
           <section class="settings-group wide" aria-labelledby="dataSettingsTitle">
             <div class="settings-group-head">
-              <h3 id="dataSettingsTitle">Dados e histórico</h3>
-              <p>Consulte, sincronize ou exporte seus dados.</p>
+              <h3 id="dataSettingsTitle">Backup e sincronização</h3>
+              <p>Acompanhe o envio ao Google Drive e exporte seus dados.</p>
             </div>
             <div class="settings-sync-summary" id="settingsSyncSummary" aria-live="polite"></div>
             <div class="settings-data-actions">
-              <section class="settings-history-action" aria-labelledby="recentRecordsActionTitle">
-                <div class="backup-copy">
-                  <strong id="recentRecordsActionTitle">Registros recentes</strong>
-                  <p>Consulte os últimos lançamentos, ordenados pela data de cadastro.</p>
-                </div>
-                <button class="secondary" id="openRecentRecords" type="button" aria-label="Abrir os registros recentes">Ver registros</button>
-              </section>
-              <section class="settings-history-action" aria-labelledby="recordsManagerActionTitle">
-                <div class="backup-copy">
-                  <strong id="recordsManagerActionTitle">Gerenciar todos os registros</strong>
-                  <p>Filtre e altere Tipo, Descrição ou Status de vários lançamentos.</p>
-                </div>
-                <button class="secondary" id="openRecordsManager" type="button" aria-label="Abrir gerenciamento de todos os registros">Gerenciar registros</button>
-              </section>
               <section class="backup-actions" aria-labelledby="backupTitle">
                 <div class="backup-copy">
                   <strong id="backupTitle">Backup manual</strong>

@@ -212,9 +212,8 @@ const descriptionOptionsByType = {
         deleteDescriptionType = document.querySelector("#deleteDescriptionType"),
         deleteDescriptionOption = document.querySelector("#deleteDescriptionOption"),
         deleteDescriptionOptionButton = document.querySelector("#deleteDescriptionOptionButton"),
-        openRecentRecords = document.querySelector("#openRecentRecords"),
         openRecentRecordsMain = document.querySelector("#openRecentRecordsMain"),
-        openRecordsManager = document.querySelector("#openRecordsManager"),
+        openRecordsManagerMain = document.querySelector("#openRecordsManagerMain"),
         recordsManagerDialog = document.querySelector("#recordsManagerDialog"),
         recordsManagerList = document.querySelector("#recordsManagerList"),
         recordsManagerCount = document.querySelector("#recordsManagerCount"),
@@ -1087,6 +1086,20 @@ const descriptionOptionsByType = {
           : '<div class="recent-records-empty">Nenhum registro encontrado com estes filtros.</div>';
       }
 
+      function openRecordsManagerDialog() {
+        managerSelectedEntries.clear();
+        managerFilterType.value = "";
+        managerFilterDescription.value = "";
+        managerFilterStatus.value = "";
+        managerBulkType.value = "";
+        managerBulkDescription.value = "";
+        renderRecordsManager();
+        if (settingsDialog.open) settingsDialog.close();
+        requestAnimationFrame(() => {
+          if (!recordsManagerDialog.open) recordsManagerDialog.showModal();
+        });
+      }
+
       async function applyManagerChanges({ paid = null, includeFields = false } = {}) {
         if (!managerSelectedEntries.size) {
           show("Selecione ao menos um registro.");
@@ -1336,6 +1349,7 @@ const descriptionOptionsByType = {
 
         count.style.display = state.selectionMode ? "none" : "";
         openRecentRecordsMain.hidden = state.selectionMode;
+        openRecordsManagerMain.hidden = state.selectionMode;
         dateFilterInfo.classList.toggle(
           "visible",
           Boolean(state.filterDate) && !state.selectionMode,
@@ -2280,19 +2294,8 @@ const descriptionOptionsByType = {
       deleteTypeOptionButton.onclick = removeTypeOption;
       deleteDescriptionOptionButton.onclick = removeDescriptionOption;
       deleteDescriptionType.onchange = renderOptionManagement;
-      openRecentRecords.onclick = () => openRecentRecordsDialog(true);
       openRecentRecordsMain.onclick = () => openRecentRecordsDialog(false);
-      openRecordsManager.onclick = () => {
-        managerSelectedEntries.clear();
-        managerFilterType.value = "";
-        managerFilterDescription.value = "";
-        managerFilterStatus.value = "";
-        managerBulkType.value = "";
-        managerBulkDescription.value = "";
-        renderRecordsManager();
-        settingsDialog.close();
-        recordsManagerDialog.showModal();
-      };
+      openRecordsManagerMain.onclick = openRecordsManagerDialog;
       [managerFilterType, managerFilterDescription, managerFilterStatus].forEach((control) => {
         control.onchange = renderRecordsManager;
       });
