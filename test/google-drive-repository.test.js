@@ -10,10 +10,19 @@ let remote = {
   settings: null,
 };
 let driveVersion = "7";
+const deltaFiles = new Map();
+let nextDeltaId = 1;
 
 global.fetch = async (url, options = {}) => {
-  if (url.includes("/files?spaces=appDataFolder")) {
-    return new Response(JSON.stringify({ files: [{ id: "drive-file", version: driveVersion }] }), {
+  if (url.startsWith("https://www.googleapis.com/drive/v3/files?")) {
+    const query = new URL(url).searchParams.get("q") || "";
+    let files = [];
+    if (query.includes("meus-gastos.json")) files = [{ id: "drive-file", name: "meus-gastos.json", version: driveVersion }];
+    else if (query.includes("meus-gastos-entry-")) {
+      files = [...deltaFiles.values()]
+        .filter((file) => !query.includes("name =") || query.includes(file.name));
+    }
+    return new Response(JSON.stringify({ files }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
@@ -38,6 +47,37 @@ global.fetch = async (url, options = {}) => {
       headers: { "Content-Type": "application/json" },
     });
   }
+  const deltaMatch = url.match(/\/files\/(delta-\d+)\?uploadType=media/);
+  if (deltaMatch && options.method === "PATCH") {
+    const previous = deltaFiles.get(deltaMatch[1]);
+    const file = { ...previous, version: String(Number(previous.version) + 1), content: options.body };
+    deltaFiles.set(file.id, file);
+    return new Response(JSON.stringify({ id: file.id, name: file.name, version: file.version }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  if (url.includes("/upload/drive/v3/files?uploadType=multipart") && options.method === "POST") {
+    const metadata = JSON.parse(await options.body.get("metadata").text());
+    const file = {
+      id: `delta-${nextDeltaId++}`,
+      name: metadata.name,
+      version: "1",
+      content: await options.body.get("file").text(),
+    };
+    deltaFiles.set(file.id, file);
+    return new Response(JSON.stringify({ id: file.id, name: file.name, version: file.version }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  const deltaContentMatch = url.match(/\/files\/(delta-\d+)\?alt=media/);
+  if (deltaContentMatch) {
+    return new Response(deltaFiles.get(deltaContentMatch[1]).content, {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
   throw new Error(`Unexpected request: ${options.method || "GET"} ${url}`);
 };
 
@@ -52,24 +92,27 @@ require("../js/google-drive-repository.js");
   const saved = await repository.upsertEntry({ id: "one", value: 25 });
   assert.equal(saved.value, 25);
   assert.ok(saved.updated_at);
-  assert.equal(remote.entries[0].value, 25);
-  assert.equal(remote.revision, 3);
+  assert.equal((await repository.fetchEntries())[0].value, 25);
+  assert.equal(remote.entries[0].value, 10, "o arquivo histórico não deve ser regravado");
+  assert.equal(deltaFiles.size, 1);
 
   await repository.deleteEntry("one");
   assert.deepEqual(await repository.fetchEntries(), []);
-  assert.equal(remote.revision, 4);
+  assert.equal(deltaFiles.size, 1, "a exclusão atualiza somente o arquivo da diferença");
 
   await repository.applyEntryOperations([
     { type: "upsert", entry: { id: "two", value: 30 }, baseUpdatedAt: null },
     { type: "upsert", entry: { id: "three", value: 40 }, baseUpdatedAt: null },
   ]);
-  assert.equal(remote.entries.length, 2);
-  assert.equal(remote.revision, 5, "o lote deve gerar somente uma nova revisão");
+  assert.equal((await repository.fetchEntries()).length, 2);
+  assert.equal(deltaFiles.size, 3, "cada lançamento alterado usa um arquivo pequeno");
 
-  driveVersion = "99";
+  const delta = [...deltaFiles.values()].find((file) => file.name.includes("two"));
+  delta.content = JSON.stringify({ id: "two", deleted: false, entry: { id: "two", value: 99, updated_at: "other-device" } });
+  delta.version = "99";
   await assert.rejects(
-    repository.upsertEntry({ id: "two", value: 30 }),
-    /GOOGLE_DRIVE_CONFLICT/,
+    repository.applyEntryOperations([{ type: "upsert", entry: { id: "two", value: 30 }, baseUpdatedAt: "bulk-saved" }]),
+    /CONFLICT/,
   );
 
   const expiredRepository = global.MGGoogleDriveRepository.create({

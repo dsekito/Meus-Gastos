@@ -1,41 +1,24 @@
-const defaultTypes = [
-        "TRABALHO",
-        "GAS",
-        "NUBANK",
-        "IPVA",
-        "IPTU",
-        "CONDOMINIO",
-        "FINANCIAMENTO",
-        "OBJETIVO",
-        "PERSON",
-        "FIT",
-        "FRAN",
-      ];
+const descriptionOptionsByType = {
+        CASA: ["CONDOMINIO", "FRAN", "EMPRESTIMO", "FINANCIAMENTO", "GAS"],
+        FIT: ["TICO", "CBD"],
+        CARRO: ["IPVA"],
+        MEL: ["OBJETIVO", "FESTA"],
+        NUBANK: [
+          "ASSINATURA", "BARBEARIA", "BEBIDAS", "BRUNA", "CARRO", "CASHBACK",
+          "COMIDA", "FIT", "MEL", "PRESENTES", "RESTAURANTE", "ROUPAS", "SAUDE",
+          "TEC", "VIAGEM",
+        ],
+        PERSON: [
+          "ASSINATURA", "BARBEARIA", "BEBIDAS", "BRUNA", "CARRO", "CASHBACK",
+          "COMIDA", "FIT", "MEL", "PRESENTES", "RESTAURANTE", "ROUPAS", "SAUDE",
+          "TEC", "VIAGEM",
+        ],
+        TRABALHO: ["SALARIO"],
+      };
+      const defaultTypes = Object.keys(descriptionOptionsByType);
       const defaultDescriptions = [
-        "TRABALHO",
-        "GAS",
-        "ASSINATURA",
-        "CARRO",
-        "CASA",
-        "CONDOMINIO",
-        "FINANCIAMENTO",
-        "EMPRESTIMO",
-        "MEL",
-        "PRESENTES",
-        "ROUPAS",
-        "BRUNA",
-        "TEC",
-        "FIT",
-        "COMIDA",
-        "VIAGEM",
-        "SAUDE",
-        "RESTAURANTE",
-        "BEBIDAS",
-        "BARBEARIA",
-        "CASHBACK",
-        "FRAN",
-        "RECORRENTE",
-      ];
+        ...new Set(Object.values(descriptionOptionsByType).flat()),
+      ].sort();
 
       const domain = window.MGDomain;
       const localStore = window.MGLocalStore;
@@ -65,6 +48,8 @@ const defaultTypes = [
         types: [...defaultTypes],
 
         descriptions: [...defaultDescriptions],
+
+        customDescriptionOptionsByType: {},
 
         entries: [],
 
@@ -251,6 +236,26 @@ const defaultTypes = [
         return domain.todayISO();
       }
 
+      function formatDateInput(value) {
+        const year = value.getFullYear();
+        const month = String(value.getMonth() + 1).padStart(2, "0");
+        const day = String(value.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      }
+
+      function suggestedDateForType(selectedType) {
+        const now = new Date();
+        if (selectedType === "NUBANK") {
+          const date = new Date(now.getFullYear(), now.getMonth() + 1, 1, 12);
+          while ([0, 6].includes(date.getDay())) date.setDate(date.getDate() + 1);
+          return formatDateInput(date);
+        }
+        if (selectedType === "PERSON") {
+          return formatDateInput(new Date(now.getFullYear(), now.getMonth() + 1, 20, 12));
+        }
+        return null;
+      }
+
       function pendingSyncCount() {
         return state.syncQueue.length + (state.settingsDirty ? 1 : 0);
       }
@@ -399,6 +404,7 @@ const defaultTypes = [
           settingsDirty: state.settingsDirty,
           types: state.types,
           descriptions: state.descriptions,
+          customDescriptionOptionsByType: state.customDescriptionOptionsByType,
           syncQueue: state.syncQueue,
           lastSyncedAt: state.lastSyncedAt,
           syncConflict: state.syncConflict,
@@ -415,6 +421,7 @@ const defaultTypes = [
         state.settingsDirty = !!cached.settingsDirty;
         state.types = [...new Set([...defaultTypes, ...(cached.types || [])])].sort();
         state.descriptions = [...new Set([...defaultDescriptions, ...(cached.descriptions || [])])].sort();
+        state.customDescriptionOptionsByType = cached.customDescriptionOptionsByType || {};
         state.syncQueue = cached.syncQueue || [];
         state.lastSyncedAt = cached.lastSyncedAt || null;
         state.syncConflict = cached.syncConflict || null;
@@ -431,6 +438,7 @@ const defaultTypes = [
         state.deletedEntryIds = new Set();
         state.types = [...defaultTypes];
         state.descriptions = [...defaultDescriptions];
+        state.customDescriptionOptionsByType = {};
         state.settings = createDefaultSettings();
         state.settingsDirty = false;
         state.lastSyncedAt = null;
@@ -496,7 +504,11 @@ const defaultTypes = [
             return false;
           }
           setSyncStatus("pending", "Sincronização pendente");
-          show("Alteração salva neste dispositivo e aguardando conexão para sincronizar.");
+          show(
+            error.message === "GOOGLE_DRIVE_TIMEOUT"
+              ? "O Google Drive demorou para responder. A alteração está salva neste dispositivo e será enviada na próxima tentativa."
+              : "Alteração salva neste dispositivo e aguardando conexão para sincronizar.",
+          );
           return false;
         }
       }
@@ -632,6 +644,7 @@ const defaultTypes = [
           state.settings,
           state.types,
           state.descriptions,
+          state.customDescriptionOptionsByType,
         );
       }
       async function loadCloudSettings() {
@@ -640,6 +653,7 @@ const defaultTypes = [
           state.settings = normalizeSettings(data);
           state.types = [...new Set([...defaultTypes, ...(data.types || [])])].sort();
           state.descriptions = [...new Set([...defaultDescriptions, ...(data.descriptions || [])])].sort();
+          state.customDescriptionOptionsByType = data.customDescriptionOptionsByType || {};
           state.settingsDirty = false;
         } else {
           await syncSettings();
@@ -685,6 +699,15 @@ const defaultTypes = [
             await loadCloudRecurrenceSeries();
             if (!hasPendingSync) await markSynchronizationComplete();
             else await saveLocal();
+          } catch (error) {
+            console.error(error);
+            setSyncStatus("pending", "Sincronização pendente");
+            await saveLocal();
+            show(
+              error.message === "GOOGLE_DRIVE_TIMEOUT"
+                ? "O Google Drive demorou para responder. Seus dados locais foram preservados e a sincronização será tentada novamente."
+                : "Não foi possível concluir a sincronização agora. Seus dados locais foram preservados.",
+            );
           } finally {
             // Mesmo com falha temporária de rede, a tela continua responsiva.
             render();
@@ -914,11 +937,39 @@ const defaultTypes = [
         event.preventDefault();
         event.returnValue = "";
       });
-      function fill(select, values, placeholder) {
+      function sortedOptions(values) {
+        return [...new Set(values.filter(Boolean))].sort((a, b) =>
+          String(a).localeCompare(String(b), "pt-BR"),
+        );
+      }
+
+      function fill(select, values, placeholder, allowNew = false) {
         select.innerHTML =
           `<option value="">${placeholder}</option>` +
-          values.map((x) => `<option>${esc(x)}</option>`).join("") +
-          '<option value="__new__">＋ Adicionar nova opção…</option>';
+          sortedOptions(values).map((x) => `<option>${esc(x)}</option>`).join("") +
+          (allowNew ? '<option value="__new__">＋ Adicionar nova opção…</option>' : "");
+      }
+
+      function entryTypeOptions(selectedType = "") {
+        return [...state.types, ...defaultTypes, selectedType];
+      }
+
+      function entryDescriptionOptions(selectedType, selectedDescription = "") {
+        return [
+          ...(descriptionOptionsByType[selectedType] || []),
+          ...(state.customDescriptionOptionsByType[selectedType] || []),
+          selectedDescription,
+        ];
+      }
+
+      function renderEntryOptions() {
+        const selectedType = type.value;
+        const selectedDescription = desc.value;
+        fill(type, entryTypeOptions(selectedType), "Selecione", true);
+        type.value = selectedType;
+        fill(desc, entryDescriptionOptions(selectedType, selectedDescription), "Selecione", true);
+        desc.value = selectedDescription;
+        desc.disabled = !selectedType;
       }
       function formatDay(date) {
         return new Date(date + "T12:00").toLocaleDateString("pt-BR", {
@@ -1090,8 +1141,7 @@ const defaultTypes = [
       }
 
       function render() {
-        fill(type, state.types, "Selecione");
-        fill(desc, state.descriptions, "Selecione");
+        renderEntryOptions();
 
         renderFilterTypes();
 
@@ -1419,7 +1469,7 @@ const defaultTypes = [
         occurrenceCount.value = 12;
         businessDayAdjustment.value = "none";
         editScopeField.hidden = true;
-        dateInput.value = new Date().toISOString().slice(0, 10);
+        dateInput.value = todayISO();
         updateEntryFormVisibility();
         render();
         dialog.showModal();
@@ -1512,7 +1562,12 @@ const defaultTypes = [
             exportedAt: new Date().toISOString(),
             entries: state.entries,
             recurrenceSeries: state.recurrenceSeries,
-            settings: { ...state.settings, types: state.types, descriptions: state.descriptions },
+            settings: {
+              ...state.settings,
+              types: state.types,
+              descriptions: state.descriptions,
+              customDescriptionOptionsByType: state.customDescriptionOptionsByType,
+            },
           };
           const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
           const url = URL.createObjectURL(blob);
@@ -1529,22 +1584,31 @@ const defaultTypes = [
         }
       }
 
-      function addOption(event, key, select) {
-        if (event.target.value !== "__new__") return;
+      async function addOption(key) {
         const label = key === "types" ? "novo tipo" : "nova descrição";
-        const value = prompt(`Digite a ${label}:`);
-        if (value && value.trim()) {
-          const clean = value.trim().toUpperCase();
-          if (!state[key].includes(clean)) {
-            state[key] = [...state[key], clean];
-            state.settingsDirty = true;
-          }
-          save();
-          fill(select, state[key], "Selecione");
-          select.value = clean;
-          show("Opção adicionada à lista.");
-        } else select.value = "";
+        const value = prompt(`Digite ${key === "types" ? "o" : "a"} ${label}:`);
+        if (!value?.trim()) return null;
+
+        const clean = value.trim().toUpperCase();
+        if (key === "types") {
+          state.types = sortedOptions([...state.types, clean]);
+        } else {
+          const selectedType = type.value;
+          if (!selectedType) return null;
+          state.descriptions = sortedOptions([...state.descriptions, clean]);
+          state.customDescriptionOptionsByType = {
+            ...state.customDescriptionOptionsByType,
+            [selectedType]: sortedOptions([
+              ...(state.customDescriptionOptionsByType[selectedType] || []),
+              clean,
+            ]),
+          };
+        }
+        state.settingsDirty = true;
+        await save();
+        return clean;
       }
+
       function addMonths(dateString, months) {
         const d = new Date(dateString + "T12:00");
         d.setMonth(d.getMonth() + months);
@@ -1787,7 +1851,7 @@ const defaultTypes = [
       async function editRecurringSeries(entry) {
         const original = state.recurrenceSeries.find((series) => series.id === entry.series_id);
         if (!original || editScope.value === "this") {
-          return updateEntry({
+          const updated = updateEntry({
             date: dateInput.value,
             value: Number(valueInput.value),
             flow_type: flowType.value,
@@ -1797,6 +1861,7 @@ const defaultTypes = [
             paid: paidInput.checked,
             detached_from_series: true,
           });
+          return updated ? "this" : null;
         }
 
         const cutDate = entry.scheduled_date || entry.date;
@@ -1818,7 +1883,7 @@ const defaultTypes = [
           nextSeries.updated_at = saved.updated_at;
           state.recurrenceSeries.push(nextSeries);
           await materializeRecurrenceSeries(nextSeries);
-          return true;
+          return "future";
         }
 
         const updated = {
@@ -1832,7 +1897,18 @@ const defaultTypes = [
         state.recurrenceSeries[index] = updated;
         await removeGeneratedSeriesEntries(original.id);
         await materializeRecurrenceSeries(updated);
-        return true;
+        return "all";
+      }
+
+      function recurringEditSuccessMessage(scope, synced) {
+        const scopeLabel = scope === "this"
+          ? "Ocorrência atualizada"
+          : scope === "future"
+            ? "Esta e as próximas ocorrências foram atualizadas"
+            : "Recorrência atualizada";
+        return synced
+          ? `${scopeLabel} e sincronizada.`
+          : `${scopeLabel} neste dispositivo. Sincronização pendente.`;
       }
 
       function createEntry(entry) {
@@ -2025,7 +2101,9 @@ const defaultTypes = [
         valueInput.value = entry.value;
         flowType.value = entry.flow_type || "expense";
         type.value = entry.type;
+        renderEntryOptions();
         desc.value = entry.description;
+        renderEntryOptions();
         detailInput.value = entry.detail;
         paidInput.checked = entry.paid;
         recurrence.value = series?.frequency || (entry.installment ? "installments" : "single");
@@ -2118,8 +2196,30 @@ const defaultTypes = [
           button.removeAttribute("aria-busy");
         }
       };
-      type.onchange = (e) => addOption(e, "types", type);
-      desc.onchange = (e) => addOption(e, "descriptions", desc);
+      type.onchange = async () => {
+        if (type.value === "__new__") {
+          const newType = await addOption("types");
+          type.value = "";
+          desc.value = "";
+          renderEntryOptions();
+          type.value = newType || "";
+          renderEntryOptions();
+          return;
+        }
+        desc.value = "";
+        renderEntryOptions();
+        if (!state.editingId) {
+          const suggestedDate = suggestedDateForType(type.value);
+          if (suggestedDate) dateInput.value = suggestedDate;
+        }
+      };
+      desc.onchange = async () => {
+        if (desc.value !== "__new__") return;
+        const newDescription = await addOption("descriptions");
+        desc.value = "";
+        renderEntryOptions();
+        desc.value = newDescription || "";
+      };
       [flowType, recurrence, recurrenceInterval, customUnit, endMode, endDate, occurrenceCount, businessDayAdjustment]
         .forEach((control) => {
           control.onchange = updateEntryFormVisibility;
@@ -2366,8 +2466,13 @@ const defaultTypes = [
         saveEntry.setAttribute("aria-busy", "true");
         saveEntry.textContent = "Salvando…";
         try {
+          let recurringEditScope = null;
           if (editing && editingEntry?.series_id) {
-            if (!await editRecurringSeries(editingEntry)) return;
+            recurringEditScope = await editRecurringSeries(editingEntry);
+            if (!recurringEditScope) {
+              show("Não foi possível localizar a ocorrência para atualizar. Atualize a tela e tente novamente.");
+              return;
+            }
             state.editingId = null;
           } else if (editing && isRecurringValue()) {
             state.entries = state.entries.filter((item) => item.id !== editingEntry.id);
@@ -2386,17 +2491,23 @@ const defaultTypes = [
           closeEntryDialog();
           render();
           show(
-            synced
-              ? editing
-                ? "Lançamento atualizado e sincronizado."
-                : isRecurringValue()
-                  ? "Recorrência criada e sincronizada."
-                  : "Lançamento salvo e sincronizado."
-              : "Lançamento salvo neste dispositivo e aguardando sincronização.",
+            recurringEditScope
+              ? recurringEditSuccessMessage(recurringEditScope, synced)
+              : synced
+                ? editing
+                  ? "Lançamento atualizado e sincronizado."
+                  : isRecurringValue()
+                    ? "Recorrência criada e sincronizada."
+                    : "Lançamento salvo e sincronizado."
+                : "Lançamento salvo neste dispositivo e aguardando sincronização.",
           );
         } catch (error) {
           console.error(error);
-          show("Não foi possível salvar a recorrência. Tente novamente.");
+          show(
+            editing && editingEntry?.series_id
+              ? "Não foi possível atualizar a recorrência. Seus dados não foram confirmados no Google Drive."
+              : "Não foi possível salvar a recorrência. Tente novamente.",
+          );
         } finally {
           saveEntry.disabled = false;
           saveEntry.removeAttribute("aria-busy");

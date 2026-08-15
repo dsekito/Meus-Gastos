@@ -1831,7 +1831,15 @@
             </select>
           </div>
           <div class="field">
-            <label for="date">Data inicial</label>
+            <label for="type">Tipo</label>
+            <select id="type" required></select>
+          </div>
+          <div class="field">
+            <label for="description">Descrição</label>
+            <select id="description" required></select>
+          </div>
+          <div class="field">
+            <label for="date">Data</label>
             <input id="date" type="date" required />
           </div>
           <div class="field">
@@ -1844,6 +1852,13 @@
               placeholder="Ex.: 150,00"
               required
             />
+          </div>
+          <div class="field wide">
+            <label for="detail">Detalhe (opcional)</label
+            ><textarea
+              id="detail"
+              placeholder="Ex.: pagamento da fatura, nome da loja…"
+            ></textarea>
           </div>
           <div class="field">
             <label for="recurrence">Repetição</label>
@@ -1913,22 +1928,6 @@
             </select>
           </div>
 
-          <div class="field">
-            <label for="type">Tipo</label>
-            <select id="type" required></select>
-          </div>
-
-          <div class="field">
-            <label for="description">Descrição</label>
-            <select id="description" required></select>
-          </div>
-          <div class="field wide">
-            <label for="detail">Detalhe (opcional)</label
-            ><textarea
-              id="detail"
-              placeholder="Ex.: pagamento da fatura, nome da loja…"
-            ></textarea>
-          </div>
           <div class="field wide" id="paidField">
             <label class="checkbox-label"><input id="paid" type="checkbox" /><span id="paidLabel">Marcar como pago</span></label>
           </div>
