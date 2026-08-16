@@ -185,18 +185,24 @@
 
     async function applyEntryOperations(operations, _userId, onProgress = () => {}) {
       await ensureLoaded();
+      onProgress({ completed: 0, total: operations.length, phase: "checking" });
       await refreshEntryDeltaIndex();
       const saved = [];
+      let completed = 0;
       for (let index = 0; index < operations.length; index += 6) {
         const batch = await Promise.all(operations.slice(index, index + 6).map(async (operation) => {
           if (operation.type === "delete") {
             await saveEntryDelta(operation.id, null, true, operation.baseUpdatedAt);
+            completed++;
+            onProgress({ completed, total: operations.length, phase: "sending" });
             return null;
           }
-          return saveEntryDelta(operation.entry.id, operation.entry, false, operation.baseUpdatedAt);
+          const entry = await saveEntryDelta(operation.entry.id, operation.entry, false, operation.baseUpdatedAt);
+          completed++;
+          onProgress({ completed, total: operations.length, phase: "sending" });
+          return entry;
         }));
         saved.push(...batch.filter(Boolean));
-        onProgress({ completed: Math.min(index + 6, operations.length), total: operations.length });
       }
       return saved;
     }

@@ -355,7 +355,9 @@ const descriptionOptionsByType = {
           const progress = state.syncProgress;
           const percentage = progress?.total ? Math.round((progress.completed / progress.total) * 100) : null;
           syncNoticeDetail.textContent = percentage !== null
-            ? `Enviando ${progress.completed} de ${progress.total} alterações (${percentage}%).`
+            ? progress.phase === "checking"
+              ? `Conferindo ${progress.total} alteração${progress.total === 1 ? "" : "ões"} no Google Drive antes do envio.`
+              : `Enviando ${progress.completed} de ${progress.total} alterações (${percentage}%).`
             : pending > 0 ? `Enviando ${pendingLabel}.` : "Conferindo os dados deste dispositivo com o Google Drive.";
           return;
         }
