@@ -221,6 +221,9 @@ const descriptionOptionsByType = {
         managerFilterDescription = document.querySelector("#managerFilterDescription"),
         managerFilterStatus = document.querySelector("#managerFilterStatus"),
         managerSelectAll = document.querySelector("#managerSelectAll"),
+        managerSelectionSummary = document.querySelector("#managerSelectionSummary"),
+        managerToggleBulk = document.querySelector("#managerToggleBulk"),
+        managerBulkEditor = document.querySelector("#managerBulkEditor"),
         managerMarkPaid = document.querySelector("#managerMarkPaid"),
         managerMarkPending = document.querySelector("#managerMarkPending"),
         managerBulkType = document.querySelector("#managerBulkType"),
@@ -1077,6 +1080,11 @@ const descriptionOptionsByType = {
         const allSelected = entries.length > 0 && entries.every((entry) => managerSelectedEntries.has(entry.id));
         managerSelectAll.textContent = allSelected ? "Desmarcar filtrados" : "Selecionar filtrados";
         recordsManagerCount.textContent = `${entries.length} registro${entries.length === 1 ? "" : "s"} encontrado${entries.length === 1 ? "" : "s"} · ${managerSelectedEntries.size} selecionado${managerSelectedEntries.size === 1 ? "" : "s"}`;
+        managerSelectionSummary.textContent = managerSelectedEntries.size
+          ? `${managerSelectedEntries.size} selecionado${managerSelectedEntries.size === 1 ? "" : "s"}`
+          : "Selecione registros para editar em lote.";
+        managerToggleBulk.disabled = managerSelectedEntries.size === 0;
+        managerBulkEditor.hidden = !managerBulkEditor.classList.contains("visible");
         recordsManagerList.innerHTML = entries.length
           ? entries.map((entry) => `<article class="managed-record">
               <input type="checkbox" data-manager-select="${entry.id}" ${managerSelectedEntries.has(entry.id) ? "checked" : ""} aria-label="Selecionar ${esc(entry.description)}" />
@@ -1093,6 +1101,8 @@ const descriptionOptionsByType = {
         managerFilterStatus.value = "";
         managerBulkType.value = "";
         managerBulkDescription.value = "";
+        managerBulkEditor.classList.remove("visible");
+        managerBulkEditor.hidden = true;
         renderRecordsManager();
         if (settingsDialog.open) settingsDialog.close();
         requestAnimationFrame(() => {
@@ -2308,6 +2318,10 @@ const descriptionOptionsByType = {
         const allSelected = entries.length > 0 && entries.every((entry) => managerSelectedEntries.has(entry.id));
         entries.forEach((entry) => allSelected ? managerSelectedEntries.delete(entry.id) : managerSelectedEntries.add(entry.id));
         renderRecordsManager();
+      };
+      managerToggleBulk.onclick = () => {
+        managerBulkEditor.classList.toggle("visible");
+        managerBulkEditor.hidden = !managerBulkEditor.classList.contains("visible");
       };
       managerMarkPaid.onclick = () => applyManagerChanges({ paid: true });
       managerMarkPending.onclick = () => applyManagerChanges({ paid: false });

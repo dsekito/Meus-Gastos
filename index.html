@@ -1631,6 +1631,15 @@
       .managed-record small { margin-top: 3px; color: var(--muted); }
       .managed-record button { min-width: 48px; min-height: 48px; }
       #recordsManagerDialog .modal { display: flex; max-height: calc(100dvh - 32px); flex-direction: column; }
+      .manager-filters { margin: 0 22px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+      .manager-filters summary { min-height: 48px; display: flex; align-items: center; padding: 0 14px; font-weight: 700; cursor: pointer; }
+      .manager-filters[open] summary { border-bottom: 1px solid var(--line); }
+      .manager-filters .records-manager-filters { padding: 12px; }
+      .manager-selection-bar { display: flex; align-items: center; gap: 10px; padding: 0 22px 12px; }
+      .manager-selection-bar span { flex: 1; color: var(--muted); font-size: 14px; }
+      .manager-selection-bar button { min-height: 48px; }
+      .manager-bulk-editor { display: none; gap: 10px; padding: 12px 22px; border-top: 1px solid var(--line); background: var(--soft); }
+      .manager-bulk-editor.visible { display: grid; }
       .recent-records-list {
         display: grid;
         flex: 1 1 auto;
@@ -1721,6 +1730,15 @@
         .records-manager-actions { grid-template-columns: 1fr; padding: 0 14px 12px; }
         .records-manager-list { padding: 0 14px 12px; }
         .records-manager-filters { padding: 0 14px 10px; }
+        #settingsDialog, #recordsManagerDialog { width: 100%; max-width: none; height: 100dvh; max-height: 100dvh; margin: 0; border-radius: 0; }
+        #settingsDialog .modal, #recordsManagerDialog .modal { max-height: 100dvh; }
+        #settingsDialog .form-grid { padding: 0 16px 16px; overflow-y: auto; }
+        #settingsDialog .modal-foot { padding: 12px 16px max(16px, env(safe-area-inset-bottom)); }
+        .manager-filters { margin: 0 14px 10px; }
+        .manager-selection-bar { padding: 0 14px 10px; flex-wrap: wrap; }
+        .manager-selection-bar span { min-width: 100%; }
+        .manager-selection-bar button { flex: 1; }
+        .manager-bulk-editor { padding: 12px 14px max(16px, env(safe-area-inset-bottom)); }
         .settings-group { padding: 14px; }
         .recent-records-shortcut { width: auto; }
         .conflict-actions { padding: 0 14px 14px; }
@@ -2082,13 +2100,20 @@
           </div>
           <button class="close" type="button" data-close-records-manager aria-label="Fechar gerenciamento de registros">&times;</button>
         </div>
-        <div class="records-manager-filters">
-          <div class="field"><label for="managerFilterType">Tipo</label><select id="managerFilterType"><option value="">Todos os tipos</option></select></div>
-          <div class="field"><label for="managerFilterDescription">Descrição</label><select id="managerFilterDescription"><option value="">Todas as descrições</option></select></div>
-          <div class="field"><label for="managerFilterStatus">Status</label><select id="managerFilterStatus"><option value="">Todos os status</option><option value="paid">Pagos</option><option value="pending">Em aberto</option></select></div>
-        </div>
-        <div class="records-manager-actions">
+        <details class="manager-filters">
+          <summary>Filtrar registros</summary>
+          <div class="records-manager-filters">
+            <div class="field"><label for="managerFilterType">Tipo</label><select id="managerFilterType"><option value="">Todos os tipos</option></select></div>
+            <div class="field"><label for="managerFilterDescription">Descrição</label><select id="managerFilterDescription"><option value="">Todas as descrições</option></select></div>
+            <div class="field"><label for="managerFilterStatus">Status</label><select id="managerFilterStatus"><option value="">Todos os status</option><option value="paid">Pagos</option><option value="pending">Em aberto</option></select></div>
+          </div>
+        </details>
+        <div class="manager-selection-bar">
+          <span id="managerSelectionSummary">Selecione registros para editar em lote.</span>
           <button class="secondary" id="managerSelectAll" type="button">Selecionar filtrados</button>
+          <button class="primary" id="managerToggleBulk" type="button" disabled>Editar selecionados</button>
+        </div>
+        <div class="manager-bulk-editor" id="managerBulkEditor" hidden>
           <button class="secondary" id="managerMarkPaid" type="button">Marcar como pago</button>
           <button class="secondary" id="managerMarkPending" type="button">Marcar em aberto</button>
           <div class="field"><label for="managerBulkType">Novo tipo</label><select id="managerBulkType"><option value="">Não alterar</option></select></div>
