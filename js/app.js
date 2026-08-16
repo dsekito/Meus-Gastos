@@ -213,6 +213,10 @@ const descriptionOptionsByType = {
         balanceReferenceDateInput = document.querySelector("#balanceReferenceDate"),
         saveSettings = document.querySelector("#saveSettings"),
         downloadBackup = document.querySelector("#downloadBackup"),
+        createDriveBackup = document.querySelector("#createDriveBackup"),
+        loadDriveBackups = document.querySelector("#loadDriveBackups"),
+        driveBackupSelect = document.querySelector("#driveBackupSelect"),
+        restoreDriveBackup = document.querySelector("#restoreDriveBackup"),
         deleteTypeOption = document.querySelector("#deleteTypeOption"),
         deleteTypeOptionButton = document.querySelector("#deleteTypeOptionButton"),
         deleteDescriptionType = document.querySelector("#deleteDescriptionType"),
@@ -346,7 +350,9 @@ const descriptionOptionsByType = {
         }
 
         syncNotice.hidden = false;
-        syncNoticeAction.hidden = stateName === "syncing";
+        syncNoticeAction.hidden = false;
+        syncNoticeAction.disabled = false;
+        syncNoticeAction.removeAttribute("aria-busy");
 
         if (stateName === "syncing") {
           syncStatus.textContent = "Sincronizando";
@@ -359,6 +365,9 @@ const descriptionOptionsByType = {
               ? `Conferindo ${progress.total} alteração${progress.total === 1 ? "" : "ões"} no Google Drive antes do envio.`
               : `Enviando ${progress.completed} de ${progress.total} alterações (${percentage}%).`
             : pending > 0 ? `Enviando ${pendingLabel}.` : "Conferindo os dados deste dispositivo com o Google Drive.";
+          syncNoticeAction.disabled = false;
+          syncNoticeAction.textContent = "Cancelar sincronização";
+          syncNoticeAction.setAttribute("aria-label", "Cancelar sincronização em andamento");
           return;
         }
 
@@ -543,6 +552,12 @@ const descriptionOptionsByType = {
         } catch (error) {
           state.syncProgress = null;
           console.error(error);
+          if (error.message === "GOOGLE_DRIVE_CANCELLED") {
+            await saveLocal();
+            setSyncStatus("pending", "Sincronização cancelada");
+            show("Sincronização cancelada. As alterações continuam salvas neste dispositivo para uma nova tentativa.");
+            return false;
+          }
           if (["GOOGLE_AUTH_EXPIRED", "GOOGLE_AUTH_REQUIRED"].includes(error.message)) {
             await expireGoogleSession();
             show("Seus dados estão salvos neste dispositivo. Reconecte o Google para sincronizar.");
@@ -601,7 +616,16 @@ const descriptionOptionsByType = {
           setSyncStatus("idle", "Entre para sincronizar");
           return;
         }
+        repository.beginSync?.();
         await synchronization.syncEntries(state.user.id);
+      }
+
+      function cancelSynchronization() {
+        if (syncStatus.dataset.state !== "syncing") return;
+        syncNoticeAction.disabled = true;
+        syncNoticeAction.textContent = "Cancelando...";
+        syncNoticeAction.setAttribute("aria-label", "Cancelando sincronização");
+        repository.cancelPendingRequests?.();
       }
       async function fetchAllCloudEntries() {
         return repository.fetchEntries();
@@ -979,6 +1003,10 @@ const descriptionOptionsByType = {
 
       signInGoogleScreen.onclick = () => signInWithGoogle(signInGoogleScreen);
       syncNoticeAction.onclick = async () => {
+        if (syncStatus.dataset.state === "syncing") {
+          cancelSynchronization();
+          return;
+        }
         if (state.syncConflict) {
           if (!googleAuth.hasAccessToken()) await signInWithGoogle(syncNoticeAction);
           if (googleAuth.hasAccessToken()) openSyncConflictDialog();
@@ -1807,6 +1835,114 @@ const descriptionOptionsByType = {
         }
       }
 
+      function createBackupSnapshot() {
+        return {
+          schemaVersion: 1,
+          exportedAt: new Date().toISOString(),
+          entries: state.entries,
+          recurrenceSeries: state.recurrenceSeries,
+          settings: {
+            ...state.settings,
+            types: state.types,
+            descriptions: state.descriptions,
+            customDescriptionOptionsByType: state.customDescriptionOptionsByType,
+            hiddenTypes: state.hiddenTypes,
+            hiddenDescriptionsByType: state.hiddenDescriptionsByType,
+          },
+        };
+      }
+
+      function setButtonBusy(button, busy, busyLabel) {
+        if (!button) return () => {};
+        const label = button.textContent;
+        button.disabled = busy;
+        button.toggleAttribute("aria-busy", busy);
+        if (busy) button.textContent = busyLabel;
+        return () => {
+          button.disabled = false;
+          button.removeAttribute("aria-busy");
+          button.textContent = label;
+        };
+      }
+
+      async function createGoogleDriveBackup() {
+        if (!state.user || !googleAuth.hasAccessToken()) {
+          show("Reconecte o Google para criar um backup no Drive.");
+          return;
+        }
+        const resetButton = setButtonBusy(createDriveBackup, true, "Criando...");
+        try {
+          await repository.createDriveBackup(createBackupSnapshot());
+          show("Backup completo criado no Google Drive.");
+          await loadGoogleDriveBackups();
+        } catch (error) {
+          console.error(error);
+          show("Não foi possível criar o backup no Google Drive agora.");
+        } finally {
+          resetButton();
+        }
+      }
+
+      async function loadGoogleDriveBackups() {
+        if (!state.user || !googleAuth.hasAccessToken()) {
+          show("Reconecte o Google para consultar seus backups.");
+          return;
+        }
+        const resetButton = setButtonBusy(loadDriveBackups, true, "Carregando...");
+        try {
+          const backups = await repository.listDriveBackups();
+          driveBackupSelect.innerHTML = '<option value="">Selecione um backup</option>';
+          backups.forEach((backup) => {
+            const date = backup.name.slice("meus-gastos-backup-".length, -5).replace(/-(\d{3})Z$/, ".$1Z").replace(/-/g, (match, index, value) => index > 9 ? ":" : match);
+            const option = document.createElement("option");
+            option.value = backup.id;
+            option.textContent = date ? `Backup ${date.replace("T", " ").replace("Z", " UTC")}` : backup.name;
+            driveBackupSelect.append(option);
+          });
+          restoreDriveBackup.disabled = true;
+          show(backups.length ? `${backups.length} backup${backups.length === 1 ? " encontrado" : "s encontrados"} no Google Drive.` : "Nenhum backup do Google Drive foi encontrado.");
+        } catch (error) {
+          console.error(error);
+          show("Não foi possível consultar os backups agora.");
+        } finally {
+          resetButton();
+        }
+      }
+
+      async function restoreGoogleDriveBackup() {
+        const id = driveBackupSelect.value;
+        if (!id) return;
+        if (!confirm("Restaurar este backup substituirá os lançamentos, opções e recorrências atuais. Deseja continuar?")) return;
+        const resetButton = setButtonBusy(restoreDriveBackup, true, "Restaurando...");
+        try {
+          const backup = await repository.fetchDriveBackup(id);
+          if (!Array.isArray(backup?.entries) || !backup?.settings) throw new Error("BACKUP_INVALID");
+          const settings = backup.settings;
+          const previousEntries = state.entries;
+          state.entries = structuredClone(backup.entries);
+          state.recurrenceSeries = structuredClone(backup.recurrenceSeries || []);
+          state.settings = normalizeSettings(settings);
+          state.types = [...new Set([...defaultTypes, ...(settings.types || [])])].sort();
+          state.descriptions = [...new Set([...defaultDescriptions, ...(settings.descriptions || [])])].sort();
+          state.customDescriptionOptionsByType = settings.customDescriptionOptionsByType || {};
+          state.hiddenTypes = settings.hiddenTypes || [];
+          state.hiddenDescriptionsByType = settings.hiddenDescriptionsByType || {};
+          state.settingsDirty = true;
+          const restoredIds = new Set(state.entries.map((entry) => entry.id));
+          previousEntries.filter((entry) => !restoredIds.has(entry.id)).forEach((entry) => queueDelete(entry.id, entry.updated_at));
+          state.entries.forEach((entry) => queueUpsert(entry));
+          await repository.replaceRecurrenceSeries(state.recurrenceSeries);
+          await save();
+          render();
+          show("Backup restaurado. A sincronização foi iniciada para enviar a versão restaurada ao Google Drive.");
+        } catch (error) {
+          console.error(error);
+          show(error.message === "BACKUP_INVALID" ? "Este arquivo não é um backup válido do Meus Gastos." : "Não foi possível restaurar o backup agora.");
+        } finally {
+          resetButton();
+        }
+      }
+
       async function addOption(key) {
         const label = key === "types" ? "novo tipo" : "nova descrição";
         const value = await new Promise((resolve) => {
@@ -2355,6 +2491,10 @@ const descriptionOptionsByType = {
       openModalMobile.onclick = openNew;
       openSettings.onclick = openSettingsDialog;
       downloadBackup.onclick = downloadManualBackup;
+      createDriveBackup.onclick = createGoogleDriveBackup;
+      loadDriveBackups.onclick = loadGoogleDriveBackups;
+      driveBackupSelect.onchange = () => { restoreDriveBackup.disabled = !driveBackupSelect.value; };
+      restoreDriveBackup.onclick = restoreGoogleDriveBackup;
       deleteTypeOptionButton.onclick = removeTypeOption;
       deleteDescriptionOptionButton.onclick = removeDescriptionOption;
       deleteDescriptionType.onchange = renderOptionManagement;

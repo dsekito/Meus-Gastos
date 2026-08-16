@@ -1,6 +1,7 @@
 (function attachGoogleDriveRepository(global) {
   const FILE_NAME = "meus-gastos.json";
   const ENTRY_DELTA_PREFIX = "meus-gastos-entry-";
+  const BACKUP_PREFIX = "meus-gastos-backup-";
   const API = "https://www.googleapis.com/drive/v3";
   const UPLOAD_API = "https://www.googleapis.com/upload/drive/v3";
   const REQUEST_TIMEOUT_MS = 20000;
@@ -17,12 +18,15 @@
     let remoteVersion = null;
     const entryDeltaFiles = new Map();
     let writeChain = Promise.resolve();
+    const activeControllers = new Set();
+    let requestsCancelled = false;
 
     async function request(url, options = {}) {
       const token = getAccessToken();
       if (!token) throw new Error("GOOGLE_AUTH_REQUIRED");
       if (isAccessTokenExpired()) throw new Error("GOOGLE_AUTH_EXPIRED");
       const controller = new AbortController();
+      activeControllers.add(controller);
       const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
       try {
         const response = await fetch(url, { ...options, signal: controller.signal, headers: { Authorization: `Bearer ${token}`, ...(options.headers || {}) } });
@@ -30,10 +34,11 @@
         if (!response.ok) throw new Error(`GOOGLE_DRIVE_${response.status}`);
         return response;
       } catch (error) {
-        if (error?.name === "AbortError") throw new Error("GOOGLE_DRIVE_TIMEOUT");
+        if (error?.name === "AbortError") throw new Error(requestsCancelled ? "GOOGLE_DRIVE_CANCELLED" : "GOOGLE_DRIVE_TIMEOUT");
         throw error;
       } finally {
         clearTimeout(timeout);
+        activeControllers.delete(controller);
       }
     }
 
@@ -144,6 +149,26 @@
       return (await request(`${UPLOAD_API}/files?uploadType=multipart&fields=id,name,version`, { method: "POST", body: form })).json();
     }
 
+    function backupName() {
+      return `${BACKUP_PREFIX}${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    }
+
+    async function createDriveBackup(snapshot) {
+      const saved = await writeJsonFile(backupName(), snapshot, null);
+      return { id: saved.id, name: saved.name, version: saved.version };
+    }
+
+    async function listDriveBackups() {
+      const files = await listFiles(`name contains '${BACKUP_PREFIX}' and trashed = false`);
+      return files
+        .filter((file) => file.name?.startsWith(BACKUP_PREFIX))
+        .sort((a, b) => b.name.localeCompare(a.name));
+    }
+
+    async function fetchDriveBackup(id) {
+      return (await (await request(`${API}/files/${id}?alt=media`)).json());
+    }
+
     async function saveEntryDelta(id, value, deleted, baseUpdatedAt) {
       await ensureLoaded();
       const previous = await findEntryDelta(id);
@@ -209,7 +234,9 @@
 
     return {
       load,
-      reset() { fileId = null; remoteVersion = null; document = emptyDocument(); loaded = false; entryDeltaFiles.clear(); writeChain = Promise.resolve(); },
+      beginSync() { requestsCancelled = false; },
+      cancelPendingRequests() { requestsCancelled = true; activeControllers.forEach((controller) => controller.abort()); },
+      reset() { fileId = null; remoteVersion = null; document = emptyDocument(); loaded = false; entryDeltaFiles.clear(); writeChain = Promise.resolve(); activeControllers.forEach((controller) => controller.abort()); activeControllers.clear(); requestsCancelled = false; },
       async fetchEntries() { await ensureLoaded(); return structuredClone(document.entries); },
       async fetchLegacyEntries() { await ensureLoaded(); return structuredClone(legacyEntries); },
       async fetchEntryVersion(id) { await ensureLoaded(); return document.entries.find((item) => item.id === id) || null; },
@@ -217,7 +244,11 @@
       async upsertEntry(entry, _userId, baseUpdatedAt = null) { return saveEntryDelta(entry.id, entry, false, baseUpdatedAt); },
       upsertEntries,
       applyEntryOperations,
+      createDriveBackup,
+      listDriveBackups,
+      fetchDriveBackup,
       async fetchRecurrenceSeries() { await ensureLoaded(); return structuredClone(document.recurrenceSeries); },
+      async replaceRecurrenceSeries(series) { await ensureLoaded(); document.recurrenceSeries = structuredClone(series || []); await persist(); },
       async upsertRecurrenceSeries(series) { return (await upsertCollection("recurrenceSeries", [series]))[0]; },
       async deleteRecurrenceSeries(id) { await deleteWhere("recurrenceSeries", (item) => item.id === id); },
       async deleteGeneratedEntries(seriesId, _userId, fromDate = null) { await deleteWhere("entries", (item) => item.series_id === seriesId && !item.detached_from_series && (!fromDate || item.scheduled_date >= fromDate)); },

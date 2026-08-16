@@ -1581,6 +1581,8 @@
       .backup-actions strong { font-size: 16px; line-height: 1.3; }
       .backup-actions p { margin: 0; font-size: 14px; line-height: 1.45; }
       .backup-actions button { min-width: 160px; min-height: 48px; }
+      .backup-restore-buttons { display: grid; gap: 8px; }
+      .backup-actions select { min-height: 48px; width: 100%; margin-top: 4px; }
       .settings-group {
         display: grid;
         gap: 12px;
@@ -2054,6 +2056,25 @@
                 </div>
                 <button class="secondary" id="downloadBackup" type="button" aria-label="Baixar backup completo dos dados">Baixar backup</button>
               </section>
+              <section class="backup-actions" aria-labelledby="driveBackupTitle">
+                <div class="backup-copy">
+                  <strong id="driveBackupTitle">Backup no Google Drive</strong>
+                  <p>Crie uma cópia completa antes de alterações importantes.</p>
+                </div>
+                <button class="secondary" id="createDriveBackup" type="button" aria-label="Criar backup no Google Drive">Criar backup</button>
+              </section>
+              <section class="backup-actions" aria-labelledby="restoreDriveBackupTitle">
+                <div class="backup-copy">
+                  <strong id="restoreDriveBackupTitle">Restaurar backup</strong>
+                  <p>Escolha uma cópia do Drive. Os dados atuais serão substituídos após sua confirmação.</p>
+                  <label for="driveBackupSelect">Backup disponível</label>
+                  <select id="driveBackupSelect" aria-label="Selecionar backup do Google Drive"><option value="">Carregue os backups do Drive</option></select>
+                </div>
+                <div class="backup-restore-buttons">
+                  <button class="secondary" id="loadDriveBackups" type="button" aria-label="Carregar backups do Google Drive">Ver backups</button>
+                  <button class="secondary danger" id="restoreDriveBackup" type="button" disabled aria-label="Restaurar backup selecionado">Restaurar</button>
+                </div>
+              </section>
             </div>
           </section>
         </div>
@@ -2146,8 +2167,8 @@
     <script src="./js/domain.js?v=2026081003"></script>
     <script src="./js/local-store.js?v=2026081001"></script>
     <script src="./js/google-auth.js?v=2026081003"></script>
-    <script src="./js/google-drive-repository.js?v=2026081001"></script>
+    <script src="./js/google-drive-repository.js?v=2026081502"></script>
     <script src="./js/sync-service.js?v=2026080106"></script>
-    <script src="./js/app.js?v=2026081007"></script>
+    <script src="./js/app.js?v=2026081502"></script>
   </body>
 </html>
