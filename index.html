@@ -1620,8 +1620,13 @@
         background: var(--paper);
       }
       .settings-history-action button { min-width: 160px; min-height: 48px; }
-      .option-manager { display: grid; gap: 10px; }
+      .option-manager { display: grid; gap: 12px; }
+      .option-manager-card { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--soft); }
+      .option-manager-copy { display: grid; gap: 3px; }
+      .option-manager-copy strong { font-size: 16px; }
+      .option-manager-copy p { margin: 0; font-size: 14px; line-height: 1.4; }
       .option-manager-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; }
+      .option-manager-row.description { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
       .option-manager-row button { min-width: 122px; min-height: 48px; }
       .records-manager-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 0 22px 12px; }
       .records-manager-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 0 22px 14px; }
@@ -1728,6 +1733,7 @@
         #recentRecordsDialog .modal-foot { grid-template-columns: 1fr; }
         .settings-fields { grid-template-columns: 1fr; }
         .option-manager-row,
+        .option-manager-row.description,
         .records-manager-filters { grid-template-columns: 1fr; }
         .records-manager-actions { grid-template-columns: 1fr; padding: 0 14px 12px; }
         .records-manager-list { padding: 0 14px 12px; }
@@ -2028,20 +2034,24 @@
           <section class="settings-group wide" aria-labelledby="optionsSettingsTitle">
             <div class="settings-group-head">
               <h3 id="optionsSettingsTitle">Opções de lançamento</h3>
-              <p>Remover uma opção não altera os lançamentos já cadastrados.</p>
+              <p>As listas abaixo são as mesmas exibidas ao criar um novo lançamento.</p>
             </div>
             <div class="option-manager">
-              <div class="option-manager-row">
-                <div class="field"><label for="deleteTypeOption">Tipo</label><select id="deleteTypeOption"><option value="">Selecione o tipo</option></select></div>
-                <button class="secondary" id="addTypeOptionButton" type="button" aria-label="Adicionar tipo">Adicionar tipo</button>
-                <button class="secondary danger" id="deleteTypeOptionButton" type="button" aria-label="Excluir tipo selecionado">Excluir tipo</button>
-              </div>
-              <div class="option-manager-row">
-                <div class="field"><label for="deleteDescriptionType">Tipo da descrição</label><select id="deleteDescriptionType"><option value="">Selecione o tipo</option></select></div>
-                <div class="field"><label for="deleteDescriptionOption">Descrição</label><select id="deleteDescriptionOption" disabled><option value="">Selecione a descrição</option></select></div>
-                <button class="secondary" id="addDescriptionOptionButton" type="button" aria-label="Adicionar descrição ao tipo selecionado">Adicionar descrição</button>
-                <button class="secondary danger" id="deleteDescriptionOptionButton" type="button" aria-label="Excluir descrição selecionada">Excluir descrição</button>
-              </div>
+              <section class="option-manager-card" aria-labelledby="typeOptionsTitle">
+                <div class="option-manager-copy"><strong id="typeOptionsTitle">Tipos</strong><p>Escolha “Adicionar nova opção” na própria lista para criar um tipo.</p></div>
+                <div class="option-manager-row">
+                  <div class="field"><label for="deleteTypeOption">Tipo</label><select id="deleteTypeOption"><option value="">Selecione o tipo</option></select></div>
+                  <button class="secondary danger" id="deleteTypeOptionButton" type="button" aria-label="Excluir tipo selecionado">Excluir tipo</button>
+                </div>
+              </section>
+              <section class="option-manager-card" aria-labelledby="descriptionOptionsTitle">
+                <div class="option-manager-copy"><strong id="descriptionOptionsTitle">Descrições</strong><p>Primeiro escolha o tipo; em seguida, a descrição para gerenciar ou adicionar.</p></div>
+                <div class="option-manager-row description">
+                  <div class="field"><label for="deleteDescriptionType">Tipo</label><select id="deleteDescriptionType"><option value="">Selecione o tipo</option></select></div>
+                  <div class="field"><label for="deleteDescriptionOption">Descrição</label><select id="deleteDescriptionOption" disabled><option value="">Selecione a descrição</option></select></div>
+                  <button class="secondary danger" id="deleteDescriptionOptionButton" type="button" aria-label="Excluir descrição selecionada">Excluir descrição</button>
+                </div>
+              </section>
             </div>
           </section>
           <section class="settings-group wide" aria-labelledby="dataSettingsTitle">
@@ -2080,7 +2090,7 @@
             </div>
           </section>
         </div>
-        <div class="modal-foot"><button class="secondary" type="button" data-close-settings>Cancelar</button><button class="primary" id="saveSettings" type="submit">Salvar projeção</button></div>
+        <div class="modal-foot"><button class="secondary" type="button" data-close-settings>Fechar</button><button class="primary" id="saveSettings" type="submit">Salvar saldo</button></div>
       </form>
     </dialog>
     <dialog id="optionDialog" aria-labelledby="optionDialogTitle">
@@ -2171,6 +2181,6 @@
     <script src="./js/google-auth.js?v=2026081003"></script>
     <script src="./js/google-drive-repository.js?v=2026081502"></script>
     <script src="./js/sync-service.js?v=2026080106"></script>
-    <script src="./js/app.js?v=2026081503"></script>
+    <script src="./js/app.js?v=2026081601"></script>
   </body>
 </html>

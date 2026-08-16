@@ -218,11 +218,9 @@ const descriptionOptionsByType = {
         driveBackupSelect = document.querySelector("#driveBackupSelect"),
         restoreDriveBackup = document.querySelector("#restoreDriveBackup"),
         deleteTypeOption = document.querySelector("#deleteTypeOption"),
-        addTypeOptionButton = document.querySelector("#addTypeOptionButton"),
         deleteTypeOptionButton = document.querySelector("#deleteTypeOptionButton"),
         deleteDescriptionType = document.querySelector("#deleteDescriptionType"),
         deleteDescriptionOption = document.querySelector("#deleteDescriptionOption"),
-        addDescriptionOptionButton = document.querySelector("#addDescriptionOptionButton"),
         deleteDescriptionOptionButton = document.querySelector("#deleteDescriptionOptionButton"),
         openRecentRecordsMain = document.querySelector("#openRecentRecordsMain"),
         openRecordsManagerMain = document.querySelector("#openRecordsManagerMain"),
@@ -1088,14 +1086,13 @@ const descriptionOptionsByType = {
         const selectedType = deleteTypeOption.value;
         const descriptionType = deleteDescriptionType.value;
         const selectedDescription = deleteDescriptionOption.value;
-        fill(deleteTypeOption, entryTypeOptions(), "Selecione o tipo");
+        fill(deleteTypeOption, entryTypeOptions(), "Selecione o tipo", true);
         deleteTypeOption.value = selectedType;
-        fill(deleteDescriptionType, entryTypeOptions(), "Selecione o tipo");
+        fill(deleteDescriptionType, entryTypeOptions(), "Selecione o tipo", true);
         deleteDescriptionType.value = descriptionType;
-        fill(deleteDescriptionOption, entryDescriptionOptions(descriptionType), "Selecione a descrição");
+        fill(deleteDescriptionOption, entryDescriptionOptions(descriptionType), "Selecione a descrição", true);
         deleteDescriptionOption.value = selectedDescription;
         deleteDescriptionOption.disabled = !descriptionType;
-        addDescriptionOptionButton.disabled = !descriptionType;
       }
 
       async function removeTypeOption() {
@@ -2503,22 +2500,35 @@ const descriptionOptionsByType = {
       loadDriveBackups.onclick = loadGoogleDriveBackups;
       driveBackupSelect.onchange = () => { restoreDriveBackup.disabled = !driveBackupSelect.value; };
       restoreDriveBackup.onclick = restoreGoogleDriveBackup;
-      addTypeOptionButton.onclick = async () => {
-        const added = await addOption("types");
-        if (added) show(`Tipo “${added}” adicionado às opções de lançamento.`);
-      };
-      addDescriptionOptionButton.onclick = async () => {
-        const selectedType = deleteDescriptionType.value;
-        if (!selectedType) {
-          show("Selecione primeiro o tipo para adicionar uma descrição.");
-          return;
-        }
-        const added = await addOption("descriptions", selectedType);
-        if (added) show(`Descrição “${added}” adicionada às opções de ${selectedType}.`);
-      };
       deleteTypeOptionButton.onclick = removeTypeOption;
       deleteDescriptionOptionButton.onclick = removeDescriptionOption;
-      deleteDescriptionType.onchange = renderOptionManagement;
+      deleteTypeOption.onchange = async () => {
+        if (deleteTypeOption.value !== "__new__") return;
+        const added = await addOption("types");
+        renderOptionManagement();
+        deleteTypeOption.value = added || "";
+        if (added) show(`Tipo “${added}” adicionado às opções de lançamento.`);
+      };
+      deleteDescriptionType.onchange = async () => {
+        if (deleteDescriptionType.value === "__new__") {
+          const added = await addOption("types");
+          renderOptionManagement();
+          deleteDescriptionType.value = added || "";
+          if (added) show(`Tipo “${added}” adicionado às opções de lançamento.`);
+          return;
+        }
+        renderOptionManagement();
+      };
+      deleteDescriptionOption.onchange = async () => {
+        if (deleteDescriptionOption.value !== "__new__") return;
+        const selectedType = deleteDescriptionType.value;
+        const added = await addOption("descriptions", selectedType);
+        renderOptionManagement();
+        deleteDescriptionType.value = selectedType;
+        renderOptionManagement();
+        deleteDescriptionOption.value = added || "";
+        if (added) show(`Descrição “${added}” adicionada às opções de ${selectedType}.`);
+      };
       openRecentRecordsMain.onclick = () => openRecentRecordsDialog(false);
       openRecordsManagerMain.onclick = openRecordsManagerDialog;
       [managerFilterType, managerFilterDescription, managerFilterStatus].forEach((control) => {
