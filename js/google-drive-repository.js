@@ -74,6 +74,16 @@
       for (let index = 0; index < files.length; index += 6) await Promise.all(files.slice(index, index + 6).map(readEntryDelta));
     }
 
+    async function refreshEntryDeltaIndex() {
+      const files = (await listFiles(`name contains '${ENTRY_DELTA_PREFIX}' and trashed = false`))
+        .filter((file) => file.name?.startsWith(ENTRY_DELTA_PREFIX));
+      const changed = files.filter((file) => {
+        const id = decodeURIComponent(file.name.slice(ENTRY_DELTA_PREFIX.length, -5));
+        return entryDeltaFiles.get(id)?.version !== file.version;
+      });
+      for (let index = 0; index < changed.length; index += 6) await Promise.all(changed.slice(index, index + 6).map(readEntryDelta));
+    }
+
     async function load() {
       const files = await listFiles(`name = '${escapedName(FILE_NAME)}' and trashed = false`);
       if (files.length) {
@@ -116,11 +126,11 @@
     function stamped(value) { return { ...value, updated_at: new Date().toISOString() }; }
 
     async function findEntryDelta(id) {
+      const cached = entryDeltaFiles.get(id);
+      if (cached) return cached;
       const files = await listFiles(`name = '${escapedName(entryDeltaName(id))}' and trashed = false`);
       const file = files[0];
       if (!file) return null;
-      const cached = entryDeltaFiles.get(id);
-      if (cached?.version === file.version) return cached;
       await readEntryDelta(file);
       return entryDeltaFiles.get(id);
     }
@@ -174,6 +184,8 @@
     }
 
     async function applyEntryOperations(operations, _userId, onProgress = () => {}) {
+      await ensureLoaded();
+      await refreshEntryDeltaIndex();
       const saved = [];
       for (let index = 0; index < operations.length; index += 6) {
         const batch = await Promise.all(operations.slice(index, index + 6).map(async (operation) => {
