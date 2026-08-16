@@ -218,9 +218,11 @@ const descriptionOptionsByType = {
         driveBackupSelect = document.querySelector("#driveBackupSelect"),
         restoreDriveBackup = document.querySelector("#restoreDriveBackup"),
         deleteTypeOption = document.querySelector("#deleteTypeOption"),
+        addTypeOptionButton = document.querySelector("#addTypeOptionButton"),
         deleteTypeOptionButton = document.querySelector("#deleteTypeOptionButton"),
         deleteDescriptionType = document.querySelector("#deleteDescriptionType"),
         deleteDescriptionOption = document.querySelector("#deleteDescriptionOption"),
+        addDescriptionOptionButton = document.querySelector("#addDescriptionOptionButton"),
         deleteDescriptionOptionButton = document.querySelector("#deleteDescriptionOptionButton"),
         openRecentRecordsMain = document.querySelector("#openRecentRecordsMain"),
         openRecordsManagerMain = document.querySelector("#openRecordsManagerMain"),
@@ -1093,6 +1095,7 @@ const descriptionOptionsByType = {
         fill(deleteDescriptionOption, entryDescriptionOptions(descriptionType), "Selecione a descrição");
         deleteDescriptionOption.value = selectedDescription;
         deleteDescriptionOption.disabled = !descriptionType;
+        addDescriptionOptionButton.disabled = !descriptionType;
       }
 
       async function removeTypeOption() {
@@ -1943,13 +1946,12 @@ const descriptionOptionsByType = {
         }
       }
 
-      async function addOption(key) {
-        const label = key === "types" ? "novo tipo" : "nova descrição";
+      async function addOption(key, descriptionType = type.value) {
         const value = await new Promise((resolve) => {
           optionDialogTitle.textContent = key === "types" ? "Novo tipo" : "Nova descrição";
           optionDialogDescription.textContent = key === "types"
             ? "Crie uma opção para classificar lançamentos futuros."
-            : `Crie uma descrição para ${type.value}.`;
+            : `Crie uma descrição para ${descriptionType}.`;
           optionName.value = "";
           optionDialogResolver = resolve;
           optionDialog.showModal();
@@ -1960,8 +1962,9 @@ const descriptionOptionsByType = {
         const clean = value.trim().toUpperCase();
         if (key === "types") {
           state.types = sortedOptions([...state.types, clean]);
+          state.hiddenTypes = state.hiddenTypes.filter((item) => item !== clean);
         } else {
-          const selectedType = type.value;
+          const selectedType = descriptionType;
           if (!selectedType) return null;
           state.descriptions = sortedOptions([...state.descriptions, clean]);
           state.customDescriptionOptionsByType = {
@@ -1971,9 +1974,14 @@ const descriptionOptionsByType = {
               clean,
             ]),
           };
+          state.hiddenDescriptionsByType = {
+            ...state.hiddenDescriptionsByType,
+            [selectedType]: (state.hiddenDescriptionsByType[selectedType] || []).filter((item) => item !== clean),
+          };
         }
         state.settingsDirty = true;
         await save();
+        renderOptionManagement();
         return clean;
       }
 
@@ -2495,6 +2503,19 @@ const descriptionOptionsByType = {
       loadDriveBackups.onclick = loadGoogleDriveBackups;
       driveBackupSelect.onchange = () => { restoreDriveBackup.disabled = !driveBackupSelect.value; };
       restoreDriveBackup.onclick = restoreGoogleDriveBackup;
+      addTypeOptionButton.onclick = async () => {
+        const added = await addOption("types");
+        if (added) show(`Tipo “${added}” adicionado às opções de lançamento.`);
+      };
+      addDescriptionOptionButton.onclick = async () => {
+        const selectedType = deleteDescriptionType.value;
+        if (!selectedType) {
+          show("Selecione primeiro o tipo para adicionar uma descrição.");
+          return;
+        }
+        const added = await addOption("descriptions", selectedType);
+        if (added) show(`Descrição “${added}” adicionada às opções de ${selectedType}.`);
+      };
       deleteTypeOptionButton.onclick = removeTypeOption;
       deleteDescriptionOptionButton.onclick = removeDescriptionOption;
       deleteDescriptionType.onchange = renderOptionManagement;
