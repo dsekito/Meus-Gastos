@@ -1740,14 +1740,28 @@
         .records-manager-filters { padding: 0 14px 10px; }
         #settingsDialog, #recordsManagerDialog { width: 100%; max-width: none; height: 100dvh; max-height: 100dvh; margin: 0; border-radius: 0; }
         #settingsDialog .modal, #recordsManagerDialog .modal { max-height: 100dvh; }
-        #settingsDialog .form-grid { padding: 0 16px 16px; overflow-y: auto; }
+        /* Configurações são tarefas independentes. Em telas estreitas, cada
+           grupo precisa ocupar toda a largura para manter leitura e toque. */
+        #settingsDialog .form-grid {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 12px;
+          padding: 0 16px 16px;
+          overflow-y: auto;
+        }
         #settingsDialog .modal-foot { padding: 12px 16px max(16px, env(safe-area-inset-bottom)); }
         .manager-filters { margin: 0 14px 10px; }
         .manager-selection-bar { padding: 0 14px 10px; flex-wrap: wrap; }
         .manager-selection-bar span { min-width: 100%; }
         .manager-selection-bar button { flex: 1; }
         .manager-bulk-editor { padding: 12px 14px max(16px, env(safe-area-inset-bottom)); }
-        .settings-group { padding: 14px; }
+        #settingsDialog .settings-group { min-width: 0; padding: 16px; }
+        #settingsDialog .settings-group-head { gap: 5px; }
+        #settingsDialog .settings-group h3 { font-size: 18px; }
+        #settingsDialog .option-manager,
+        #settingsDialog .settings-data-actions { gap: 12px; }
+        #settingsDialog .option-manager-card,
+        #settingsDialog .backup-actions { padding: 16px; }
+        #settingsDialog .settings-sync-summary { padding: 14px; }
         .recent-records-shortcut { width: auto; }
         .conflict-actions { padding: 0 14px 14px; }
       }
@@ -2056,29 +2070,29 @@
           </section>
           <section class="settings-group wide" aria-labelledby="dataSettingsTitle">
             <div class="settings-group-head">
-              <h3 id="dataSettingsTitle">Backup e sincronização</h3>
-              <p>Acompanhe o envio ao Google Drive e exporte seus dados.</p>
+              <h3 id="dataSettingsTitle">Proteção dos dados</h3>
+              <p>Veja a sincronização e mantenha cópias de segurança quando precisar.</p>
             </div>
             <div class="settings-sync-summary" id="settingsSyncSummary" aria-live="polite"></div>
             <div class="settings-data-actions">
               <section class="backup-actions" aria-labelledby="backupTitle">
                 <div class="backup-copy">
-                  <strong id="backupTitle">Backup manual</strong>
-                  <p>Salve uma cópia completa dos seus dados em formato JSON.</p>
+                  <strong id="backupTitle">Exportar cópia local</strong>
+                  <p>Baixe todos os dados em um arquivo JSON para guardar fora do app.</p>
                 </div>
                 <button class="secondary" id="downloadBackup" type="button" aria-label="Baixar backup completo dos dados">Baixar backup</button>
               </section>
               <section class="backup-actions" aria-labelledby="driveBackupTitle">
                 <div class="backup-copy">
-                  <strong id="driveBackupTitle">Backup no Google Drive</strong>
-                  <p>Crie uma cópia completa antes de alterações importantes.</p>
+                  <strong id="driveBackupTitle">Criar ponto de restauração</strong>
+                  <p>Guarde uma cópia completa no Google Drive antes de mudanças importantes.</p>
                 </div>
                 <button class="secondary" id="createDriveBackup" type="button" aria-label="Criar backup no Google Drive">Criar backup</button>
               </section>
               <section class="backup-actions" aria-labelledby="restoreDriveBackupTitle">
                 <div class="backup-copy">
-                  <strong id="restoreDriveBackupTitle">Restaurar backup</strong>
-                  <p>Escolha uma cópia do Drive. Os dados atuais serão substituídos após sua confirmação.</p>
+                  <strong id="restoreDriveBackupTitle">Restaurar uma cópia</strong>
+                  <p>Escolha um backup do Drive. Os dados atuais só serão substituídos após sua confirmação.</p>
                   <label for="driveBackupSelect">Backup disponível</label>
                   <select id="driveBackupSelect" aria-label="Selecionar backup do Google Drive"><option value="">Carregue os backups do Drive</option></select>
                 </div>
@@ -2090,7 +2104,7 @@
             </div>
           </section>
         </div>
-        <div class="modal-foot"><button class="secondary" type="button" data-close-settings>Fechar</button><button class="primary" id="saveSettings" type="submit">Salvar saldo</button></div>
+        <div class="modal-foot"><button class="secondary" type="button" data-close-settings>Fechar</button><button class="primary" id="saveSettings" type="submit">Salvar projeção</button></div>
       </form>
     </dialog>
     <dialog id="optionDialog" aria-labelledby="optionDialogTitle">

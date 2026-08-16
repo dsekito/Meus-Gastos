@@ -17,6 +17,9 @@
     let loaded = false;
     let remoteVersion = null;
     const entryDeltaFiles = new Map();
+    let entryDeltaIndexLoaded = false;
+    let entryDeltaIndexFresh = false;
+    let loadPromise = null;
     let writeChain = Promise.resolve();
     const activeControllers = new Set();
     let requestsCancelled = false;
@@ -77,32 +80,69 @@
       const files = (await listFiles(`name contains '${ENTRY_DELTA_PREFIX}' and trashed = false`))
         .filter((file) => file.name?.startsWith(ENTRY_DELTA_PREFIX));
       for (let index = 0; index < files.length; index += 6) await Promise.all(files.slice(index, index + 6).map(readEntryDelta));
+      entryDeltaIndexLoaded = true;
+      entryDeltaIndexFresh = true;
     }
 
-    async function refreshEntryDeltaIndex() {
+    async function refreshEntryDeltaIndex({ useFreshIndex = false } = {}) {
+      // `load` já confere o índice imediatamente antes de uma sincronização.
+      // Reutilizamos essa verificação uma única vez para não listar os mesmos
+      // arquivos duas vezes no mesmo ciclo.
+      if (useFreshIndex && entryDeltaIndexFresh) {
+        entryDeltaIndexFresh = false;
+        return;
+      }
       const files = (await listFiles(`name contains '${ENTRY_DELTA_PREFIX}' and trashed = false`))
         .filter((file) => file.name?.startsWith(ENTRY_DELTA_PREFIX));
+      const ids = new Set(files.map((file) => decodeURIComponent(file.name.slice(ENTRY_DELTA_PREFIX.length, -5))));
+      for (const id of entryDeltaFiles.keys()) {
+        if (!ids.has(id)) entryDeltaFiles.delete(id);
+      }
       const changed = files.filter((file) => {
         const id = decodeURIComponent(file.name.slice(ENTRY_DELTA_PREFIX.length, -5));
         return entryDeltaFiles.get(id)?.version !== file.version;
       });
       for (let index = 0; index < changed.length; index += 6) await Promise.all(changed.slice(index, index + 6).map(readEntryDelta));
+      entryDeltaIndexLoaded = true;
+      entryDeltaIndexFresh = true;
     }
 
-    async function load() {
+    async function loadNow() {
       const files = await listFiles(`name = '${escapedName(FILE_NAME)}' and trashed = false`);
+      let mainDocumentChanged = false;
       if (files.length) {
-        fileId = files[0].id;
-        remoteVersion = files[0].version || null;
-        document = { ...emptyDocument(), ...(await (await request(`${API}/files/${fileId}?alt=media`)).json()) };
+        const remoteFile = files[0];
+        mainDocumentChanged = !loaded || fileId !== remoteFile.id || remoteVersion !== (remoteFile.version || null);
+        fileId = remoteFile.id;
+        if (mainDocumentChanged) {
+          remoteVersion = remoteFile.version || null;
+          document = { ...emptyDocument(), ...(await (await request(`${API}/files/${fileId}?alt=media`)).json()) };
+          legacyEntries = structuredClone(document.entries);
+        }
       } else {
         document = emptyDocument();
         await persist();
+        legacyEntries = structuredClone(document.entries);
       }
-      legacyEntries = structuredClone(document.entries);
-      await loadEntryDeltas();
+      if (!loaded) await loadEntryDeltas();
+      else {
+        await refreshEntryDeltaIndex();
+        // A base foi recarregada; as diferenças que não mudaram de versão
+        // também precisam ser sobrepostas à nova cópia do documento.
+        if (mainDocumentChanged) entryDeltaFiles.forEach(({ delta }) => applyEntryDelta(delta));
+      }
       loaded = true;
       return document;
+    }
+
+    async function load() {
+      if (loadPromise) return loadPromise;
+      loadPromise = loadNow();
+      try {
+        return await loadPromise;
+      } finally {
+        loadPromise = null;
+      }
     }
 
     async function persistNow() {
@@ -133,6 +173,10 @@
     async function findEntryDelta(id) {
       const cached = entryDeltaFiles.get(id);
       if (cached) return cached;
+      // Após a carga/atualização do índice, uma ausência no Map já é uma
+      // resposta definitiva. Isso evita uma busca remota por lançamento em
+      // cada item novo de uma sincronização em lote.
+      if (entryDeltaIndexLoaded) return null;
       const files = await listFiles(`name = '${escapedName(entryDeltaName(id))}' and trashed = false`);
       const file = files[0];
       if (!file) return null;
@@ -211,7 +255,7 @@
     async function applyEntryOperations(operations, _userId, onProgress = () => {}) {
       await ensureLoaded();
       onProgress({ completed: 0, total: operations.length, phase: "checking" });
-      await refreshEntryDeltaIndex();
+      await refreshEntryDeltaIndex({ useFreshIndex: true });
       const saved = [];
       let completed = 0;
       for (let index = 0; index < operations.length; index += 6) {
@@ -236,7 +280,7 @@
       load,
       beginSync() { requestsCancelled = false; },
       cancelPendingRequests() { requestsCancelled = true; activeControllers.forEach((controller) => controller.abort()); },
-      reset() { fileId = null; remoteVersion = null; document = emptyDocument(); loaded = false; entryDeltaFiles.clear(); writeChain = Promise.resolve(); activeControllers.forEach((controller) => controller.abort()); activeControllers.clear(); requestsCancelled = false; },
+      reset() { fileId = null; remoteVersion = null; document = emptyDocument(); loaded = false; entryDeltaFiles.clear(); entryDeltaIndexLoaded = false; entryDeltaIndexFresh = false; loadPromise = null; writeChain = Promise.resolve(); activeControllers.forEach((controller) => controller.abort()); activeControllers.clear(); requestsCancelled = false; },
       async fetchEntries() { await ensureLoaded(); return structuredClone(document.entries); },
       async fetchLegacyEntries() { await ensureLoaded(); return structuredClone(legacyEntries); },
       async fetchEntryVersion(id) { await ensureLoaded(); return document.entries.find((item) => item.id === id) || null; },

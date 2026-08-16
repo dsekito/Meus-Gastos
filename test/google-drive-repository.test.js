@@ -12,6 +12,7 @@ let remote = {
 let driveVersion = "7";
 const deltaFiles = new Map();
 let nextDeltaId = 1;
+let deltaIndexRequests = 0;
 
 global.fetch = async (url, options = {}) => {
   if (url.startsWith("https://www.googleapis.com/drive/v3/files?")) {
@@ -19,6 +20,7 @@ global.fetch = async (url, options = {}) => {
     let files = [];
     if (query.includes("meus-gastos.json")) files = [{ id: "drive-file", name: "meus-gastos.json", version: driveVersion }];
     else if (query.includes("meus-gastos-entry-")) {
+      deltaIndexRequests++;
       files = [...deltaFiles.values()]
         .filter((file) => !query.includes("name =") || query.includes(file.name));
     }
@@ -100,12 +102,14 @@ require("../js/google-drive-repository.js");
   assert.deepEqual(await repository.fetchEntries(), []);
   assert.equal(deltaFiles.size, 1, "a exclusão atualiza somente o arquivo da diferença");
 
+  const deltaIndexRequestsBeforeBatch = deltaIndexRequests;
   await repository.applyEntryOperations([
     { type: "upsert", entry: { id: "two", value: 30 }, baseUpdatedAt: null },
     { type: "upsert", entry: { id: "three", value: 40 }, baseUpdatedAt: null },
   ]);
   assert.equal((await repository.fetchEntries()).length, 2);
   assert.equal(deltaFiles.size, 3, "cada lançamento alterado usa um arquivo pequeno");
+  assert.equal(deltaIndexRequests, deltaIndexRequestsBeforeBatch, "o índice recém-carregado é reutilizado no envio em lote");
 
   const delta = [...deltaFiles.values()].find((file) => file.name.includes("two"));
   delta.content = JSON.stringify({ id: "two", deleted: false, entry: { id: "two", value: 99, updated_at: "other-device" } });
@@ -114,6 +118,7 @@ require("../js/google-drive-repository.js");
     repository.applyEntryOperations([{ type: "upsert", entry: { id: "two", value: 30 }, baseUpdatedAt: "bulk-saved" }]),
     /CONFLICT/,
   );
+  assert.equal(deltaIndexRequests, deltaIndexRequestsBeforeBatch + 1, "uma nova sincronização volta a conferir alterações de outro dispositivo");
 
   const expiredRepository = global.MGGoogleDriveRepository.create({
     getAccessToken: () => "expired-token",
