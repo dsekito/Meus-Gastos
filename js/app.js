@@ -87,6 +87,8 @@ const descriptionOptionsByType = {
 
         syncQueue: [],
 
+        syncProgress: null,
+
         lastSyncedAt: null,
 
         syncConflict: null,
@@ -96,6 +98,10 @@ const descriptionOptionsByType = {
         repository,
         persist: saveLocal,
         normalizeEntryIds,
+        onProgress: (progress) => {
+          state.syncProgress = progress;
+          setSyncStatus("syncing", "Sincronizando alterações...");
+        },
       });
 
       const money = (n) =>
@@ -246,6 +252,12 @@ const descriptionOptionsByType = {
         bulkDateInput = document.querySelector("#bulkDate"),
         saveBulkDate = document.querySelector("#saveBulkDate"),
         saveEntry = document.querySelector("#saveEntry"),
+        optionDialog = document.querySelector("#optionDialog"),
+        optionForm = document.querySelector("#optionForm"),
+        optionDialogTitle = document.querySelector("#optionDialogTitle"),
+        optionDialogDescription = document.querySelector("#optionDialogDescription"),
+        optionName = document.querySelector("#optionName"),
+        saveOption = document.querySelector("#saveOption"),
         syncStatus = document.querySelector("#syncStatus"),
         syncNotice = document.querySelector("#syncNotice"),
         syncNoticeTitle = document.querySelector("#syncNoticeTitle"),
@@ -256,6 +268,7 @@ const descriptionOptionsByType = {
       let recentRecordsReturnToSettings = false;
       let returnToRecentAfterEdit = false;
       const managerSelectedEntries = new Set();
+      let optionDialogResolver = null;
 
       function todayISO() {
         return domain.todayISO();
@@ -299,7 +312,7 @@ const descriptionOptionsByType = {
       function updateSettingsSyncSummary(stateName) {
         if (!settingsSyncSummary) return;
         const pending = pendingSyncCount();
-        const pendingLabel = `${pending} alteração${pending === 1 ? "" : "ões"} aguardando envio`;
+        const pendingLabel = pending === 1 ? "1 alteração pendente de envio" : `${pending} alterações pendentes de envio`;
         const title = stateName === "conflict"
           ? "Conflito de sincronização"
           : pending > 0
@@ -310,7 +323,7 @@ const descriptionOptionsByType = {
 
       function setSyncStatus(stateName, message) {
         const pending = pendingSyncCount();
-        const pendingLabel = `${pending} alteração${pending === 1 ? "" : "ões"} aguardando envio`;
+        const pendingLabel = pending === 1 ? "1 alteração pendente de envio" : `${pending} alterações pendentes de envio`;
         syncStatus.dataset.state = stateName;
         syncNotice.dataset.state = stateName;
         updateSettingsSyncSummary(stateName);
@@ -339,7 +352,11 @@ const descriptionOptionsByType = {
           syncStatus.textContent = "Sincronizando";
           syncStatus.setAttribute("aria-label", message);
           syncNoticeTitle.textContent = "Sincronizando com o Google Drive";
-          syncNoticeDetail.textContent = pending > 0 ? `Enviando ${pendingLabel}.` : "Conferindo os dados deste dispositivo com o Google Drive.";
+          const progress = state.syncProgress;
+          const percentage = progress?.total ? Math.round((progress.completed / progress.total) * 100) : null;
+          syncNoticeDetail.textContent = percentage !== null
+            ? `Enviando ${progress.completed} de ${progress.total} alterações (${percentage}%).`
+            : pending > 0 ? `Enviando ${pendingLabel}.` : "Conferindo os dados deste dispositivo com o Google Drive.";
           return;
         }
 
@@ -503,6 +520,7 @@ const descriptionOptionsByType = {
       }
 
       async function markSynchronizationComplete() {
+        state.syncProgress = null;
         state.lastSyncedAt = new Date().toISOString();
         state.syncConflict = null;
         await saveLocal();
@@ -521,6 +539,7 @@ const descriptionOptionsByType = {
           await markSynchronizationComplete();
           return true;
         } catch (error) {
+          state.syncProgress = null;
           console.error(error);
           if (["GOOGLE_AUTH_EXPIRED", "GOOGLE_AUTH_REQUIRED"].includes(error.message)) {
             await expireGoogleSession();
@@ -1764,7 +1783,16 @@ const descriptionOptionsByType = {
 
       async function addOption(key) {
         const label = key === "types" ? "novo tipo" : "nova descrição";
-        const value = prompt(`Digite ${key === "types" ? "o" : "a"} ${label}:`);
+        const value = await new Promise((resolve) => {
+          optionDialogTitle.textContent = key === "types" ? "Novo tipo" : "Nova descrição";
+          optionDialogDescription.textContent = key === "types"
+            ? "Crie uma opção para classificar lançamentos futuros."
+            : `Crie uma descrição para ${type.value}.`;
+          optionName.value = "";
+          optionDialogResolver = resolve;
+          optionDialog.showModal();
+          optionName.focus();
+        });
         if (!value?.trim()) return null;
 
         const clean = value.trim().toUpperCase();
@@ -2360,6 +2388,25 @@ const descriptionOptionsByType = {
       document
         .querySelectorAll("[data-close]")
         .forEach((b) => (b.onclick = closeEntryDialog));
+      document
+        .querySelectorAll("[data-close-option]")
+        .forEach((button) => (button.onclick = () => {
+          optionDialog.close();
+          optionDialogResolver?.(null);
+          optionDialogResolver = null;
+        }));
+      optionForm.onsubmit = (event) => {
+        event.preventDefault();
+        if (!optionForm.reportValidity()) return;
+        const value = optionName.value.trim();
+        optionDialog.close();
+        optionDialogResolver?.(value);
+        optionDialogResolver = null;
+      };
+      optionDialog.addEventListener("cancel", () => {
+        optionDialogResolver?.(null);
+        optionDialogResolver = null;
+      });
       dialog.addEventListener("cancel", (event) => {
         if (!returnToRecentAfterEdit) return;
         event.preventDefault();

@@ -1,5 +1,5 @@
 (function attachSyncService(global) {
-  function create({ state, repository, persist, normalizeEntryIds }) {
+  function create({ state, repository, persist, normalizeEntryIds, onProgress = () => {} }) {
     function queueUpsert(entry) {
       const previous = state.syncQueue.find((operation) => operation.type === "upsert" && operation.entry.id === entry.id);
       state.syncQueue = state.syncQueue.filter((operation) => operation.type !== "upsert" || operation.entry.id !== entry.id);
@@ -31,7 +31,8 @@
             ? { ...operation }
             : { ...operation, entry: { ...operation.entry } },
         );
-        const saved = await repository.applyEntryOperations(operations, userId);
+        onProgress({ completed: 0, total: operations.length });
+        const saved = await repository.applyEntryOperations(operations, userId, onProgress);
         const versions = new Map(saved.map((entry) => [entry.id, entry.updated_at]));
         for (const operation of operations) {
           if (operation.type === "delete") {
@@ -43,6 +44,7 @@
         }
         state.syncQueue.splice(0, operations.length);
         await persist();
+        onProgress({ completed: operations.length, total: operations.length });
         return;
       }
       while (state.syncQueue.length) {

@@ -171,11 +171,18 @@
       return saved;
     }
 
-    async function applyEntryOperations(operations) {
+    async function applyEntryOperations(operations, _userId, onProgress = () => {}) {
       const saved = [];
-      for (const operation of operations) {
-        if (operation.type === "delete") await saveEntryDelta(operation.id, null, true, operation.baseUpdatedAt);
-        else saved.push(await saveEntryDelta(operation.entry.id, operation.entry, false, operation.baseUpdatedAt));
+      for (let index = 0; index < operations.length; index += 6) {
+        const batch = await Promise.all(operations.slice(index, index + 6).map(async (operation) => {
+          if (operation.type === "delete") {
+            await saveEntryDelta(operation.id, null, true, operation.baseUpdatedAt);
+            return null;
+          }
+          return saveEntryDelta(operation.entry.id, operation.entry, false, operation.baseUpdatedAt);
+        }));
+        saved.push(...batch.filter(Boolean));
+        onProgress({ completed: Math.min(index + 6, operations.length), total: operations.length });
       }
       return saved;
     }

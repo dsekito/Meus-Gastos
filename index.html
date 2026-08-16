@@ -2060,6 +2060,16 @@
         <div class="modal-foot"><button class="secondary" type="button" data-close-settings>Cancelar</button><button class="primary" id="saveSettings" type="submit">Salvar projeção</button></div>
       </form>
     </dialog>
+    <dialog id="optionDialog" aria-labelledby="optionDialogTitle">
+      <form class="modal" id="optionForm">
+        <div class="modal-head">
+          <div><h2 id="optionDialogTitle">Nova opção</h2><p id="optionDialogDescription">Informe o nome da opção.</p></div>
+          <button class="close" type="button" data-close-option aria-label="Fechar">&times;</button>
+        </div>
+        <div class="form-grid"><div class="field wide"><label for="optionName">Nome</label><input id="optionName" type="text" maxlength="60" required autocomplete="off" /></div></div>
+        <div class="modal-foot"><button class="secondary" type="button" data-close-option>Cancelar</button><button class="primary" id="saveOption" type="submit">Adicionar</button></div>
+      </form>
+    </dialog>
     <dialog id="syncConflictDialog" aria-labelledby="syncConflictTitle">
       <section class="modal">
         <div class="modal-head">
