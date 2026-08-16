@@ -12,6 +12,7 @@
   function create({ getAccessToken, isAccessTokenExpired = () => false }) {
     let fileId = null;
     let document = emptyDocument();
+    let legacyEntries = [];
     let loaded = false;
     let remoteVersion = null;
     const entryDeltaFiles = new Map();
@@ -83,6 +84,7 @@
         document = emptyDocument();
         await persist();
       }
+      legacyEntries = structuredClone(document.entries);
       await loadEntryDeltas();
       loaded = true;
       return document;
@@ -191,6 +193,7 @@
       load,
       reset() { fileId = null; remoteVersion = null; document = emptyDocument(); loaded = false; entryDeltaFiles.clear(); writeChain = Promise.resolve(); },
       async fetchEntries() { await ensureLoaded(); return structuredClone(document.entries); },
+      async fetchLegacyEntries() { await ensureLoaded(); return structuredClone(legacyEntries); },
       async fetchEntryVersion(id) { await ensureLoaded(); return document.entries.find((item) => item.id === id) || null; },
       async deleteEntry(id, _userId, baseUpdatedAt = null) { await saveEntryDelta(id, null, true, baseUpdatedAt); },
       async upsertEntry(entry, _userId, baseUpdatedAt = null) { return saveEntryDelta(entry.id, entry, false, baseUpdatedAt); },

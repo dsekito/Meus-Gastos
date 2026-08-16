@@ -751,6 +751,11 @@ const descriptionOptionsByType = {
             await loadCloudEntries();
             await loadCloudSettings();
             await loadCloudRecurrenceSeries();
+            if (new URLSearchParams(window.location.search).get("restore-financiamento") === "1") {
+              const restored = await restoreTodayFinancingTypes();
+              window.history.replaceState({}, "", window.location.pathname);
+              show(restored ? `${restored} tipo${restored === 1 ? "" : "s"} restaurado${restored === 1 ? "" : "s"} com segurança.` : "Nenhum tipo alterado hoje precisou ser restaurado.");
+            }
             if (!hasPendingSync) await markSynchronizationComplete();
             else await saveLocal();
           } catch (error) {
@@ -820,6 +825,25 @@ const descriptionOptionsByType = {
         updateAuthArea();
         setSyncStatus("pending", "Reconecte o Google para sincronizar");
         render();
+      }
+
+      async function restoreTodayFinancingTypes() {
+        if (!state.user || !repository.fetchLegacyEntries) return 0;
+        const baseEntries = await repository.fetchLegacyEntries();
+        const originalTypes = new Map(baseEntries.map((entry) => [entry.id, entry.type]));
+        const today = todayISO();
+        let restored = 0;
+        state.entries.forEach((entry) => {
+          const originalType = originalTypes.get(entry.id);
+          const changedToday = entry.updated_at?.slice(0, 10) === today;
+          if (changedToday && entry.type === "FINANCIAMENTO" && originalType && originalType !== "FINANCIAMENTO") {
+            entry.type = originalType;
+            queueUpsert(entry);
+            restored++;
+          }
+        });
+        if (restored) await save();
+        return restored;
       }
 
       async function initializeAuth() {
