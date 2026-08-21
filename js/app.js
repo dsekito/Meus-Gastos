@@ -59,6 +59,8 @@ const descriptionOptionsByType = {
 
         recurrenceSeries: [],
 
+        recurrenceDirty: false,
+
         settings: createDefaultSettings(),
 
         settingsDirty: false,
@@ -103,6 +105,10 @@ const descriptionOptionsByType = {
           setSyncStatus("syncing", "Sincronizando alterações...");
         },
       });
+      const SYNC_DEBOUNCE_MS = 900;
+      let scheduledSyncTimer = null;
+      let activeSyncPromise = null;
+      let syncRequestedWhileActive = false;
 
       const money = (n) =>
         new Intl.NumberFormat("pt-BR", {
@@ -299,7 +305,7 @@ const descriptionOptionsByType = {
       }
 
       function pendingSyncCount() {
-        return state.syncQueue.length + (state.settingsDirty ? 1 : 0);
+        return state.syncQueue.length + (state.settingsDirty ? 1 : 0) + (state.recurrenceDirty ? 1 : 0);
       }
 
       function formatLastSync() {
@@ -363,7 +369,11 @@ const descriptionOptionsByType = {
           syncNoticeDetail.textContent = percentage !== null
             ? progress.phase === "checking"
               ? `Conferindo ${progress.total} alteração${progress.total === 1 ? "" : "ões"} no Google Drive antes do envio.`
-              : `Enviando ${progress.completed} de ${progress.total} alterações (${percentage}%).`
+              : progress.phase === "preparing"
+                ? `Preparando ${progress.completed} de ${progress.total} alterações (${percentage}%).`
+                : progress.total === 1
+                  ? "Enviando um lote consolidado ao Google Drive."
+                  : `Enviando ${progress.completed} de ${progress.total} alterações (${percentage}%).`
             : pending > 0 ? `Enviando ${pendingLabel}.` : "Conferindo os dados deste dispositivo com o Google Drive.";
           syncNoticeAction.disabled = false;
           syncNoticeAction.textContent = "Cancelar sincronização";
@@ -393,14 +403,14 @@ const descriptionOptionsByType = {
         }
 
         if (state.user && !googleAuth.hasAccessToken()) {
-          syncStatus.textContent = "Reconexão necessária";
-          syncStatus.setAttribute("aria-label", "Reconecte o Google para sincronizar");
-          syncNoticeTitle.textContent = "Reconecte sua conta Google";
+          syncStatus.textContent = "Sincronização pausada";
+          syncStatus.setAttribute("aria-label", "Sessão local ativa; autorize o Google Drive para sincronizar");
+          syncNoticeTitle.textContent = "Seus dados estão disponíveis neste dispositivo";
           syncNoticeDetail.textContent = pending > 0
-            ? `${pendingLabel.charAt(0).toUpperCase() + pendingLabel.slice(1)}. Reconecte para enviar ao Google Drive.`
-            : "Seus dados continuam disponíveis neste dispositivo. Reconecte para conferir o Google Drive.";
+            ? `${pendingLabel.charAt(0).toUpperCase() + pendingLabel.slice(1)}. Autorize o Drive para enviar quando desejar.`
+            : "Você continua conectado ao aplicativo. Autorize o Drive apenas quando quiser sincronizar.";
           syncNoticeAction.hidden = false;
-          syncNoticeAction.textContent = "Reconectar Google";
+          syncNoticeAction.textContent = "Autorizar Drive";
           return;
         }
 
@@ -453,6 +463,7 @@ const descriptionOptionsByType = {
         return localStore.save(state.user.id, {
           entries: state.entries,
           recurrenceSeries: state.recurrenceSeries,
+          recurrenceDirty: state.recurrenceDirty,
           settings: state.settings,
           settingsDirty: state.settingsDirty,
           types: state.types,
@@ -472,6 +483,7 @@ const descriptionOptionsByType = {
         if (!cached) return;
         state.entries = cached.entries || [];
         state.recurrenceSeries = cached.recurrenceSeries || [];
+        state.recurrenceDirty = !!cached.recurrenceDirty;
         state.settings = normalizeSettings(cached.settings);
         state.settingsDirty = !!cached.settingsDirty;
         state.types = [...new Set([...defaultTypes, ...(cached.types || [])])].sort();
@@ -488,9 +500,15 @@ const descriptionOptionsByType = {
       }
 
       function clearSessionState() {
+        if (scheduledSyncTimer) {
+          clearTimeout(scheduledSyncTimer);
+          scheduledSyncTimer = null;
+        }
+        syncRequestedWhileActive = false;
         state.user = null;
         state.entries = [];
         state.recurrenceSeries = [];
+        state.recurrenceDirty = false;
         state.syncQueue = [];
         state.deletedEntryIds = new Set();
         state.types = [...defaultTypes];
@@ -538,11 +556,14 @@ const descriptionOptionsByType = {
         setSyncStatus("synced", "Tudo sincronizado");
       }
 
-      async function save() {
-        await saveLocal();
+      async function performSynchronization() {
         setSyncStatus("syncing", "Sincronizando alterações...");
         try {
           await syncEntries();
+          if (state.recurrenceDirty) {
+            await repository.replaceRecurrenceSeries(state.recurrenceSeries);
+            state.recurrenceDirty = false;
+          }
           if (state.settingsDirty) {
             await syncSettings();
             state.settingsDirty = false;
@@ -580,13 +601,74 @@ const descriptionOptionsByType = {
         }
       }
 
+      async function flushSynchronization() {
+        if (scheduledSyncTimer) {
+          clearTimeout(scheduledSyncTimer);
+          scheduledSyncTimer = null;
+        }
+        if (!state.user || !navigator.onLine || !googleAuth.hasAccessToken()) {
+          setSyncStatus("pending", navigator.onLine ? "Reconecte o Google para sincronizar" : "Sem conexão");
+          return false;
+        }
+        if (activeSyncPromise) {
+          syncRequestedWhileActive = true;
+          return activeSyncPromise;
+        }
+
+        activeSyncPromise = (async () => {
+          let synced = false;
+          do {
+            syncRequestedWhileActive = false;
+            synced = await performSynchronization();
+          } while (
+            synced
+            && syncRequestedWhileActive
+            && hasPendingChanges()
+            && navigator.onLine
+            && googleAuth.hasAccessToken()
+          );
+          return synced;
+        })();
+
+        try {
+          return await activeSyncPromise;
+        } finally {
+          activeSyncPromise = null;
+        }
+      }
+
+      function scheduleSynchronization() {
+        if (!state.user || !navigator.onLine || !googleAuth.hasAccessToken()) {
+          setSyncStatus("pending", navigator.onLine ? "Reconecte o Google para sincronizar" : "Sem conexão");
+          return;
+        }
+        if (activeSyncPromise) {
+          syncRequestedWhileActive = true;
+          return;
+        }
+        if (scheduledSyncTimer) clearTimeout(scheduledSyncTimer);
+        setSyncStatus("syncing", "Alterações salvas. Preparando sincronização...");
+        scheduledSyncTimer = setTimeout(() => {
+          scheduledSyncTimer = null;
+          flushSynchronization().catch((error) => console.error(error));
+        }, SYNC_DEBOUNCE_MS);
+      }
+
+      async function save({ waitForSync = false } = {}) {
+        await saveLocal();
+        if (!hasPendingChanges()) return true;
+        if (waitForSync) return flushSynchronization();
+        scheduleSynchronization();
+        return false;
+      }
+
       function hasPendingChanges() {
-        return state.syncQueue.length > 0 || state.settingsDirty;
+        return state.syncQueue.length > 0 || state.settingsDirty || state.recurrenceDirty;
       }
 
       async function retryPendingSynchronization() {
         if (!state.user || !hasPendingChanges()) return true;
-        const synced = await save();
+        const synced = await save({ waitForSync: true });
         if (synced) {
           render();
           show("Alterações pendentes foram sincronizadas.");
@@ -607,7 +689,7 @@ const descriptionOptionsByType = {
         const name = state.user.user_metadata?.full_name || state.user.email;
         const reconnectButton = googleAuth.hasAccessToken()
           ? ""
-          : '<button class="auth-button" id="reconnectGoogle" type="button" aria-label="Reconectar ao Google para sincronizar" title="Reconectar ao Google"><span aria-hidden="true">↻</span><span class="button-label">Reconectar</span></button>';
+          : '<button class="auth-button" id="reconnectGoogle" type="button" aria-label="Autorizar Google Drive para sincronizar" title="Autorizar sincronização"><span aria-hidden="true">↻</span><span class="button-label">Sincronizar</span></button>';
         authArea.innerHTML = `<span class="signed-user" title="${esc(state.user.email || "")}">${esc(name || "Usuário")}</span>${reconnectButton}<button class="auth-button" id="signOut" type="button" aria-label="Sair da conta" title="Sair da conta"><span aria-hidden="true">⎋</span><span class="button-label">Sair</span></button>`;
       }
 
@@ -696,21 +778,21 @@ const descriptionOptionsByType = {
           .filter((occurrence) => !existingDates.has(occurrence.scheduled_date))
           .map((occurrence) => occurrenceEntry(series, occurrence));
         if (!missing.length) return 0;
-        const saved = await repository.upsertEntries(missing, state.user.id);
-        const versions = new Map(saved.map((entry) => [entry.id, entry.updated_at]));
         missing.forEach((entry) => {
-          entry.updated_at = versions.get(entry.id) || entry.updated_at;
           state.entries.push(entry);
+          queueUpsert(entry);
         });
         return missing.length;
       }
 
       async function loadCloudRecurrenceSeries() {
         state.recurrenceSeries = await repository.fetchRecurrenceSeries();
+        state.recurrenceDirty = false;
+        let generatedEntries = 0;
         for (const series of state.recurrenceSeries) {
-          await materializeRecurrenceSeries(series);
+          generatedEntries += await materializeRecurrenceSeries(series);
         }
-
+        if (generatedEntries) await save({ waitForSync: true });
       }
 
       async function syncSettings() {
@@ -752,8 +834,9 @@ const descriptionOptionsByType = {
         }
         updateAuthArea();
         if (state.user) {
+          localStore.requestPersistence?.().catch((error) => console.error(error));
           if (!googleAuth.hasAccessToken()) {
-            setSyncStatus(state.syncConflict ? "conflict" : "pending", state.syncConflict ? "Conflito de sincronização" : "Reconecte o Google para sincronizar");
+            setSyncStatus(state.syncConflict ? "conflict" : "pending", state.syncConflict ? "Conflito de sincronização" : "Autorize o Google Drive para sincronizar");
             render();
             return;
           }
@@ -814,7 +897,7 @@ const descriptionOptionsByType = {
         if (triggerLabel) triggerLabel.textContent = "Conectando…";
         else trigger.textContent = "Conectando…";
         try {
-          const user = await googleAuth.signIn();
+          const user = await googleAuth.signIn({ loginHint: state.user?.email || "" });
           await setCurrentUser(user);
         } catch (error) {
           console.error(error);
@@ -896,7 +979,7 @@ const descriptionOptionsByType = {
         }
         if (!googleAuth.hasAccessToken()) {
           if (trigger) await signInWithGoogle(trigger);
-          else setSyncStatus("pending", "Reconecte o Google para sincronizar");
+          else setSyncStatus("pending", "Autorize o Google Drive para sincronizar");
           return;
         }
 
@@ -1021,9 +1104,9 @@ const descriptionOptionsByType = {
         .forEach((button) => (button.onclick = () => syncConflictDialog.close()));
 
       document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState !== "visible" || !state.user) return;
-        repository.load()
-          .then(() => retryPendingSynchronization())
+        if (document.visibilityState !== "visible" || !state.user || !googleAuth.hasAccessToken()) return;
+        retryPendingSynchronization()
+          .then(() => repository.load())
           .then(async () => {
             await loadCloudEntries();
             await loadCloudRecurrenceSeries();
@@ -1058,6 +1141,11 @@ const descriptionOptionsByType = {
           (allowNew ? '<option value="__new__">＋ Adicionar nova opção…</option>' : "");
       }
 
+      function selectOption(select, value) {
+        const selectedIndex = [...select.options].findIndex((option) => option.value === value);
+        select.selectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
+      }
+
       function entryTypeOptions(selectedType = "") {
         return [...state.types, ...defaultTypes, selectedType]
           .filter((option) => option === selectedType || !state.hiddenTypes.includes(option));
@@ -1072,26 +1160,33 @@ const descriptionOptionsByType = {
         ].filter((option) => option === selectedDescription || !hidden.includes(option));
       }
 
-      function renderEntryOptions() {
-        const selectedType = type.value;
-        const selectedDescription = desc.value;
+      function renderEntryOptions(
+        selectedType = type.value,
+        selectedDescription = desc.value,
+      ) {
+        selectedType = selectedType === "__new__" ? "" : selectedType;
+        selectedDescription = selectedDescription === "__new__" ? "" : selectedDescription;
         fill(type, entryTypeOptions(selectedType), "Selecione", true);
-        type.value = selectedType;
+        selectOption(type, selectedType);
         fill(desc, entryDescriptionOptions(selectedType, selectedDescription), "Selecione", true);
-        desc.value = selectedDescription;
+        selectOption(desc, selectedDescription);
         desc.disabled = !selectedType;
       }
 
-      function renderOptionManagement() {
-        const selectedType = deleteTypeOption.value;
-        const descriptionType = deleteDescriptionType.value;
-        const selectedDescription = deleteDescriptionOption.value;
+      function renderOptionManagement({
+        selectedType = deleteTypeOption.value,
+        descriptionType = deleteDescriptionType.value,
+        selectedDescription = deleteDescriptionOption.value,
+      } = {}) {
+        selectedType = selectedType === "__new__" ? "" : selectedType;
+        descriptionType = descriptionType === "__new__" ? "" : descriptionType;
+        selectedDescription = selectedDescription === "__new__" ? "" : selectedDescription;
         fill(deleteTypeOption, entryTypeOptions(), "Selecione o tipo", true);
-        deleteTypeOption.value = selectedType;
+        selectOption(deleteTypeOption, selectedType);
         fill(deleteDescriptionType, entryTypeOptions(), "Selecione o tipo", true);
-        deleteDescriptionType.value = descriptionType;
+        selectOption(deleteDescriptionType, descriptionType);
         fill(deleteDescriptionOption, entryDescriptionOptions(descriptionType), "Selecione a descrição", true);
-        deleteDescriptionOption.value = selectedDescription;
+        selectOption(deleteDescriptionOption, selectedDescription);
         deleteDescriptionOption.disabled = !descriptionType;
       }
 
@@ -1928,10 +2023,10 @@ const descriptionOptionsByType = {
           state.hiddenTypes = settings.hiddenTypes || [];
           state.hiddenDescriptionsByType = settings.hiddenDescriptionsByType || {};
           state.settingsDirty = true;
+          state.recurrenceDirty = true;
           const restoredIds = new Set(state.entries.map((entry) => entry.id));
           previousEntries.filter((entry) => !restoredIds.has(entry.id)).forEach((entry) => queueDelete(entry.id, entry.updated_at));
           state.entries.forEach((entry) => queueUpsert(entry));
-          await repository.replaceRecurrenceSeries(state.recurrenceSeries);
           await save();
           render();
           show("Backup restaurado. A sincronização foi iniciada para enviar a versão restaurada ao Google Drive.");
@@ -1943,7 +2038,7 @@ const descriptionOptionsByType = {
         }
       }
 
-      async function addOption(key, descriptionType = type.value) {
+      async function addOption(key, descriptionType = type.value, onCreated = null) {
         const value = await new Promise((resolve) => {
           optionDialogTitle.textContent = key === "types" ? "Novo tipo" : "Nova descrição";
           optionDialogDescription.textContent = key === "types"
@@ -1977,6 +2072,7 @@ const descriptionOptionsByType = {
           };
         }
         state.settingsDirty = true;
+        onCreated?.(clean);
         await save();
         renderOptionManagement();
         return clean;
@@ -2207,18 +2303,32 @@ const descriptionOptionsByType = {
 
       async function createRecurringSeries() {
         const series = recurrenceSeriesFromForm(generateId(), dateInput.value);
-        const saved = await repository.upsertRecurrenceSeries(series, state.user.id);
-        series.updated_at = saved.updated_at;
+        series.updated_at = new Date().toISOString();
         state.recurrenceSeries.push(series);
+        state.recurrenceDirty = true;
         await materializeRecurrenceSeries(series);
       }
 
       async function removeGeneratedSeriesEntries(seriesId, fromScheduledDate = null) {
-        await repository.deleteGeneratedEntries(seriesId, state.user.id, fromScheduledDate);
+        const removed = state.entries.filter((entry) => {
+          if (entry.series_id !== seriesId || entry.detached_from_series) return false;
+          return !fromScheduledDate || entry.scheduled_date >= fromScheduledDate;
+        });
+        removed.forEach((entry) => queueDelete(entry.id, entry.updated_at));
         state.entries = state.entries.filter((entry) => {
           if (entry.series_id !== seriesId || entry.detached_from_series) return true;
           return fromScheduledDate && entry.scheduled_date < fromScheduledDate;
         });
+      }
+
+      function removeSeriesEntries(seriesId, fromScheduledDate = null) {
+        const removed = state.entries.filter((entry) =>
+          entry.series_id === seriesId
+          && (!fromScheduledDate || entry.scheduled_date >= fromScheduledDate),
+        );
+        removed.forEach((entry) => queueDelete(entry.id, entry.updated_at));
+        const removedIds = new Set(removed.map((entry) => entry.id));
+        state.entries = state.entries.filter((entry) => !removedIds.has(entry.id));
       }
 
       async function editRecurringSeries(entry) {
@@ -2245,16 +2355,16 @@ const descriptionOptionsByType = {
             end_date: domain.addDays(cutDate, -1),
             occurrence_count: null,
           };
-          const shortenedSaved = await repository.upsertRecurrenceSeries(shortened, state.user.id);
-          shortened.updated_at = shortenedSaved.updated_at;
+          shortened.updated_at = new Date().toISOString();
           const originalIndex = state.recurrenceSeries.findIndex((series) => series.id === original.id);
           state.recurrenceSeries[originalIndex] = shortened;
+          state.recurrenceDirty = true;
           await removeGeneratedSeriesEntries(original.id, cutDate);
 
           const nextSeries = recurrenceSeriesFromForm(generateId(), dateInput.value);
-          const saved = await repository.upsertRecurrenceSeries(nextSeries, state.user.id);
-          nextSeries.updated_at = saved.updated_at;
+          nextSeries.updated_at = new Date().toISOString();
           state.recurrenceSeries.push(nextSeries);
+          state.recurrenceDirty = true;
           await materializeRecurrenceSeries(nextSeries);
           return "future";
         }
@@ -2264,10 +2374,10 @@ const descriptionOptionsByType = {
           ...recurrenceSeriesFromForm(original.id, original.start_date),
           start_date: original.start_date,
         };
-        const saved = await repository.upsertRecurrenceSeries(updated, state.user.id);
-        updated.updated_at = saved.updated_at;
+        updated.updated_at = new Date().toISOString();
         const index = state.recurrenceSeries.findIndex((series) => series.id === original.id);
         state.recurrenceSeries[index] = updated;
+        state.recurrenceDirty = true;
         await removeGeneratedSeriesEntries(original.id);
         await materializeRecurrenceSeries(updated);
         return "all";
@@ -2398,7 +2508,7 @@ const descriptionOptionsByType = {
           entry.detached_from_series = true;
           entry.excluded_from_series = true;
           queueUpsert(entry);
-          if (!await save()) throw new Error("Não foi possível sincronizar a exclusão da ocorrência.");
+          await save();
         } else if (scope === "future" && series && cutDate > series.start_date) {
           const shortened = {
             ...series,
@@ -2406,22 +2516,18 @@ const descriptionOptionsByType = {
             end_date: domain.addDays(cutDate, -1),
             occurrence_count: null,
           };
-          const saved = await repository.upsertRecurrenceSeries(shortened, state.user.id);
-          shortened.updated_at = saved.updated_at;
+          shortened.updated_at = new Date().toISOString();
           const index = state.recurrenceSeries.findIndex((item) => item.id === series.id);
           state.recurrenceSeries[index] = shortened;
-          await repository.deleteSeriesEntries(series.id, state.user.id, cutDate);
-          state.entries = state.entries.filter(
-            (item) => item.series_id !== series.id || item.scheduled_date < cutDate,
-          );
+          state.recurrenceDirty = true;
+          removeSeriesEntries(series.id, cutDate);
         } else {
-          await repository.deleteSeriesEntries(entry.series_id, state.user.id);
-          await repository.deleteRecurrenceSeries(entry.series_id, state.user.id);
-          state.entries = state.entries.filter((item) => item.series_id !== entry.series_id);
+          removeSeriesEntries(entry.series_id);
           state.recurrenceSeries = state.recurrenceSeries.filter((item) => item.id !== entry.series_id);
+          state.recurrenceDirty = true;
         }
         seriesScopeDialog.close();
-        await saveLocal();
+        await save();
         render();
         show(scope === "this" ? "Ocorrência excluída." : scope === "future" ? "Esta e as próximas ocorrências foram excluídas." : "Série recorrente excluída.");
       }
@@ -2504,16 +2610,18 @@ const descriptionOptionsByType = {
       deleteDescriptionOptionButton.onclick = removeDescriptionOption;
       deleteTypeOption.onchange = async () => {
         if (deleteTypeOption.value !== "__new__") return;
-        const added = await addOption("types");
-        renderOptionManagement();
-        deleteTypeOption.value = added || "";
+        const added = await addOption("types", undefined, (newType) => {
+          renderOptionManagement({ selectedType: newType });
+        });
+        renderOptionManagement({ selectedType: added || "" });
         if (added) show(`Tipo “${added}” adicionado às opções de lançamento.`);
       };
       deleteDescriptionType.onchange = async () => {
         if (deleteDescriptionType.value === "__new__") {
-          const added = await addOption("types");
-          renderOptionManagement();
-          deleteDescriptionType.value = added || "";
+          const added = await addOption("types", undefined, (newType) => {
+            renderOptionManagement({ descriptionType: newType });
+          });
+          renderOptionManagement({ descriptionType: added || "" });
           if (added) show(`Tipo “${added}” adicionado às opções de lançamento.`);
           return;
         }
@@ -2522,11 +2630,16 @@ const descriptionOptionsByType = {
       deleteDescriptionOption.onchange = async () => {
         if (deleteDescriptionOption.value !== "__new__") return;
         const selectedType = deleteDescriptionType.value;
-        const added = await addOption("descriptions", selectedType);
-        renderOptionManagement();
-        deleteDescriptionType.value = selectedType;
-        renderOptionManagement();
-        deleteDescriptionOption.value = added || "";
+        const added = await addOption("descriptions", selectedType, (newDescription) => {
+          renderOptionManagement({
+            descriptionType: selectedType,
+            selectedDescription: newDescription,
+          });
+        });
+        renderOptionManagement({
+          descriptionType: selectedType,
+          selectedDescription: added || "",
+        });
         if (added) show(`Descrição “${added}” adicionada às opções de ${selectedType}.`);
       };
       openRecentRecordsMain.onclick = () => openRecentRecordsDialog(false);
@@ -2660,12 +2773,10 @@ const descriptionOptionsByType = {
       };
       type.onchange = async () => {
         if (type.value === "__new__") {
-          const newType = await addOption("types");
-          type.value = "";
-          desc.value = "";
-          renderEntryOptions();
-          type.value = newType || "";
-          renderEntryOptions();
+          const newType = await addOption("types", undefined, (createdType) => {
+            renderEntryOptions(createdType, "");
+          });
+          renderEntryOptions(newType || "", "");
           return;
         }
         desc.value = "";
@@ -2677,10 +2788,11 @@ const descriptionOptionsByType = {
       };
       desc.onchange = async () => {
         if (desc.value !== "__new__") return;
-        const newDescription = await addOption("descriptions");
-        desc.value = "";
-        renderEntryOptions();
-        desc.value = newDescription || "";
+        const selectedType = type.value;
+        const newDescription = await addOption("descriptions", selectedType, (createdDescription) => {
+          renderEntryOptions(selectedType, createdDescription);
+        });
+        renderEntryOptions(selectedType, newDescription || "");
       };
       [flowType, recurrence, recurrenceInterval, customUnit, endMode, endDate, occurrenceCount, businessDayAdjustment]
         .forEach((control) => {
@@ -2762,10 +2874,11 @@ const descriptionOptionsByType = {
         state.settingsDirty = true;
         try {
           const synced = await save();
-          if (!synced) return;
           settingsDialog.close();
           render();
-          show("Projeção financeira salva e sincronizada.");
+          show(synced
+            ? "Projeção financeira salva e sincronizada."
+            : "Projeção salva neste dispositivo. A sincronização continuará em segundo plano.");
         } finally {
           saveSettings.disabled = false;
           saveSettings.removeAttribute("aria-busy");
@@ -2982,6 +3095,11 @@ const descriptionOptionsByType = {
         filterStatus.value = "pending";
         render();
         await initializeAuth();
+        if ("serviceWorker" in navigator && window.isSecureContext) {
+          navigator.serviceWorker.register("./sw.js").catch((error) => {
+            console.warn("Não foi possível ativar o modo instalável/offline.", error);
+          });
+        }
       }
 
       startApp();

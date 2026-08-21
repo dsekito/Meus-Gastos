@@ -13,6 +13,7 @@ let driveVersion = "7";
 const deltaFiles = new Map();
 let nextDeltaId = 1;
 let deltaIndexRequests = 0;
+let mainDocumentWrites = 0;
 
 global.fetch = async (url, options = {}) => {
   if (url.startsWith("https://www.googleapis.com/drive/v3/files?")) {
@@ -42,6 +43,7 @@ global.fetch = async (url, options = {}) => {
     });
   }
   if (url.includes("/files/drive-file?uploadType=media") && options.method === "PATCH") {
+    mainDocumentWrites++;
     remote = JSON.parse(options.body);
     driveVersion = String(Number(driveVersion) + 1);
     return new Response(JSON.stringify({ id: "drive-file", version: driveVersion }), {
@@ -95,12 +97,12 @@ require("../js/google-drive-repository.js");
   assert.equal(saved.value, 25);
   assert.ok(saved.updated_at);
   assert.equal((await repository.fetchEntries())[0].value, 25);
-  assert.equal(remote.entries[0].value, 10, "o arquivo histórico não deve ser regravado");
-  assert.equal(deltaFiles.size, 1);
+  assert.equal(remote.entries[0].value, 25, "o documento consolidado deve receber a alteração");
+  assert.equal(deltaFiles.size, 0, "novas alterações não devem criar um arquivo por lançamento");
 
   await repository.deleteEntry("one");
   assert.deepEqual(await repository.fetchEntries(), []);
-  assert.equal(deltaFiles.size, 1, "a exclusão atualiza somente o arquivo da diferença");
+  assert.deepEqual(remote.entries, []);
 
   const deltaIndexRequestsBeforeBatch = deltaIndexRequests;
   await repository.applyEntryOperations([
@@ -108,17 +110,32 @@ require("../js/google-drive-repository.js");
     { type: "upsert", entry: { id: "three", value: 40 }, baseUpdatedAt: null },
   ]);
   assert.equal((await repository.fetchEntries()).length, 2);
-  assert.equal(deltaFiles.size, 3, "cada lançamento alterado usa um arquivo pequeno");
+  assert.equal(deltaFiles.size, 0, "o lote inteiro deve permanecer em um único documento");
+  assert.equal(mainDocumentWrites, 3, "cada operação ou lote deve gerar apenas uma gravação principal");
   assert.equal(deltaIndexRequests, deltaIndexRequestsBeforeBatch, "o índice recém-carregado é reutilizado no envio em lote");
 
-  const delta = [...deltaFiles.values()].find((file) => file.name.includes("two"));
-  delta.content = JSON.stringify({ id: "two", deleted: false, entry: { id: "two", value: 99, updated_at: "other-device" } });
-  delta.version = "99";
+  const writesBeforeLargeBatch = mainDocumentWrites;
+  await repository.applyEntryOperations(
+    Array.from({ length: 2449 }, (_, index) => ({
+      type: "upsert",
+      entry: { id: `bulk-${index}`, value: index },
+      baseUpdatedAt: null,
+    })),
+  );
+  assert.equal(mainDocumentWrites, writesBeforeLargeBatch + 1, "2.449 alterações devem gerar uma única gravação no Drive");
+
+  const previousVersion = remote.entries.find((entry) => entry.id === "two").updated_at;
+  const deltaIndexRequestsBeforeConflict = deltaIndexRequests;
+  remote.entries = remote.entries.map((entry) => entry.id === "two"
+    ? { ...entry, value: 99, updated_at: "other-device" }
+    : entry);
+  driveVersion = String(Number(driveVersion) + 1);
+  await repository.load();
   await assert.rejects(
-    repository.applyEntryOperations([{ type: "upsert", entry: { id: "two", value: 30 }, baseUpdatedAt: "bulk-saved" }]),
+    repository.applyEntryOperations([{ type: "upsert", entry: { id: "two", value: 30 }, baseUpdatedAt: previousVersion }]),
     /CONFLICT/,
   );
-  assert.equal(deltaIndexRequests, deltaIndexRequestsBeforeBatch + 1, "uma nova sincronização volta a conferir alterações de outro dispositivo");
+  assert.equal(deltaIndexRequests, deltaIndexRequestsBeforeConflict + 1, "uma nova sincronização volta a conferir alterações de outro dispositivo");
 
   const expiredRepository = global.MGGoogleDriveRepository.create({
     getAccessToken: () => "expired-token",

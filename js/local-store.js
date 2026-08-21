@@ -49,5 +49,15 @@
     }
   }
 
-  global.MGLocalStore = { load, save, remove, clearLegacyCache };
+  async function requestPersistence() {
+    if (!global.navigator?.storage?.persist) return false;
+    try {
+      return await global.navigator.storage.persist();
+    } catch (error) {
+      console.warn("Não foi possível solicitar armazenamento persistente.", error);
+      return false;
+    }
+  }
+
+  global.MGLocalStore = { load, save, remove, clearLegacyCache, requestPersistence };
 })(window);

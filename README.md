@@ -3,6 +3,9 @@
 Aplicativo financeiro local-first. Os dados ficam no IndexedDB do dispositivo e
 são sincronizados com a pasta privada `appDataFolder` do Google Drive do usuário.
 
+O aplicativo pode ser instalado diretamente pelo navegador como PWA no Android,
+iOS e desktop. Não é necessário gerar um APK para uso pessoal.
+
 ## Configuração do Google
 
 1. Crie ou selecione um projeto no [Google Cloud Console](https://console.cloud.google.com/).
@@ -34,13 +37,38 @@ Depois, abra `http://localhost:8000`.
 ## Estrutura de dados
 
 - IndexedDB `meus-gastos`: cache local e fila de alterações pendentes por usuário.
-- Google Drive `appDataFolder/meus-gastos.json`: documento privado versionado com
-  lançamentos, recorrências e configurações.
+- Google Drive `appDataFolder/meus-gastos.json`: documento privado, consolidado e
+  versionado com lançamentos, recorrências e configurações.
 
-O aplicativo relê o documento remoto antes de atualizar um lançamento e interrompe
-a gravação quando identifica que o mesmo registro mudou em outro dispositivo.
-Alterações em massa são consolidadas em uma única revisão do arquivo. Um backup
-manual completo também pode ser baixado pela tela de configurações.
+Alterações locais são persistidas imediatamente e agrupadas por um pequeno intervalo
+antes do envio. Cada lote gera uma única revisão do documento no Drive. A fila usa
+identificadores de mutação para preservar edições feitas enquanto outro envio está em
+andamento. O aplicativo interrompe a gravação quando identifica que o mesmo registro
+mudou em outro dispositivo.
+
+Versões antigas criavam um arquivo de diferença por lançamento. Esses arquivos são
+lidos uma vez durante a migração e suas versões são registradas no documento
+consolidado, evitando baixá-los novamente em cada dispositivo.
+
+## Sessão e autorização do Google Drive
+
+O perfil e os dados permanecem disponíveis no dispositivo depois que o navegador ou
+o aplicativo é fechado. O token de acesso ao Google Drive não é gravado no aparelho.
+Isso é intencional: no modelo OAuth para aplicações web, o token é curto e uma nova
+autorização deve partir de uma ação da pessoa. Quando o token expira, o aplicativo
+continua funcionando localmente e mostra a ação **Autorizar Drive**. Nas autorizações
+seguintes, o e-mail salvo é enviado como dica e a seleção de conta é omitida quando
+o Google ainda reconhece a sessão e o consentimento anterior.
+
+Para sincronização totalmente contínua, inclusive após reiniciar o aplicativo, é
+necessário adicionar um backend OAuth que armazene o refresh token de forma segura.
+Não grave access tokens ou refresh tokens no `localStorage` ou no IndexedDB.
+
+## Instalação
+
+Em produção HTTPS, abra o menu do navegador e escolha **Instalar app** ou
+**Adicionar à tela de início**. O manifesto e o service worker mantêm a interface
+disponível offline; os dados continuam sendo lidos do IndexedDB.
 
 ## Migração dos dados atuais
 
