@@ -58,7 +58,7 @@
       };
     }
 
-    function signIn() {
+    function signIn({ loginHint = "" } = {}) {
       ensureConfigured();
       return new Promise((resolve, reject) => {
         let finished = false;
@@ -100,7 +100,10 @@
           },
           error_callback: (error) => finish(() => reject(new Error(error.type || "GOOGLE_OAUTH_ERROR"))),
         });
-        tokenClient.requestAccessToken({ prompt: "select_account" });
+        tokenClient.requestAccessToken({
+          prompt: loginHint ? "" : "select_account",
+          ...(loginHint ? { login_hint: loginHint } : {}),
+        });
       });
     }
 

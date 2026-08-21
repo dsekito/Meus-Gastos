@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Meus Gastos</title>
+  <rect width="512" height="512" rx="112" fill="#126b5b"/>
+  <path fill="#ffffff" d="M274 88v42c55 7 91 39 94 87h-67c-4-21-21-33-47-33-27 0-43 11-43 28 0 14 11 22 38 29l41 10c61 15 88 45 88 91 0 51-39 85-104 92v43h-42v-43c-64-7-101-42-104-94h68c4 25 24 39 55 39 30 0 49-12 49-31 0-15-12-24-42-32l-43-11c-55-14-82-43-82-87 0-49 37-81 99-88V88h42z"/>
+</svg>

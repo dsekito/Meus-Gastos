@@ -7,7 +7,16 @@
   const REQUEST_TIMEOUT_MS = 20000;
 
   function emptyDocument() {
-    return { schemaVersion: 1, revision: 0, updatedAt: new Date(0).toISOString(), entries: [], recurrenceSeries: [], settings: null };
+    return {
+      schemaVersion: 2,
+      revision: 0,
+      updatedAt: new Date(0).toISOString(),
+      entries: [],
+      recurrenceSeries: [],
+      settings: null,
+      tombstones: {},
+      compactedDeltas: {},
+    };
   }
 
   function create({ getAccessToken, isAccessTokenExpired = () => false }) {
@@ -63,11 +72,20 @@
     function entryDeltaName(id) { return `${ENTRY_DELTA_PREFIX}${encodeURIComponent(id)}.json`; }
 
     function applyEntryDelta(delta) {
+      if (!delta) return;
       const index = document.entries.findIndex((entry) => entry.id === delta.id);
+      const current = index >= 0 ? document.entries[index] : null;
+      const currentUpdatedAt = current?.updated_at || document.tombstones?.[delta.id] || "";
+      const deltaUpdatedAt = delta.updated_at || delta.entry?.updated_at || "";
+      if (currentUpdatedAt && deltaUpdatedAt && currentUpdatedAt >= deltaUpdatedAt) return;
       if (delta.deleted) {
         if (index >= 0) document.entries.splice(index, 1);
+        document.tombstones = { ...(document.tombstones || {}), [delta.id]: deltaUpdatedAt };
       } else if (index >= 0) document.entries[index] = delta.entry;
-      else document.entries.push(delta.entry);
+      else {
+        document.entries.push(delta.entry);
+        if (document.tombstones?.[delta.id]) delete document.tombstones[delta.id];
+      }
     }
 
     async function readEntryDelta(file) {
@@ -79,7 +97,17 @@
     async function loadEntryDeltas() {
       const files = (await listFiles(`name contains '${ENTRY_DELTA_PREFIX}' and trashed = false`))
         .filter((file) => file.name?.startsWith(ENTRY_DELTA_PREFIX));
-      for (let index = 0; index < files.length; index += 6) await Promise.all(files.slice(index, index + 6).map(readEntryDelta));
+      const changed = files.filter((file) => {
+        const id = decodeURIComponent(file.name.slice(ENTRY_DELTA_PREFIX.length, -5));
+        if (document.compactedDeltas?.[id] === file.version) {
+          entryDeltaFiles.set(id, { ...file, delta: null });
+          return false;
+        }
+        return true;
+      });
+      for (let index = 0; index < changed.length; index += 6) {
+        await Promise.all(changed.slice(index, index + 6).map(readEntryDelta));
+      }
       entryDeltaIndexLoaded = true;
       entryDeltaIndexFresh = true;
     }
@@ -239,41 +267,70 @@
     async function deleteWhere(key, predicate) {
       await ensureLoaded();
       if (key === "entries") {
-        for (const entry of document.entries.filter(predicate)) await saveEntryDelta(entry.id, null, true, entry.updated_at);
+        const operations = document.entries
+          .filter(predicate)
+          .map((entry) => ({ type: "delete", id: entry.id, baseUpdatedAt: entry.updated_at }));
+        if (operations.length) await applyEntryOperations(operations);
         return;
       }
       document[key] = document[key].filter((item) => !predicate(item));
       await persist();
     }
 
-    async function upsertEntries(entries) {
-      const saved = [];
-      for (let index = 0; index < entries.length; index += 6) saved.push(...await Promise.all(entries.slice(index, index + 6).map((entry) => saveEntryDelta(entry.id, entry, false, null))));
-      return saved;
-    }
-
     async function applyEntryOperations(operations, _userId, onProgress = () => {}) {
       await ensureLoaded();
       onProgress({ completed: 0, total: operations.length, phase: "checking" });
       await refreshEntryDeltaIndex({ useFreshIndex: true });
-      const saved = [];
-      let completed = 0;
-      for (let index = 0; index < operations.length; index += 6) {
-        const batch = await Promise.all(operations.slice(index, index + 6).map(async (operation) => {
-          if (operation.type === "delete") {
-            await saveEntryDelta(operation.id, null, true, operation.baseUpdatedAt);
-            completed++;
-            onProgress({ completed, total: operations.length, phase: "sending" });
-            return null;
-          }
-          const entry = await saveEntryDelta(operation.entry.id, operation.entry, false, operation.baseUpdatedAt);
-          completed++;
-          onProgress({ completed, total: operations.length, phase: "sending" });
-          return entry;
-        }));
-        saved.push(...batch.filter(Boolean));
+      const documentBeforeChanges = structuredClone(document);
+      const entriesById = new Map(document.entries.map((entry) => [entry.id, entry]));
+
+      for (const operation of operations) {
+        const id = operation.type === "delete" ? operation.id : operation.entry.id;
+        const current = entriesById.get(id);
+        if (operation.baseUpdatedAt && current?.updated_at !== operation.baseUpdatedAt) {
+          throw new Error("CONFLICT: este lançamento foi alterado em outro dispositivo.");
+        }
       }
+
+      const saved = [];
+      const timestamp = new Date().toISOString();
+      for (let index = 0; index < operations.length; index++) {
+        const operation = operations[index];
+        if (operation.type === "delete") {
+          entriesById.delete(operation.id);
+          document.tombstones = { ...(document.tombstones || {}), [operation.id]: timestamp };
+        } else {
+          const entry = { ...operation.entry, updated_at: timestamp };
+          entriesById.set(entry.id, entry);
+          if (document.tombstones?.[entry.id]) delete document.tombstones[entry.id];
+          saved.push(entry);
+        }
+        onProgress({ completed: index + 1, total: operations.length, phase: "preparing" });
+      }
+
+      document.entries = [...entriesById.values()];
+      document.compactedDeltas = Object.fromEntries(
+        [...entryDeltaFiles.entries()].map(([id, file]) => [id, file.version]),
+      );
+      onProgress({ completed: 0, total: 1, phase: "sending" });
+      try {
+        await persist();
+      } catch (error) {
+        document = documentBeforeChanges;
+        loaded = false;
+        entryDeltaIndexFresh = false;
+        throw error;
+      }
+      onProgress({ completed: 1, total: 1, phase: "sending" });
       return saved;
+    }
+
+    async function upsertEntries(entries) {
+      return applyEntryOperations(entries.map((entry) => ({
+        type: "upsert",
+        entry,
+        baseUpdatedAt: null,
+      })));
     }
 
     return {
@@ -284,8 +341,12 @@
       async fetchEntries() { await ensureLoaded(); return structuredClone(document.entries); },
       async fetchLegacyEntries() { await ensureLoaded(); return structuredClone(legacyEntries); },
       async fetchEntryVersion(id) { await ensureLoaded(); return document.entries.find((item) => item.id === id) || null; },
-      async deleteEntry(id, _userId, baseUpdatedAt = null) { await saveEntryDelta(id, null, true, baseUpdatedAt); },
-      async upsertEntry(entry, _userId, baseUpdatedAt = null) { return saveEntryDelta(entry.id, entry, false, baseUpdatedAt); },
+      async deleteEntry(id, _userId, baseUpdatedAt = null) {
+        await applyEntryOperations([{ type: "delete", id, baseUpdatedAt }]);
+      },
+      async upsertEntry(entry, _userId, baseUpdatedAt = null) {
+        return (await applyEntryOperations([{ type: "upsert", entry, baseUpdatedAt }]))[0];
+      },
       upsertEntries,
       applyEntryOperations,
       createDriveBackup,

@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 
 const values = new Map();
+let lastTokenRequest = null;
 global.window = global;
 global.localStorage = {
   getItem(key) { return values.has(key) ? values.get(key) : null; },
@@ -10,10 +11,11 @@ global.localStorage = {
 global.google = {
   accounts: {
     oauth2: {
-      initTokenClient(options) {
+      initTokenClient(config) {
         return {
-          requestAccessToken() {
-            queueMicrotask(() => options.callback({
+          requestAccessToken(options) {
+            lastTokenRequest = options;
+            queueMicrotask(() => config.callback({
               access_token: "token-que-nao-deve-ser-persistido",
               expires_in: 3600,
             }));
@@ -43,12 +45,15 @@ require("../js/google-auth.js");
 
   assert.equal(user.id, "user-123");
   assert.equal(auth.hasAccessToken(), true);
+  assert.equal(lastTokenRequest.prompt, "select_account");
   assert.deepEqual(auth.restoreSession(), user);
   assert.equal([...values.values()].some((value) => value.includes("token-que-nao-deve-ser-persistido")), false);
 
   const refreshedAuth = global.MGGoogleAuth.create({ clientId: "client-id.apps.googleusercontent.com" });
   assert.deepEqual(refreshedAuth.restoreSession(), user);
   assert.equal(refreshedAuth.hasAccessToken(), false);
+  await refreshedAuth.signIn({ loginHint: user.email });
+  assert.deepEqual(lastTokenRequest, { prompt: "", login_hint: user.email });
 
   refreshedAuth.clearToken();
   assert.deepEqual(refreshedAuth.restoreSession(), user);
