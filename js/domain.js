@@ -141,6 +141,18 @@
     return balance;
   }
 
+  function minimumProjectedBalance(fromDate, toDate, settings, entryTotals) {
+    let minimum = {
+      date: fromDate,
+      balance: projectedBalance(fromDate, settings, entryTotals),
+    };
+    for (let cursor = addDays(fromDate, 1); cursor <= toDate; cursor = addDays(cursor, 1)) {
+      const balance = projectedBalance(cursor, settings, entryTotals);
+      if (balance < minimum.balance) minimum = { date: cursor, balance };
+    }
+    return minimum;
+  }
+
   global.MGDomain = {
     todayISO,
     addDays,
@@ -153,5 +165,6 @@
     recentEntries,
     recentEntryGroups,
     projectedBalance,
+    minimumProjectedBalance,
   };
 })(window);

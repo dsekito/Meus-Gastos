@@ -12,6 +12,7 @@ const {
   recentEntries,
   recentEntryGroups,
   projectedBalance,
+  minimumProjectedBalance,
 } = global.MGDomain;
 
 function series(overrides = {}) {
@@ -133,6 +134,34 @@ assert.equal(
     dailyEntryNet(entries),
   ),
   925,
+);
+
+const incomeBeforeExpense = dailyEntryNet([
+  { date: "2026-08-27", value: 700, flow_type: "income" },
+  { date: "2026-08-28", value: 1000, flow_type: "expense" },
+]);
+assert.deepEqual(
+  minimumProjectedBalance(
+    "2026-08-26",
+    "2026-08-28",
+    { current_balance: 500, balance_reference_date: "2026-08-26" },
+    incomeBeforeExpense,
+  ),
+  { date: "2026-08-28", balance: 200 },
+);
+
+const incomeAfterExpense = dailyEntryNet([
+  { date: "2026-08-27", value: 1000, flow_type: "expense" },
+  { date: "2026-08-28", value: 700, flow_type: "income" },
+]);
+assert.deepEqual(
+  minimumProjectedBalance(
+    "2026-08-26",
+    "2026-08-28",
+    { current_balance: 500, balance_reference_date: "2026-08-26" },
+    incomeAfterExpense,
+  ),
+  { date: "2026-08-27", balance: -500 },
 );
 
 console.log("domain tests: ok");
