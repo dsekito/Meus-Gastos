@@ -44,11 +44,15 @@ test("identifica o modal de lançamento e preserva descrição ao editar", () =>
 });
 
 test("oferece no formulário as descrições já registradas para o tipo selecionado", () => {
-  assert.match(
-    app,
-    /function entryDescriptionOptions\(selectedType, selectedDescription = ""\)[\s\S]*?state\.entries\s*\.filter\(\(entry\) => entry\.type === selectedType\)\s*\.map\(\(entry\) => entry\.description\)/,
-  );
-  assert.match(app, /\.\.\.descriptionsFromEntries,[\s\S]*?selectedDescription/);
+  assert.match(app, /function entryDescriptionOptions\(selectedType, selectedDescription = ""\)/);
+  assert.match(app, /domain\.descriptionOptionsForType\(\{/);
+  assert.match(app, /selectedType,[\s\S]*?selectedDescription,[\s\S]*?entries: state\.entries/);
+});
+
+test("atribui uma cor distinta aos tipos registrados sem depender só da cor", () => {
+  assert.match(app, /domain\.typeColorMap\(\[/);
+  assert.match(app, /\.\.\.state\.types,[\s\S]*?state\.entries\.map\(\(entry\) => entry\.type\)/);
+  assert.match(app, /aria-label="\$\{state\.selectionMode \? `Selecionar \$\{esc\(e\.description\)\}, tipo \$\{esc\(e\.type\)\}/);
 });
 
 test("oferece desfazer para status e exclusões", () => {

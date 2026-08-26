@@ -129,6 +129,68 @@
     return [...groups.values()];
   }
 
+  function descriptionOptionsForType({
+    selectedType = "",
+    selectedDescription = "",
+    entries = [],
+    defaultOptions = [],
+    customOptions = [],
+    hiddenOptions = [],
+  } = {}) {
+    const descriptionsFromEntries = entries
+      .filter((entry) => entry.type === selectedType)
+      .map((entry) => entry.description)
+      .filter(Boolean);
+    const registeredDescriptions = new Set(descriptionsFromEntries);
+
+    return [...new Set([
+      ...defaultOptions,
+      ...customOptions,
+      ...descriptionsFromEntries,
+      selectedDescription,
+    ].filter((option) =>
+      option && (
+        registeredDescriptions.has(option)
+        || option === selectedDescription
+        || !hiddenOptions.includes(option)
+      ),
+    ))];
+  }
+
+  function typeColorMap(types = []) {
+    const orderedTypes = [...new Set(types.filter(Boolean))].sort((a, b) =>
+      String(a).localeCompare(String(b), "pt-BR"),
+    );
+    const usedHues = new Set();
+    const colors = new Map();
+    const minimumHueDistance = Math.max(8, Math.floor(300 / Math.max(orderedTypes.length, 1)));
+
+    orderedTypes.forEach((type) => {
+      let hash = 0;
+      for (const character of String(type)) {
+        hash = ((hash << 5) - hash + character.codePointAt(0)) | 0;
+      }
+
+      let hue = Math.abs(hash) % 360;
+      let attempts = 0;
+      const conflictsWithUsedHue = (candidate) => [...usedHues].some((usedHue) => {
+        const distance = Math.abs(candidate - usedHue);
+        return Math.min(distance, 360 - distance) < minimumHueDistance;
+      });
+
+      while (attempts < 360 && conflictsWithUsedHue(hue)) {
+        hue = (hue + 137) % 360;
+        attempts += 1;
+      }
+      while (usedHues.has(hue)) hue = (hue + 1) % 360;
+
+      usedHues.add(hue);
+      colors.set(type, `hsl(${hue} 72% 34%)`);
+    });
+
+    return colors;
+  }
+
   function projectedBalance(date, settings, entryTotals) {
     const referenceDate = settings.balance_reference_date || todayISO();
     let balance = Number(settings.current_balance);
@@ -164,6 +226,8 @@
     dailyIncomeTotals,
     recentEntries,
     recentEntryGroups,
+    descriptionOptionsForType,
+    typeColorMap,
     projectedBalance,
     minimumProjectedBalance,
   };
