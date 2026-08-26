@@ -204,6 +204,52 @@
     };
   }
 
+  function reconcileSeriesEntries(entries = [], occurrences = [], series = {}) {
+    const sortedEntries = [...entries].sort((a, b) =>
+      String(a.scheduled_date || a.date || "").localeCompare(
+        String(b.scheduled_date || b.date || ""),
+      ),
+    );
+    const excludedEntries = sortedEntries.filter((entry) => entry.excluded_from_series);
+    const excludedDates = new Set(
+      excludedEntries.map((entry) => entry.scheduled_date || entry.date).filter(Boolean),
+    );
+    const activeEntries = sortedEntries.filter((entry) => !entry.excluded_from_series);
+    const availableOccurrences = occurrences.filter(
+      (occurrence) => !excludedDates.has(occurrence.scheduled_date),
+    );
+    const reusableCount = Math.min(activeEntries.length, availableOccurrences.length);
+    const upserts = [];
+
+    for (let index = 0; index < reusableCount; index += 1) {
+      const entry = activeEntries[index];
+      const occurrence = availableOccurrences[index];
+      upserts.push({
+        ...entry,
+        date: occurrence.date,
+        scheduled_date: occurrence.scheduled_date,
+        series_id: series.id,
+        detached_from_series: false,
+        excluded_from_series: false,
+        flow_type: series.flow_type,
+        value: Number(series.value),
+        type: series.type,
+        description: series.description,
+        detail: series.detail || "",
+      });
+    }
+
+    excludedEntries
+      .filter((entry) => entry.series_id !== series.id)
+      .forEach((entry) => upserts.push({ ...entry, series_id: series.id }));
+
+    return {
+      upserts,
+      staleEntries: activeEntries.slice(reusableCount),
+      missingOccurrences: availableOccurrences.slice(reusableCount),
+    };
+  }
+
   function projectedBalance(date, settings, entryTotals) {
     const referenceDate = settings.balance_reference_date || todayISO();
     let balance = Number(settings.current_balance);
@@ -242,6 +288,7 @@
     descriptionOptionsForType,
     typeColorMap,
     recurringEntryFormValues,
+    reconcileSeriesEntries,
     projectedBalance,
     minimumProjectedBalance,
   };

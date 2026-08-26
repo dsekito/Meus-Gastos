@@ -14,6 +14,7 @@ const {
   descriptionOptionsForType,
   typeColorMap,
   recurringEntryFormValues,
+  reconcileSeriesEntries,
   projectedBalance,
   minimumProjectedBalance,
 } = global.MGDomain;
@@ -195,6 +196,71 @@ assert.equal(
   ).description,
   "ALUGUEL ANTIGO",
 );
+
+const reconciledSeries = reconcileSeriesEntries(
+  [
+    {
+      id: "paid",
+      series_id: "old-series",
+      scheduled_date: "2026-08-10",
+      date: "2026-08-10",
+      description: "ANTIGA",
+      paid: true,
+      detached_from_series: false,
+    },
+    {
+      id: "detached",
+      series_id: "old-series",
+      scheduled_date: "2026-09-10",
+      date: "2026-09-10",
+      description: "EXCEÇÃO ANTIGA",
+      paid: false,
+      detached_from_series: true,
+    },
+    {
+      id: "excluded",
+      series_id: "old-series",
+      scheduled_date: "2026-10-10",
+      date: "2026-10-10",
+      description: "EXCLUÍDA",
+      detached_from_series: true,
+      excluded_from_series: true,
+    },
+  ],
+  [
+    { scheduled_date: "2026-08-10", date: "2026-08-10" },
+    { scheduled_date: "2026-09-10", date: "2026-09-10" },
+    { scheduled_date: "2026-10-10", date: "2026-10-10" },
+    { scheduled_date: "2026-11-10", date: "2026-11-10" },
+  ],
+  {
+    id: "new-series",
+    flow_type: "expense",
+    value: 150,
+    type: "MORADIA",
+    description: "DESCRIÇÃO NOVA",
+    detail: "DETALHE NOVO",
+  },
+);
+assert.deepEqual(
+  reconciledSeries.upserts.map((entry) => ({
+    id: entry.id,
+    series_id: entry.series_id,
+    description: entry.description,
+    detached: entry.detached_from_series,
+    excluded: entry.excluded_from_series,
+    paid: entry.paid,
+  })),
+  [
+    { id: "paid", series_id: "new-series", description: "DESCRIÇÃO NOVA", detached: false, excluded: false, paid: true },
+    { id: "detached", series_id: "new-series", description: "DESCRIÇÃO NOVA", detached: false, excluded: false, paid: false },
+    { id: "excluded", series_id: "new-series", description: "EXCLUÍDA", detached: true, excluded: true, paid: undefined },
+  ],
+);
+assert.deepEqual(reconciledSeries.missingOccurrences, [
+  { scheduled_date: "2026-11-10", date: "2026-11-10" },
+]);
+assert.deepEqual(reconciledSeries.staleEntries, []);
 
 assert.equal(
   projectedBalance(
