@@ -5,7 +5,7 @@ global.window = global;
 let remote = {
   schemaVersion: 1,
   revision: 2,
-  entries: [{ id: "one", value: 10, updated_at: "v1" }],
+  entries: [{ id: "one", value: 10, updated_at: "2026-08-01T10:00:00.000Z" }],
   recurrenceSeries: [],
   settings: null,
 };
@@ -14,6 +14,8 @@ const deltaFiles = new Map();
 let nextDeltaId = 1;
 let deltaIndexRequests = 0;
 let mainDocumentWrites = 0;
+let transientVersionFailures = 0;
+let versionRequestAttempts = 0;
 
 global.fetch = async (url, options = {}) => {
   if (url.startsWith("https://www.googleapis.com/drive/v3/files?")) {
@@ -37,6 +39,11 @@ global.fetch = async (url, options = {}) => {
     });
   }
   if (url.includes("/files/drive-file?fields=version")) {
+    versionRequestAttempts++;
+    if (transientVersionFailures > 0) {
+      transientVersionFailures--;
+      return new Response("temporarily unavailable", { status: 503 });
+    }
     return new Response(JSON.stringify({ version: driveVersion }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -85,6 +92,7 @@ global.fetch = async (url, options = {}) => {
   throw new Error(`Unexpected request: ${options.method || "GET"} ${url}`);
 };
 
+require("../js/document-validator.js");
 require("../js/google-drive-repository.js");
 
 (async () => {
@@ -93,6 +101,7 @@ require("../js/google-drive-repository.js");
   });
 
   assert.equal((await repository.fetchEntries())[0].value, 10);
+  assert.ok(repository.getDocumentStats().sizeBytes > 0, "o tamanho do documento remoto deve ser medido");
   const saved = await repository.upsertEntry({ id: "one", value: 25 });
   assert.equal(saved.value, 25);
   assert.ok(saved.updated_at);
@@ -114,6 +123,11 @@ require("../js/google-drive-repository.js");
   assert.equal(mainDocumentWrites, 3, "cada operação ou lote deve gerar apenas uma gravação principal");
   assert.equal(deltaIndexRequests, deltaIndexRequestsBeforeBatch, "o índice recém-carregado é reutilizado no envio em lote");
 
+  transientVersionFailures = 1;
+  const versionAttemptsBeforeRetry = versionRequestAttempts;
+  await repository.upsertEntry({ id: "retry-safe", value: 50 });
+  assert.equal(versionRequestAttempts, versionAttemptsBeforeRetry + 2, "leituras transitórias devem usar retry com backoff");
+
   const writesBeforeLargeBatch = mainDocumentWrites;
   await repository.applyEntryOperations(
     Array.from({ length: 2449 }, (_, index) => ({
@@ -127,7 +141,7 @@ require("../js/google-drive-repository.js");
   const previousVersion = remote.entries.find((entry) => entry.id === "two").updated_at;
   const deltaIndexRequestsBeforeConflict = deltaIndexRequests;
   remote.entries = remote.entries.map((entry) => entry.id === "two"
-    ? { ...entry, value: 99, updated_at: "other-device" }
+    ? { ...entry, value: 99, updated_at: "2026-08-26T12:00:00.000Z" }
     : entry);
   driveVersion = String(Number(driveVersion) + 1);
   await repository.load();
@@ -136,6 +150,18 @@ require("../js/google-drive-repository.js");
     /CONFLICT/,
   );
   assert.equal(deltaIndexRequests, deltaIndexRequestsBeforeConflict + 1, "uma nova sincronização volta a conferir alterações de outro dispositivo");
+
+  const preservedEntries = await repository.fetchEntries();
+  remote = {
+    ...remote,
+    entries: [
+      { id: "duplicate", value: 1, updated_at: "2026-08-26T13:00:00.000Z" },
+      { id: "duplicate", value: 2, updated_at: "2026-08-26T14:00:00.000Z" },
+    ],
+  };
+  driveVersion = String(Number(driveVersion) + 1);
+  await assert.rejects(repository.load(), /GOOGLE_DRIVE_INVALID_DOCUMENT/);
+  assert.deepEqual(await repository.fetchEntries(), preservedEntries, "um documento inválido não deve substituir a cópia válida em memória");
 
   const expiredRepository = global.MGGoogleDriveRepository.create({
     getAccessToken: () => "expired-token",

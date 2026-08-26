@@ -5,6 +5,9 @@
   const API = "https://www.googleapis.com/drive/v3";
   const UPLOAD_API = "https://www.googleapis.com/upload/drive/v3";
   const REQUEST_TIMEOUT_MS = 20000;
+  const MAX_RETRY_ATTEMPTS = 2;
+  const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
+  const validator = global.MGDocumentValidator;
 
   function emptyDocument() {
     return {
@@ -32,26 +35,78 @@
     let writeChain = Promise.resolve();
     const activeControllers = new Set();
     let requestsCancelled = false;
+    let documentSizeBytes = 0;
+    let lastValidatedAt = null;
+
+    if (!validator) throw new Error("DOCUMENT_VALIDATOR_REQUIRED");
+
+    function textSize(value) {
+      return new TextEncoder().encode(value).byteLength;
+    }
+
+    async function readValidatedJson(response, validate) {
+      const text = await response.text();
+      let value;
+      try {
+        value = JSON.parse(text);
+      } catch (error) {
+        validate(null);
+      }
+      validate(value);
+      return { value, sizeBytes: textSize(text) };
+    }
+
+    function retryDelay(attempt, retryAfter = null) {
+      const retryAfterSeconds = Number(retryAfter);
+      if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0) {
+        return Math.min(retryAfterSeconds * 1000, 10000);
+      }
+      return (300 * (2 ** attempt)) + Math.floor(Math.random() * 250);
+    }
+
+    function wait(milliseconds) {
+      return new Promise((resolve) => setTimeout(resolve, milliseconds));
+    }
 
     async function request(url, options = {}) {
-      const token = getAccessToken();
-      if (!token) throw new Error("GOOGLE_AUTH_REQUIRED");
-      if (isAccessTokenExpired()) throw new Error("GOOGLE_AUTH_EXPIRED");
-      const controller = new AbortController();
-      activeControllers.add(controller);
-      const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-      try {
-        const response = await fetch(url, { ...options, signal: controller.signal, headers: { Authorization: `Bearer ${token}`, ...(options.headers || {}) } });
-        if (response.status === 401) throw new Error("GOOGLE_AUTH_EXPIRED");
-        if (!response.ok) throw new Error(`GOOGLE_DRIVE_${response.status}`);
-        return response;
-      } catch (error) {
-        if (error?.name === "AbortError") throw new Error(requestsCancelled ? "GOOGLE_DRIVE_CANCELLED" : "GOOGLE_DRIVE_TIMEOUT");
-        throw error;
-      } finally {
-        clearTimeout(timeout);
-        activeControllers.delete(controller);
+      const method = (options.method || "GET").toUpperCase();
+      for (let attempt = 0; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+        const token = getAccessToken();
+        if (!token) throw new Error("GOOGLE_AUTH_REQUIRED");
+        if (isAccessTokenExpired()) throw new Error("GOOGLE_AUTH_EXPIRED");
+        if (requestsCancelled) throw new Error("GOOGLE_DRIVE_CANCELLED");
+
+        const controller = new AbortController();
+        activeControllers.add(controller);
+        const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+        let failure = null;
+        let retryAfter = null;
+        try {
+          const response = await fetch(url, { ...options, signal: controller.signal, headers: { Authorization: `Bearer ${token}`, ...(options.headers || {}) } });
+          if (response.status === 401) throw new Error("GOOGLE_AUTH_EXPIRED");
+          if (response.ok) return response;
+          failure = new Error(`GOOGLE_DRIVE_${response.status}`);
+          failure.retryable = RETRYABLE_STATUS.has(response.status) && method !== "POST";
+          retryAfter = response.headers.get("Retry-After");
+        } catch (error) {
+          if (error?.name === "AbortError") {
+            failure = new Error(requestsCancelled ? "GOOGLE_DRIVE_CANCELLED" : "GOOGLE_DRIVE_TIMEOUT");
+            failure.retryable = !requestsCancelled && ["GET", "HEAD"].includes(method);
+          } else {
+            failure = error;
+            // Uma falha de rede após POST/PATCH pode ter ocorrido depois de o
+            // Drive gravar o conteúdo. Só GET/HEAD são repetidos nesse caso.
+            failure.retryable = failure.retryable || (["GET", "HEAD"].includes(method) && error instanceof TypeError);
+          }
+        } finally {
+          clearTimeout(timeout);
+          activeControllers.delete(controller);
+        }
+
+        if (!failure?.retryable || attempt === MAX_RETRY_ATTEMPTS) throw failure;
+        await wait(retryDelay(attempt, retryAfter));
       }
+      throw new Error("GOOGLE_DRIVE_REQUEST_FAILED");
     }
 
     function escapedName(name) { return name.replace(/'/g, "\\\\'"); }
@@ -89,7 +144,10 @@
     }
 
     async function readEntryDelta(file) {
-      const delta = await (await request(`${API}/files/${file.id}?alt=media`)).json();
+      const { value: delta } = await readValidatedJson(
+        await request(`${API}/files/${file.id}?alt=media`),
+        validator.validateEntryDelta,
+      );
       entryDeltaFiles.set(delta.id, { ...file, delta });
       applyEntryDelta(delta);
     }
@@ -140,11 +198,19 @@
       let mainDocumentChanged = false;
       if (files.length) {
         const remoteFile = files[0];
-        mainDocumentChanged = !loaded || fileId !== remoteFile.id || remoteVersion !== (remoteFile.version || null);
-        fileId = remoteFile.id;
+        const nextFileId = remoteFile.id;
+        const nextRemoteVersion = remoteFile.version || null;
+        mainDocumentChanged = !loaded || fileId !== nextFileId || remoteVersion !== nextRemoteVersion;
         if (mainDocumentChanged) {
-          remoteVersion = remoteFile.version || null;
-          document = { ...emptyDocument(), ...(await (await request(`${API}/files/${fileId}?alt=media`)).json()) };
+          const loadedDocument = await readValidatedJson(
+            await request(`${API}/files/${nextFileId}?alt=media`),
+            validator.validateDocument,
+          );
+          fileId = nextFileId;
+          remoteVersion = nextRemoteVersion;
+          document = { ...emptyDocument(), ...loadedDocument.value };
+          documentSizeBytes = loadedDocument.sizeBytes;
+          lastValidatedAt = new Date().toISOString();
           legacyEntries = structuredClone(document.entries);
         }
       } else {
@@ -180,7 +246,10 @@
       }
       document.revision = Number(document.revision || 0) + 1;
       document.updatedAt = new Date().toISOString();
+      validator.validateDocument(document);
       const body = JSON.stringify(document);
+      documentSizeBytes = textSize(body);
+      lastValidatedAt = new Date().toISOString();
       if (fileId) {
         const response = await request(`${UPLOAD_API}/files/${fileId}?uploadType=media&fields=id,version`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body });
         remoteVersion = (await response.json()).version || remoteVersion;
@@ -226,6 +295,7 @@
     }
 
     async function createDriveBackup(snapshot) {
+      validator.validateBackup(snapshot);
       const saved = await writeJsonFile(backupName(), snapshot, null);
       return { id: saved.id, name: saved.name, version: saved.version };
     }
@@ -238,7 +308,11 @@
     }
 
     async function fetchDriveBackup(id) {
-      return (await (await request(`${API}/files/${id}?alt=media`)).json());
+      const { value } = await readValidatedJson(
+        await request(`${API}/files/${id}?alt=media`),
+        validator.validateBackup,
+      );
+      return value;
     }
 
     async function saveEntryDelta(id, value, deleted, baseUpdatedAt) {
@@ -335,9 +409,17 @@
 
     return {
       load,
+      getDocumentStats() {
+        return {
+          sizeBytes: documentSizeBytes,
+          schemaVersion: document.schemaVersion,
+          entryCount: document.entries.length,
+          lastValidatedAt,
+        };
+      },
       beginSync() { requestsCancelled = false; },
       cancelPendingRequests() { requestsCancelled = true; activeControllers.forEach((controller) => controller.abort()); },
-      reset() { fileId = null; remoteVersion = null; document = emptyDocument(); loaded = false; entryDeltaFiles.clear(); entryDeltaIndexLoaded = false; entryDeltaIndexFresh = false; loadPromise = null; writeChain = Promise.resolve(); activeControllers.forEach((controller) => controller.abort()); activeControllers.clear(); requestsCancelled = false; },
+      reset() { fileId = null; remoteVersion = null; document = emptyDocument(); loaded = false; documentSizeBytes = 0; lastValidatedAt = null; entryDeltaFiles.clear(); entryDeltaIndexLoaded = false; entryDeltaIndexFresh = false; loadPromise = null; writeChain = Promise.resolve(); activeControllers.forEach((controller) => controller.abort()); activeControllers.clear(); requestsCancelled = false; },
       async fetchEntries() { await ensureLoaded(); return structuredClone(document.entries); },
       async fetchLegacyEntries() { await ensureLoaded(); return structuredClone(legacyEntries); },
       async fetchEntryVersion(id) { await ensureLoaded(); return document.entries.find((item) => item.id === id) || null; },

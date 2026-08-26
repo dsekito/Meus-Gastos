@@ -1,4 +1,4 @@
-const CACHE_NAME = "meus-gastos-v2";
+const CACHE_NAME = "meus-gastos-v4";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -8,6 +8,7 @@ const APP_SHELL = [
   "./icons/app-icon-512.png",
   "./js/config.js",
   "./js/domain.js",
+  "./js/document-validator.js",
   "./js/local-store.js",
   "./js/google-auth.js",
   "./js/google-drive-repository.js",
