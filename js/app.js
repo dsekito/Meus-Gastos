@@ -166,24 +166,6 @@ const descriptionOptionsByType = {
               "'": "&#39;",
             })[c],
         );
-      const CATEGORY_COLORS = {
-        ALIMENTAÇÃO: "#D97706",
-        ASSINATURAS: "#7C3AED",
-        COMPRAS: "#DB2777",
-        EDUCAÇÃO: "#2563EB",
-        FINANCEIRO: "#475569",
-        LAZER: "#9333EA",
-        MORADIA: "#0F766E",
-        OUTROS: "#64748B",
-        RECEITAS: "#15803D",
-        SAÚDE: "#DC2626",
-        TRANSPORTE: "#0369A1",
-      };
-
-      function categoryColor(type) {
-        return CATEGORY_COLORS[type] || "#64748B";
-      }
-
       const dialog = document.querySelector("#entryDialog"),
         form = document.querySelector("#entryForm"),
         modalTitle = document.querySelector("#entryDialogTitle"),
@@ -1326,16 +1308,14 @@ const descriptionOptionsByType = {
       }
 
       function entryDescriptionOptions(selectedType, selectedDescription = "") {
-        const hidden = state.hiddenDescriptionsByType[selectedType] || [];
-        const descriptionsFromEntries = state.entries
-          .filter((entry) => entry.type === selectedType)
-          .map((entry) => entry.description);
-        return [
-          ...(descriptionOptionsByType[selectedType] || []),
-          ...(state.customDescriptionOptionsByType[selectedType] || []),
-          ...descriptionsFromEntries,
+        return domain.descriptionOptionsForType({
+          selectedType,
           selectedDescription,
-        ].filter((option) => option === selectedDescription || !hidden.includes(option));
+          entries: state.entries,
+          defaultOptions: descriptionOptionsByType[selectedType] || [],
+          customOptions: state.customDescriptionOptionsByType[selectedType] || [],
+          hiddenOptions: state.hiddenDescriptionsByType[selectedType] || [],
+        });
       }
 
       function renderEntryOptions(
@@ -1504,21 +1484,22 @@ const descriptionOptionsByType = {
           .replace(".", "")
           .toUpperCase();
       }
-      function renderDenseEntry(e) {
+      function renderDenseEntry(e, typeColors) {
         const selected = state.selectedEntries.has(e.id);
         const statusPending = state.pendingStatusEntries.has(e.id);
         const statusChanged = state.recentlyChangedEntry === e.id;
         const isIncome = (e.flow_type || "expense") === "income";
+        const typeColor = typeColors.get(e.type) || "#475569";
         const statusLabel = e.paid
           ? (isIncome ? "Recebido" : "Pago")
           : (isIncome ? "A receber" : "Em aberto");
         return `
-          <article class="entry dense-entry ${selected ? "selected" : ""} ${statusPending ? "status-pending" : ""} ${statusChanged ? "status-changed" : ""}" data-entry="${e.id}" role="${state.selectionMode ? "button" : "group"}" ${state.selectionMode ? `tabindex="0" aria-pressed="${selected}"` : ""} aria-busy="${statusPending}" aria-label="${state.selectionMode ? `Selecionar ${esc(e.description)}` : `${esc(e.description)}, ${money(e.value)}, ${statusLabel}. Toque para editar.`}">
+          <article class="entry dense-entry ${selected ? "selected" : ""} ${statusPending ? "status-pending" : ""} ${statusChanged ? "status-changed" : ""}" data-entry="${e.id}" role="${state.selectionMode ? "button" : "group"}" ${state.selectionMode ? `tabindex="0" aria-pressed="${selected}"` : ""} aria-busy="${statusPending}" aria-label="${state.selectionMode ? `Selecionar ${esc(e.description)}, tipo ${esc(e.type)}` : `${esc(e.description)}, tipo ${esc(e.type)}, ${money(e.value)}, ${statusLabel}. Toque para editar.`}" style="--type-color:${typeColor}">
             <div class="entry-content">
               <div class="entry-summary">
                 <div class="entry-header">
                   <div class="entry-title" title="${esc(e.description)}${e.detail ? ` - ${esc(e.detail)}` : ""}">
-                    <span class="entry-dot" style="background:${categoryColor(e.type)}"></span>
+                    <span class="entry-dot" aria-hidden="true"></span>
                     <span class="entry-title-text">${esc(e.description)}${e.detail ? ` <span class="entry-detail-inline">- ${esc(e.detail)}</span>` : ""}</span>
                   </div>
                   <div class="entry-value ${isIncome ? "income" : ""}">${isIncome ? "+ " : ""}${money(e.value)}</div>
@@ -1740,8 +1721,12 @@ const descriptionOptionsByType = {
       }
 
       function renderEntries(entries) {
+        const typeColors = domain.typeColorMap([
+          ...state.types,
+          ...state.entries.map((entry) => entry.type),
+        ]);
         rows.innerHTML = entries.length
-          ? entries.map(renderDenseEntry).join("")
+          ? entries.map((entry) => renderDenseEntry(entry, typeColors)).join("")
           : '<div class="empty">Nenhum lançamento encontrado.</div>';
       }
 

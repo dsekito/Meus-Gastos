@@ -11,6 +11,8 @@ const {
   dailyEntryNet,
   recentEntries,
   recentEntryGroups,
+  descriptionOptionsForType,
+  typeColorMap,
   projectedBalance,
   minimumProjectedBalance,
 } = global.MGDomain;
@@ -123,6 +125,40 @@ const groupedRecent = recentEntryGroups([
 assert.equal(groupedRecent.length, 3);
 assert.equal(groupedRecent[1].entries.length, 2);
 assert.equal(groupedRecent[2].entries.length, 2);
+
+assert.deepEqual(
+  descriptionOptionsForType({
+    selectedType: "MORADIA",
+    entries: [
+      { type: "MORADIA", description: "ALUGUEL" },
+      { type: "MORADIA", description: "CONDOMÍNIO ANTIGO" },
+      { type: "TRANSPORTE", description: "COMBUSTÍVEL" },
+      { type: "MORADIA", description: "" },
+    ],
+    defaultOptions: ["ALUGUEL", "ENERGIA"],
+    customOptions: ["REFORMA", "OPÇÃO SEM USO"],
+    hiddenOptions: ["CONDOMÍNIO ANTIGO", "OPÇÃO SEM USO"],
+  }),
+  ["ALUGUEL", "ENERGIA", "REFORMA", "CONDOMÍNIO ANTIGO"],
+);
+
+assert.deepEqual(
+  descriptionOptionsForType({
+    selectedType: "MORADIA",
+    selectedDescription: "OPÇÃO EM EDIÇÃO",
+    hiddenOptions: ["OPÇÃO EM EDIÇÃO"],
+  }),
+  ["OPÇÃO EM EDIÇÃO"],
+);
+
+const registeredTypes = Array.from({ length: 30 }, (_, index) => `TIPO ${index + 1}`);
+const registeredTypeColors = typeColorMap(registeredTypes);
+assert.equal(registeredTypeColors.size, registeredTypes.length);
+assert.equal(new Set(registeredTypeColors.values()).size, registeredTypes.length);
+assert.deepEqual(
+  [...typeColorMap([...registeredTypes].reverse()).entries()],
+  [...registeredTypeColors.entries()],
+);
 
 assert.equal(
   projectedBalance(
