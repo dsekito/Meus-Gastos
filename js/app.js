@@ -2690,15 +2690,35 @@ const descriptionOptionsByType = {
         await materializeRecurrenceSeries(series);
       }
 
-      async function removeGeneratedSeriesEntries(seriesId, fromScheduledDate = null) {
-        const removed = state.entries.filter((entry) => {
-          if (entry.series_id !== seriesId || entry.detached_from_series) return false;
-          return !fromScheduledDate || entry.scheduled_date >= fromScheduledDate;
+      function reconcileGeneratedSeriesEntries(
+        series,
+        { sourceSeriesId = series.id, fromScheduledDate = null } = {},
+      ) {
+        const sourceEntries = state.entries.filter((entry) =>
+          entry.series_id === sourceSeriesId
+          && (!fromScheduledDate || (entry.scheduled_date || entry.date) >= fromScheduledDate),
+        );
+        const occurrences = domain.generateRecurringOccurrences(
+          series,
+          series.start_date,
+          materializationHorizon(series),
+        );
+        const reconciliation = domain.reconcileSeriesEntries(sourceEntries, occurrences, series);
+
+        reconciliation.upserts.forEach((updatedEntry) => {
+          const index = state.entries.findIndex((entry) => entry.id === updatedEntry.id);
+          if (index >= 0) state.entries[index] = updatedEntry;
+          queueUpsert(updatedEntry);
         });
-        removed.forEach((entry) => queueDelete(entry.id, entry.updated_at));
-        state.entries = state.entries.filter((entry) => {
-          if (entry.series_id !== seriesId || entry.detached_from_series) return true;
-          return fromScheduledDate && entry.scheduled_date < fromScheduledDate;
+
+        const staleIds = new Set(reconciliation.staleEntries.map((entry) => entry.id));
+        reconciliation.staleEntries.forEach((entry) => queueDelete(entry.id, entry.updated_at));
+        state.entries = state.entries.filter((entry) => !staleIds.has(entry.id));
+
+        reconciliation.missingOccurrences.forEach((occurrence) => {
+          const created = occurrenceEntry(series, occurrence);
+          state.entries.push(created);
+          queueUpsert(created);
         });
       }
 
@@ -2746,7 +2766,10 @@ const descriptionOptionsByType = {
           nextSeries.updated_at = new Date().toISOString();
           state.recurrenceSeries.push(nextSeries);
           state.recurrenceDirty = true;
-          await materializeRecurrenceSeries(nextSeries);
+          reconcileGeneratedSeriesEntries(nextSeries, {
+            sourceSeriesId: original.id,
+            fromScheduledDate: cutDate,
+          });
           return "future";
         }
 
@@ -2759,8 +2782,7 @@ const descriptionOptionsByType = {
         const index = state.recurrenceSeries.findIndex((series) => series.id === original.id);
         state.recurrenceSeries[index] = updated;
         state.recurrenceDirty = true;
-        await removeGeneratedSeriesEntries(original.id);
-        await materializeRecurrenceSeries(updated);
+        reconcileGeneratedSeriesEntries(updated);
         return "all";
       }
 

@@ -45,6 +45,14 @@ test("identifica o modal e usa os valores atuais da série ao editar", () => {
   assert.match(app, /function recurrenceSeriesFromForm[\s\S]*?description: desc\.value/);
 });
 
+test("reconcilia ocorrências ao editar toda a série sem perder status", () => {
+  assert.match(app, /function reconcileGeneratedSeriesEntries\(/);
+  assert.match(app, /domain\.reconcileSeriesEntries\(sourceEntries, occurrences, series\)/);
+  assert.match(app, /reconciliation\.upserts\.forEach[\s\S]*?queueUpsert\(updatedEntry\)/);
+  assert.match(app, /reconcileGeneratedSeriesEntries\(updated\);/);
+  assert.doesNotMatch(app, /await removeGeneratedSeriesEntries\(original\.id\)/);
+});
+
 test("oferece no formulário as descrições já registradas para o tipo selecionado", () => {
   assert.match(app, /function entryDescriptionOptions\(selectedType, selectedDescription = ""\)/);
   assert.match(app, /domain\.descriptionOptionsForType\(\{/);
