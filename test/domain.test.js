@@ -13,6 +13,7 @@ const {
   recentEntryGroups,
   descriptionOptionsForType,
   typeColorMap,
+  recurringEntryFormValues,
   projectedBalance,
   minimumProjectedBalance,
 } = global.MGDomain;
@@ -158,6 +159,41 @@ assert.equal(new Set(registeredTypeColors.values()).size, registeredTypes.length
 assert.deepEqual(
   [...typeColorMap([...registeredTypes].reverse()).entries()],
   [...registeredTypeColors.entries()],
+);
+
+const recurringOccurrence = {
+  id: "occurrence",
+  date: "2026-08-10",
+  value: 100,
+  flow_type: "expense",
+  type: "MORADIA",
+  description: "ALUGUEL ANTIGO",
+  detail: "Valor materializado",
+  paid: true,
+  detached_from_series: false,
+};
+const currentSeries = {
+  value: 120,
+  flow_type: "expense",
+  type: "MORADIA",
+  description: "ALUGUEL ATUALIZADO",
+  detail: "Valor atual da série",
+};
+assert.deepEqual(
+  recurringEntryFormValues(recurringOccurrence, currentSeries),
+  {
+    ...recurringOccurrence,
+    value: 120,
+    description: "ALUGUEL ATUALIZADO",
+    detail: "Valor atual da série",
+  },
+);
+assert.equal(
+  recurringEntryFormValues(
+    { ...recurringOccurrence, detached_from_series: true },
+    currentSeries,
+  ).description,
+  "ALUGUEL ANTIGO",
 );
 
 assert.equal(

@@ -37,10 +37,12 @@ test("abre edição pelo card e restringe mudança de status ao botão dedicado"
   assert.doesNotMatch(app, /state\.activeEntry = card\.dataset\.entry;\s*toggleEntryStatus\(\);/);
 });
 
-test("identifica o modal de lançamento e preserva descrição ao editar", () => {
+test("identifica o modal e usa os valores atuais da série ao editar", () => {
   assert.match(app, /modalTitle = document\.querySelector\("#entryDialogTitle"\)/);
   assert.match(app, /modalTitle\.textContent = "Editar lançamento";\s*fillForm\(entry\);/);
-  assert.match(app, /renderEntryOptions\(entry\.type, entry\.description\);/);
+  assert.match(app, /formValues = domain\.recurringEntryFormValues\(entry, series\)/);
+  assert.match(app, /renderEntryOptions\(formValues\.type, formValues\.description\);/);
+  assert.match(app, /function recurrenceSeriesFromForm[\s\S]*?description: desc\.value/);
 });
 
 test("oferece no formulário as descrições já registradas para o tipo selecionado", () => {
