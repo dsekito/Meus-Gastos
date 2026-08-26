@@ -191,6 +191,19 @@
     return colors;
   }
 
+  function recurringEntryFormValues(entry, series = null) {
+    if (!series || entry.detached_from_series) return entry;
+
+    return {
+      ...entry,
+      value: series.value ?? entry.value,
+      flow_type: series.flow_type ?? entry.flow_type,
+      type: series.type ?? entry.type,
+      description: series.description ?? entry.description,
+      detail: series.detail ?? entry.detail,
+    };
+  }
+
   function projectedBalance(date, settings, entryTotals) {
     const referenceDate = settings.balance_reference_date || todayISO();
     let balance = Number(settings.current_balance);
@@ -228,6 +241,7 @@
     recentEntryGroups,
     descriptionOptionsForType,
     typeColorMap,
+    recurringEntryFormValues,
     projectedBalance,
     minimumProjectedBalance,
   };

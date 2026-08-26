@@ -3046,11 +3046,12 @@ const descriptionOptionsByType = {
         const series = entry.series_id
           ? state.recurrenceSeries.find((item) => item.id === entry.series_id)
           : null;
+        const formValues = domain.recurringEntryFormValues(entry, series);
         dateInput.value = entry.date;
-        valueInput.value = entry.value;
-        flowType.value = entry.flow_type || "expense";
-        renderEntryOptions(entry.type, entry.description);
-        detailInput.value = entry.detail;
+        valueInput.value = formValues.value;
+        flowType.value = formValues.flow_type || "expense";
+        renderEntryOptions(formValues.type, formValues.description);
+        detailInput.value = formValues.detail || "";
         paidInput.checked = entry.paid;
         recurrence.value = series?.frequency || (entry.installment ? "installments" : "single");
         installments.value = entry.installment?.total ?? 2;
