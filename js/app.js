@@ -1,19 +1,15 @@
 const descriptionOptionsByType = {
-        CASA: ["CONDOMINIO", "FRAN", "EMPRESTIMO", "FINANCIAMENTO", "GAS"],
-        FIT: ["TICO", "CBD"],
-        CARRO: ["IPVA"],
-        MEL: ["OBJETIVO", "FESTA"],
-        NUBANK: [
-          "ASSINATURA", "BARBEARIA", "BEBIDAS", "BRUNA", "CARRO", "CASHBACK",
-          "COMIDA", "FIT", "MEL", "PRESENTES", "RESTAURANTE", "ROUPAS", "SAUDE",
-          "TEC", "VIAGEM",
-        ],
-        PERSON: [
-          "ASSINATURA", "BARBEARIA", "BEBIDAS", "BRUNA", "CARRO", "CASHBACK",
-          "COMIDA", "FIT", "MEL", "PRESENTES", "RESTAURANTE", "ROUPAS", "SAUDE",
-          "TEC", "VIAGEM",
-        ],
-        TRABALHO: ["SALARIO"],
+        ALIMENTAÇÃO: ["DELIVERY", "RESTAURANTE", "SUPERMERCADO"],
+        ASSINATURAS: ["OUTRAS ASSINATURAS", "SOFTWARE", "STREAMING"],
+        COMPRAS: ["CASA", "ELETRÔNICOS", "PRESENTES", "ROUPAS"],
+        EDUCAÇÃO: ["CURSOS", "MATERIAL", "MENSALIDADE"],
+        FINANCEIRO: ["EMPRÉSTIMO", "FINANCIAMENTO", "IMPOSTOS", "TARIFAS"],
+        LAZER: ["ENTRETENIMENTO", "PASSEIOS", "VIAGENS"],
+        MORADIA: ["ÁGUA", "ALUGUEL", "CONDOMÍNIO", "ENERGIA", "GÁS", "INTERNET", "MANUTENÇÃO"],
+        OUTROS: ["OUTROS"],
+        RECEITAS: ["BENEFÍCIOS", "FREELANCE", "REEMBOLSO", "RENDIMENTOS", "SALÁRIO"],
+        SAÚDE: ["CONSULTAS", "FARMÁCIA", "PLANO DE SAÚDE"],
+        TRANSPORTE: ["APLICATIVOS", "COMBUSTÍVEL", "MANUTENÇÃO", "SEGURO", "TRANSPORTE PÚBLICO"],
       };
       const defaultTypes = Object.keys(descriptionOptionsByType);
       const defaultDescriptions = [
@@ -32,16 +28,26 @@ const descriptionOptionsByType = {
 
       function createDefaultSettings() {
         return {
-          current_balance: 10000,
+          current_balance: 0,
           balance_reference_date: todayISO(),
+          onboarding_status: "pending",
         };
       }
 
       function normalizeSettings(settings = {}) {
         return {
-          current_balance: Number(settings.current_balance ?? 10000),
+          current_balance: Number(settings.current_balance ?? 0),
           balance_reference_date: settings.balance_reference_date || todayISO(),
+          onboarding_status: ["pending", "completed"].includes(settings.onboarding_status)
+            ? settings.onboarding_status
+            : null,
         };
+      }
+
+      function profileOptions(savedOptions, defaults) {
+        return Array.isArray(savedOptions)
+          ? [...new Set(savedOptions)].sort()
+          : [...defaults];
       }
 
       function createSyncDiagnostics() {
@@ -161,17 +167,17 @@ const descriptionOptionsByType = {
             })[c],
         );
       const CATEGORY_COLORS = {
-        TRABALHO: "#F97316",
-        GAS: "#8B5CF6",
-        NUBANK: "#7E22CE",
-        IPVA: "#DC2626",
-        IPTU: "#B45309",
-        CONDOMINIO: "#16A34A",
-        FINANCIAMENTO: "#4B5563",
-        OBJETIVO: "#EAB308",
-        PERSON: "#EC4899",
-        FIT: "#22C55E",
-        FRAN: "#06B6D4",
+        ALIMENTAÇÃO: "#D97706",
+        ASSINATURAS: "#7C3AED",
+        COMPRAS: "#DB2777",
+        EDUCAÇÃO: "#2563EB",
+        FINANCEIRO: "#475569",
+        LAZER: "#9333EA",
+        MORADIA: "#0F766E",
+        OUTROS: "#64748B",
+        RECEITAS: "#15803D",
+        SAÚDE: "#DC2626",
+        TRANSPORTE: "#0369A1",
       };
 
       function categoryColor(type) {
@@ -252,6 +258,14 @@ const descriptionOptionsByType = {
         settingsDialog = document.querySelector("#settingsDialog"),
         settingsForm = document.querySelector("#settingsForm"),
         openSettings = document.querySelector("#openSettings"),
+        onboardingDialog = document.querySelector("#onboardingDialog"),
+        onboardingForm = document.querySelector("#onboardingForm"),
+        onboardingBalance = document.querySelector("#onboardingBalance"),
+        onboardingReferenceDate = document.querySelector("#onboardingReferenceDate"),
+        onboardingCategoryOptions = document.querySelector("#onboardingCategoryOptions"),
+        onboardingCategoryError = document.querySelector("#onboardingCategoryError"),
+        skipOnboarding = document.querySelector("#skipOnboarding"),
+        saveOnboarding = document.querySelector("#saveOnboarding"),
         currentBalanceInput = document.querySelector("#currentBalance"),
         balanceReferenceDateInput = document.querySelector("#balanceReferenceDate"),
         saveSettings = document.querySelector("#saveSettings"),
@@ -320,26 +334,6 @@ const descriptionOptionsByType = {
 
       function todayISO() {
         return domain.todayISO();
-      }
-
-      function formatDateInput(value) {
-        const year = value.getFullYear();
-        const month = String(value.getMonth() + 1).padStart(2, "0");
-        const day = String(value.getDate()).padStart(2, "0");
-        return `${year}-${month}-${day}`;
-      }
-
-      function suggestedDateForType(selectedType) {
-        const now = new Date();
-        if (selectedType === "NUBANK") {
-          const date = new Date(now.getFullYear(), now.getMonth() + 1, 1, 12);
-          while ([0, 6].includes(date.getDay())) date.setDate(date.getDate() + 1);
-          return formatDateInput(date);
-        }
-        if (selectedType === "PERSON") {
-          return formatDateInput(new Date(now.getFullYear(), now.getMonth() + 1, 20, 12));
-        }
-        return null;
       }
 
       function pendingSyncCount() {
@@ -629,8 +623,8 @@ const descriptionOptionsByType = {
         state.recurrenceDirty = !!cached.recurrenceDirty;
         state.settings = normalizeSettings(cached.settings);
         state.settingsDirty = !!cached.settingsDirty;
-        state.types = [...new Set([...defaultTypes, ...(cached.types || [])])].sort();
-        state.descriptions = [...new Set([...defaultDescriptions, ...(cached.descriptions || [])])].sort();
+        state.types = profileOptions(cached.types, defaultTypes);
+        state.descriptions = profileOptions(cached.descriptions, defaultDescriptions);
         state.customDescriptionOptionsByType = cached.customDescriptionOptionsByType || {};
         state.hiddenTypes = cached.hiddenTypes || [];
         state.hiddenDescriptionsByType = cached.hiddenDescriptionsByType || {};
@@ -953,6 +947,7 @@ const descriptionOptionsByType = {
           generatedEntries += await materializeRecurrenceSeries(series);
         }
         if (generatedEntries) await save({ waitForSync: true });
+        maybeOpenOnboarding();
       }
 
       async function syncSettings() {
@@ -972,8 +967,8 @@ const descriptionOptionsByType = {
         const data = await repository.fetchSettings();
         if (data) {
           state.settings = normalizeSettings(data);
-          state.types = [...new Set([...defaultTypes, ...(data.types || [])])].sort();
-          state.descriptions = [...new Set([...defaultDescriptions, ...(data.descriptions || [])])].sort();
+          state.types = profileOptions(data.types, defaultTypes);
+          state.descriptions = profileOptions(data.descriptions, defaultDescriptions);
           state.customDescriptionOptionsByType = data.customDescriptionOptionsByType || {};
           state.hiddenTypes = data.hiddenTypes || [];
           state.hiddenDescriptionsByType = data.hiddenDescriptionsByType || {};
@@ -1325,7 +1320,7 @@ const descriptionOptionsByType = {
       }
 
       function entryTypeOptions(selectedType = "") {
-        return [...state.types, ...defaultTypes, selectedType]
+        return [...state.types, selectedType]
           .filter((option) => option === selectedType || !state.hiddenTypes.includes(option));
       }
 
@@ -1568,6 +1563,21 @@ const descriptionOptionsByType = {
           && entry.date <= nextSevenDaysEnd
         );
         const upcomingTotal = upcomingEntries.reduce((total, entry) => total + Number(entry.value), 0);
+        const upcomingIncomeTotal = state.entries
+          .filter((entry) =>
+            !entry.excluded_from_series
+            && !entry.paid
+            && entry.flow_type === "income"
+            && entry.date >= todayISO()
+            && entry.date <= nextSevenDaysEnd
+          )
+          .reduce((total, entry) => total + Number(entry.value), 0);
+        const sevenDayMinimum = domain.minimumProjectedBalance(
+          todayISO(),
+          nextSevenDaysEnd,
+          state.settings,
+          entryNet,
+        );
         const monthLabel = new Date(year, monthNumber - 1, 1, 12).toLocaleDateString("pt-BR", {
           month: "long",
           year: "numeric",
@@ -1586,14 +1596,19 @@ const descriptionOptionsByType = {
           financialGuidance.dataset.tone = "danger";
           financialGuidanceTitle.textContent = "Saldo negativo previsto";
           financialGuidanceDetail.textContent = `A projeção indica ${money(Math.abs(monthEndBalance))} abaixo de zero no fim do mês.`;
-        } else if (upcomingTotal > Math.max(currentBalance, 0)) {
+        } else if (upcomingEntries.length && sevenDayMinimum.balance < 0) {
           financialGuidance.dataset.tone = "danger";
-          financialGuidanceTitle.textContent = "Contas próximas acima do saldo";
-          financialGuidanceDetail.textContent = `${money(upcomingTotal)} vencem nos próximos 7 dias e superam o saldo disponível hoje.`;
+          financialGuidanceTitle.textContent = "Contas próximas acima do saldo previsto";
+          const minimumDate = new Date(`${sevenDayMinimum.date}T12:00`).toLocaleDateString("pt-BR");
+          financialGuidanceDetail.textContent = upcomingIncomeTotal > 0
+            ? `Mesmo considerando ${money(upcomingIncomeTotal)} de receitas a receber, o saldo pode ficar ${money(Math.abs(sevenDayMinimum.balance))} abaixo de zero em ${minimumDate}.`
+            : `O saldo pode ficar ${money(Math.abs(sevenDayMinimum.balance))} abaixo de zero em ${minimumDate}.`;
         } else if (upcomingEntries.length) {
           financialGuidance.dataset.tone = "attention";
           financialGuidanceTitle.textContent = `${upcomingEntries.length} conta${upcomingEntries.length === 1 ? "" : "s"} nos próximos 7 dias`;
-          financialGuidanceDetail.textContent = `${money(upcomingTotal)} precisam de atenção nesse período.`;
+          financialGuidanceDetail.textContent = upcomingIncomeTotal > 0
+            ? `${money(upcomingTotal)} vencem no período; ${money(upcomingIncomeTotal)} de receitas a receber já foram consideradas na projeção.`
+            : `${money(upcomingTotal)} precisam de atenção nesse período.`;
         } else {
           financialGuidance.dataset.tone = "positive";
           financialGuidanceTitle.textContent = "Tudo sob controle";
@@ -2050,6 +2065,89 @@ const descriptionOptionsByType = {
         settingsDialog.showModal();
       }
 
+      function onboardingCategoryLabel(value) {
+        const lower = value.toLocaleLowerCase("pt-BR");
+        return lower.charAt(0).toLocaleUpperCase("pt-BR") + lower.slice(1);
+      }
+
+      function renderOnboardingCategories() {
+        const visibleTypes = new Set(
+          state.types.filter((option) => !state.hiddenTypes.includes(option)),
+        );
+        onboardingCategoryOptions.innerHTML = defaultTypes.map((option, index) => `
+          <label class="onboarding-category-option" for="onboarding-category-${index}">
+            <input
+              id="onboarding-category-${index}"
+              type="checkbox"
+              name="onboarding-category"
+              value="${esc(option)}"
+              ${visibleTypes.has(option) ? "checked" : ""}
+            />
+            <span>${esc(onboardingCategoryLabel(option))}</span>
+          </label>
+        `).join("");
+      }
+
+      function maybeOpenOnboarding() {
+        const isNewProfile = state.settings.onboarding_status === "pending"
+          && state.entries.length === 0
+          && state.recurrenceSeries.length === 0;
+        if (!state.user || !isNewProfile || onboardingDialog.open) return;
+        onboardingBalance.value = state.settings.current_balance;
+        onboardingReferenceDate.value = state.settings.balance_reference_date || todayISO();
+        onboardingCategoryError.hidden = true;
+        renderOnboardingCategories();
+        onboardingDialog.showModal();
+        requestAnimationFrame(() => onboardingBalance.focus());
+      }
+
+      async function finishOnboarding({ skipped = false } = {}) {
+        const selectedCategories = [...onboardingCategoryOptions.querySelectorAll("input:checked")]
+          .map((input) => input.value);
+        if (!skipped && selectedCategories.length === 0) {
+          onboardingCategoryError.hidden = false;
+          onboardingCategoryOptions.querySelector("input")?.focus();
+          return;
+        }
+
+        onboardingCategoryError.hidden = true;
+        const activeButton = skipped ? skipOnboarding : saveOnboarding;
+        const resetButton = setButtonBusy(
+          activeButton,
+          true,
+          skipped ? "Pulando..." : "Preparando...",
+        );
+        const inactiveButton = skipped ? saveOnboarding : skipOnboarding;
+        inactiveButton.disabled = true;
+
+        try {
+          state.settings = {
+            ...state.settings,
+            current_balance: skipped ? state.settings.current_balance : Number(onboardingBalance.value),
+            balance_reference_date: skipped
+              ? state.settings.balance_reference_date
+              : onboardingReferenceDate.value,
+            onboarding_status: "completed",
+          };
+          if (!skipped) {
+            state.hiddenTypes = defaultTypes.filter((option) => !selectedCategories.includes(option));
+          }
+          state.settingsDirty = true;
+          await save();
+          onboardingDialog.close();
+          render();
+          show(skipped
+            ? "Configuração inicial pulada. Você pode ajustar a projeção nas configurações."
+            : "Tudo pronto. Sua projeção financeira já usa o saldo informado.");
+        } catch (error) {
+          console.error(error);
+          show("Não foi possível salvar a configuração inicial. Tente novamente.");
+        } finally {
+          resetButton();
+          inactiveButton.disabled = false;
+        }
+      }
+
       async function openBackupRecovery() {
         if (!settingsDialog.open) openSettingsDialog();
         const backups = await loadGoogleDriveBackups();
@@ -2265,8 +2363,8 @@ const descriptionOptionsByType = {
           state.entries = structuredClone(backup.entries);
           state.recurrenceSeries = structuredClone(backup.recurrenceSeries || []);
           state.settings = normalizeSettings(settings);
-          state.types = [...new Set([...defaultTypes, ...(settings.types || [])])].sort();
-          state.descriptions = [...new Set([...defaultDescriptions, ...(settings.descriptions || [])])].sort();
+          state.types = profileOptions(settings.types, defaultTypes);
+          state.descriptions = profileOptions(settings.descriptions, defaultDescriptions);
           state.customDescriptionOptionsByType = settings.customDescriptionOptionsByType || {};
           state.hiddenTypes = settings.hiddenTypes || [];
           state.hiddenDescriptionsByType = settings.hiddenDescriptionsByType || {};
@@ -2946,6 +3044,16 @@ const descriptionOptionsByType = {
       openModal.onclick = openNew;
       openModalMobile.onclick = openNew;
       openSettings.onclick = openSettingsDialog;
+      onboardingForm.onsubmit = async (event) => {
+        event.preventDefault();
+        if (!onboardingForm.reportValidity()) return;
+        await finishOnboarding();
+      };
+      skipOnboarding.onclick = () => finishOnboarding({ skipped: true });
+      onboardingDialog.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        finishOnboarding({ skipped: true });
+      });
       downloadBackup.onclick = downloadManualBackup;
       createDriveBackup.onclick = createGoogleDriveBackup;
       loadDriveBackups.onclick = loadGoogleDriveBackups;
@@ -3126,10 +3234,6 @@ const descriptionOptionsByType = {
         }
         desc.value = "";
         renderEntryOptions();
-        if (!state.editingId) {
-          const suggestedDate = suggestedDateForType(type.value);
-          if (suggestedDate) dateInput.value = suggestedDate;
-        }
       };
       desc.onchange = async () => {
         if (desc.value !== "__new__") return;
@@ -3235,6 +3339,7 @@ const descriptionOptionsByType = {
         saveSettings.setAttribute("aria-busy", "true");
         saveSettings.textContent = "Salvando...";
         state.settings = {
+          ...state.settings,
           current_balance: Number(currentBalanceInput.value),
           balance_reference_date: balanceReferenceDateInput.value,
         };

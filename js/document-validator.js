@@ -55,6 +55,7 @@
     if (!isObject(settings)) invalid(required ? "BACKUP_INVALID" : undefined);
     if (settings.current_balance != null && !Number.isFinite(Number(settings.current_balance))) invalid(required ? "BACKUP_INVALID" : undefined);
     if (settings.balance_reference_date != null && !isDateOnly(settings.balance_reference_date)) invalid(required ? "BACKUP_INVALID" : undefined);
+    if (settings.onboarding_status != null && !["pending", "completed"].includes(settings.onboarding_status)) invalid(required ? "BACKUP_INVALID" : undefined);
   }
 
   function validateDocument(value) {

@@ -658,6 +658,69 @@
         gap: 10px;
         margin-top: 23px;
       }
+      .onboarding-modal {
+        width: min(620px, 100%);
+      }
+      .onboarding-modal .modal-foot button {
+        min-height: 48px;
+      }
+      .onboarding-modal label {
+        font-size: 16px;
+      }
+      .onboarding-helper {
+        margin: 0;
+        color: var(--muted);
+        font-size: 16px;
+        line-height: 1.5;
+      }
+      .onboarding-category-field {
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        border: 0;
+      }
+      .onboarding-category-field legend {
+        margin-bottom: 4px;
+        padding: 0;
+        font-size: 16px;
+        font-weight: 700;
+      }
+      .onboarding-category-options {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 4px 12px;
+        margin-top: 8px;
+      }
+      .onboarding-category-option {
+        display: flex;
+        min-height: 48px;
+        align-items: center;
+        gap: 10px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px 10px;
+        cursor: pointer;
+      }
+      .onboarding-category-option:has(input:checked) {
+        border-color: #7bb8ad;
+        background: var(--soft);
+      }
+      .onboarding-category-option input {
+        width: 22px;
+        min-height: 22px;
+        margin: 0;
+        accent-color: var(--brand);
+      }
+      .onboarding-category-option span {
+        font-size: 16px;
+        line-height: 1.35;
+      }
+      .onboarding-error {
+        margin: 6px 0 0;
+        color: var(--danger);
+        font-size: 14px;
+        line-height: 1.4;
+      }
       .secondary {
         border: 1px solid #cbd5e1;
         background: white;
@@ -1505,6 +1568,9 @@
         .modal .field { gap: 4px; }
         .modal .field.wide { grid-column: 1 / -1; }
         .modal label { font-size: 12px; line-height: 1.2; }
+        .onboarding-modal label,
+        .onboarding-modal .onboarding-category-field legend,
+        .onboarding-modal .onboarding-helper { font-size: 16px; }
         .modal input,
         .modal select,
         .modal textarea { min-height: 48px; padding: 8px 10px; font-size: 16px; }
@@ -1975,6 +2041,37 @@
       </section>
       <button class="primary mobile-new-entry" id="openModalMobile" type="button" hidden><span aria-hidden="true">＋</span> Novo lançamento</button>
     </main>
+    <dialog id="onboardingDialog" aria-labelledby="onboardingTitle" aria-describedby="onboardingDescription">
+      <form class="modal onboarding-modal" id="onboardingForm">
+        <div class="modal-head">
+          <div>
+            <h2 id="onboardingTitle">Prepare sua primeira projeção</h2>
+            <p class="onboarding-helper" id="onboardingDescription">Informe apenas o necessário. Você poderá alterar tudo depois nas configurações.</p>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <label for="onboardingBalance">Qual é o seu saldo hoje?</label>
+            <input id="onboardingBalance" type="number" inputmode="decimal" step="0.01" required />
+          </div>
+          <div class="field">
+            <label for="onboardingReferenceDate">Data desse saldo</label>
+            <input id="onboardingReferenceDate" type="date" required />
+          </div>
+          <fieldset class="onboarding-category-field field wide">
+            <legend>Quais categorias deseja usar?</legend>
+            <p class="onboarding-helper">Deixamos as mais comuns selecionadas. Desmarque o que não fizer sentido para você.</p>
+            <div class="onboarding-category-options" id="onboardingCategoryOptions"></div>
+            <p class="onboarding-error" id="onboardingCategoryError" role="alert" hidden>Selecione pelo menos uma categoria para continuar.</p>
+          </fieldset>
+        </div>
+        <div class="modal-foot">
+          <button class="secondary" id="skipOnboarding" type="button">Agora não</button>
+          <button class="primary" id="saveOnboarding" type="submit">Preparar minha projeção</button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog id="entryDialog" aria-labelledby="entryDialogTitle">
       <form class="modal" id="entryForm">
         <div class="modal-head">
@@ -2313,12 +2410,12 @@
     <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="./js/config.js?v=2026081001"></script>
-    <script src="./js/domain.js?v=2026081003"></script>
-    <script src="./js/document-validator.js?v=2026082601"></script>
+    <script src="./js/domain.js?v=2026082604"></script>
+    <script src="./js/document-validator.js?v=2026082602"></script>
     <script src="./js/local-store.js?v=2026082601"></script>
     <script src="./js/google-auth.js?v=2026081003"></script>
     <script src="./js/google-drive-repository.js?v=2026082601"></script>
     <script src="./js/sync-service.js?v=2026082601"></script>
-    <script src="./js/app.js?v=2026082602"></script>
+    <script src="./js/app.js?v=2026082604"></script>
   </body>
 </html>

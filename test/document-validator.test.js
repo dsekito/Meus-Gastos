@@ -36,6 +36,13 @@ assert.throws(
   /GOOGLE_DRIVE_INVALID_DOCUMENT/,
 );
 assert.throws(
+  () => global.MGDocumentValidator.validateDocument({
+    ...validDocument,
+    settings: { ...validDocument.settings, onboarding_status: "invalid" },
+  }),
+  /GOOGLE_DRIVE_INVALID_DOCUMENT/,
+);
+assert.throws(
   () => global.MGDocumentValidator.validateBackup({ schemaVersion: 1, entries: [], recurrenceSeries: [], settings: null }),
   /BACKUP_INVALID/,
 );
