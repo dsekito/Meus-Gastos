@@ -2,9 +2,12 @@
   const DATABASE_NAME = "meus-gastos";
   const STORE_NAME = "user-data";
   const DATABASE_VERSION = 1;
+  let databasePromise = null;
+  let writeChain = Promise.resolve();
 
   function openDatabase() {
-    return new Promise((resolve, reject) => {
+    if (databasePromise) return databasePromise;
+    databasePromise = new Promise((resolve, reject) => {
       const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
       request.onupgradeneeded = () => {
         const database = request.result;
@@ -12,9 +15,20 @@
           database.createObjectStore(STORE_NAME);
         }
       };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const database = request.result;
+        database.onversionchange = () => {
+          database.close();
+          databasePromise = null;
+        };
+        resolve(database);
+      };
+      request.onerror = () => {
+        databasePromise = null;
+        reject(request.error);
+      };
     });
+    return databasePromise;
   }
 
   async function run(mode, operation) {
@@ -22,12 +36,26 @@
     return new Promise((resolve, reject) => {
       const transaction = database.transaction(STORE_NAME, mode);
       const store = transaction.objectStore(STORE_NAME);
-      const request = operation(store);
-      request.onsuccess = () => resolve(request.result);
+      let result;
+      let request;
+      try {
+        request = operation(store);
+      } catch (error) {
+        reject(error);
+        return;
+      }
+      request.onsuccess = () => { result = request.result; };
       request.onerror = () => reject(request.error);
-      transaction.oncomplete = () => database.close();
+      transaction.oncomplete = () => resolve(result);
       transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error || new Error("INDEXED_DB_TRANSACTION_ABORTED"));
     });
+  }
+
+  function runWrite(operation) {
+    const pendingWrite = () => run("readwrite", operation);
+    writeChain = writeChain.then(pendingWrite, pendingWrite);
+    return writeChain;
   }
 
   function load(userId) {
@@ -35,11 +63,12 @@
   }
 
   function save(userId, data) {
-    return run("readwrite", (store) => store.put(data, userId));
+    const snapshot = structuredClone(data);
+    return runWrite((store) => store.put(snapshot, userId));
   }
 
   function remove(userId) {
-    return run("readwrite", (store) => store.delete(userId));
+    return runWrite((store) => store.delete(userId));
   }
 
   function clearLegacyCache() {

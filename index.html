@@ -467,6 +467,7 @@
         content: "";
       }
       .sync-status[data-state="synced"]::before { background: #16a34a; }
+      .sync-status[data-state="queued"]::before { background: #d97706; }
       .sync-status[data-state="syncing"]::before { background: #f59e0b; }
       .sync-status[data-state="pending"]::before { background: #dc2626; }
       .sync-status[data-state="conflict"]::before { background: #b42318; }
@@ -1614,6 +1615,8 @@
         line-height: 1.45;
       }
       .settings-sync-summary strong { display: block; color: var(--ink); font-size: 15px; }
+      .settings-sync-summary span { display: block; }
+      .settings-sync-summary .sync-size-warning { margin-top: 4px; color: var(--danger); font-weight: 700; }
       .settings-history-action {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
@@ -1807,7 +1810,7 @@
         </div>
       </header>
       <section class="sync-notice" id="syncNotice" data-state="pending" aria-labelledby="syncNoticeTitle" hidden>
-        <div class="sync-notice-copy" aria-live="polite" aria-atomic="true">
+        <div class="sync-notice-copy">
           <strong id="syncNoticeTitle">Sincronização pendente</strong>
           <p id="syncNoticeDetail">Seus dados continuam salvos neste dispositivo.</p>
         </div>
@@ -2078,7 +2081,7 @@
               <h3 id="dataSettingsTitle">Proteção dos dados</h3>
               <p>Veja a sincronização e mantenha cópias de segurança quando precisar.</p>
             </div>
-            <div class="settings-sync-summary" id="settingsSyncSummary" aria-live="polite"></div>
+            <div class="settings-sync-summary" id="settingsSyncSummary"></div>
             <div class="settings-data-actions">
               <section class="backup-actions" aria-labelledby="backupTitle">
                 <div class="backup-copy">
@@ -2196,10 +2199,11 @@
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="./js/config.js?v=2026081001"></script>
     <script src="./js/domain.js?v=2026081003"></script>
-    <script src="./js/local-store.js?v=2026081001"></script>
+    <script src="./js/document-validator.js?v=2026082601"></script>
+    <script src="./js/local-store.js?v=2026082601"></script>
     <script src="./js/google-auth.js?v=2026081003"></script>
-    <script src="./js/google-drive-repository.js?v=2026081502"></script>
-    <script src="./js/sync-service.js?v=2026080106"></script>
-    <script src="./js/app.js?v=2026081601"></script>
+    <script src="./js/google-drive-repository.js?v=2026082601"></script>
+    <script src="./js/sync-service.js?v=2026082601"></script>
+    <script src="./js/app.js?v=2026082602"></script>
   </body>
 </html>

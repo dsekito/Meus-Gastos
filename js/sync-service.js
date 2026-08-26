@@ -1,5 +1,9 @@
 (function attachSyncService(global) {
   function create({ state, repository, persist, normalizeEntryIds, onProgress = () => {} }) {
+    let queueIndexReference = null;
+    let queueIndexLength = -1;
+    let queuedByEntryId = new Map();
+
     function createMutationId() {
       return global.crypto?.randomUUID?.()
         || `mutation-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -11,29 +15,65 @@
       });
     }
 
+    function ensureQueueIndex() {
+      if (queueIndexReference === state.syncQueue && queueIndexLength === state.syncQueue.length) return;
+      queuedByEntryId = new Map();
+      state.syncQueue.forEach((operation, index) => {
+        const id = operation.type === "delete" ? operation.id : operation.entry.id;
+        queuedByEntryId.set(id, { operation, index });
+      });
+      queueIndexReference = state.syncQueue;
+      queueIndexLength = state.syncQueue.length;
+    }
+
+    function setQueueOperation(id, operation) {
+      ensureQueueIndex();
+      const queued = queuedByEntryId.get(id);
+      if (queued) state.syncQueue[queued.index] = operation;
+      else state.syncQueue.push(operation);
+      queueIndexReference = state.syncQueue;
+      queueIndexLength = state.syncQueue.length;
+      queuedByEntryId.set(id, { operation, index: queued?.index ?? state.syncQueue.length - 1 });
+    }
+
+    function removeQueueOperation(id) {
+      ensureQueueIndex();
+      const queued = queuedByEntryId.get(id);
+      if (!queued) return;
+      state.syncQueue.splice(queued.index, 1);
+      queueIndexReference = null;
+      ensureQueueIndex();
+    }
+
     function queueUpsert(entry) {
-      const previous = state.syncQueue.find((operation) => operation.type === "upsert" && operation.entry.id === entry.id);
-      state.syncQueue = state.syncQueue.filter((operation) => operation.type !== "upsert" || operation.entry.id !== entry.id);
-      state.syncQueue = state.syncQueue.filter((operation) => operation.type !== "delete" || operation.id !== entry.id);
-      state.syncQueue.push({
+      ensureQueueIndex();
+      const previous = queuedByEntryId.get(entry.id)?.operation;
+      setQueueOperation(entry.id, {
         type: "upsert",
         entry: { ...entry },
-        baseUpdatedAt: previous?.baseUpdatedAt ?? entry.updated_at ?? null,
+        baseUpdatedAt: previous?.type === "upsert"
+          ? previous.baseUpdatedAt ?? entry.updated_at ?? null
+          : entry.updated_at ?? null,
         mutationId: createMutationId(),
       });
     }
 
     function queueDelete(id, baseUpdatedAt = null) {
-      const pendingUpsert = state.syncQueue.find((operation) =>
-        operation.type === "upsert" && operation.entry.id === id,
-      );
-      state.syncQueue = state.syncQueue.filter((operation) => !(operation.type === "upsert" && operation.entry.id === id));
+      ensureQueueIndex();
+      const queued = queuedByEntryId.get(id)?.operation;
+      const pendingUpsert = queued?.type === "upsert" ? queued : null;
       if (pendingUpsert && !pendingUpsert.baseUpdatedAt && !baseUpdatedAt) {
+        removeQueueOperation(id);
         state.deletedEntryIds.delete(id);
         return;
       }
-      if (!state.syncQueue.some((operation) => operation.type === "delete" && operation.id === id)) {
-        state.syncQueue.push({ type: "delete", id, baseUpdatedAt, mutationId: createMutationId() });
+      if (queued?.type !== "delete") {
+        setQueueOperation(id, {
+          type: "delete",
+          id,
+          baseUpdatedAt: baseUpdatedAt ?? pendingUpsert?.baseUpdatedAt ?? null,
+          mutationId: createMutationId(),
+        });
       }
       state.deletedEntryIds.add(id);
     }
@@ -58,21 +98,26 @@
         onProgress({ completed: 0, total: operations.length });
         const saved = await repository.applyEntryOperations(operations, userId, onProgress);
         const versions = new Map(saved.map((entry) => [entry.id, entry.updated_at]));
+        const entriesById = new Map(state.entries.map((entry) => [entry.id, entry]));
+        const pendingById = new Map();
+        state.syncQueue.forEach((pending) => {
+          const pendingId = pending.id || pending.entry?.id;
+          if (!pendingById.has(pendingId)) pendingById.set(pendingId, []);
+          pendingById.get(pendingId).push(pending);
+        });
         for (const operation of operations) {
+          const operationId = operation.type === "delete" ? operation.id : operation.entry.id;
+          const laterOperations = (pendingById.get(operationId) || [])
+            .filter((pending) => pending.mutationId !== operation.mutationId);
           if (operation.type === "delete") {
-            const stillPending = state.syncQueue.some((pending) =>
-              pending.mutationId !== operation.mutationId
-              && (pending.id === operation.id || pending.entry?.id === operation.id),
-            );
-            if (!stillPending) state.deletedEntryIds.delete(operation.id);
+            if (!laterOperations.length) state.deletedEntryIds.delete(operation.id);
             continue;
           }
-          const entry = state.entries.find((item) => item.id === operation.entry.id);
+          const entry = entriesById.get(operation.entry.id);
           const savedVersion = versions.get(operation.entry.id);
           if (entry && savedVersion) entry.updated_at = savedVersion;
-          state.syncQueue.forEach((pending) => {
-            const pendingId = pending.id || pending.entry?.id;
-            if (pending.mutationId === operation.mutationId || pendingId !== operation.entry.id || !savedVersion) return;
+          laterOperations.forEach((pending) => {
+            if (!savedVersion) return;
             pending.baseUpdatedAt = savedVersion;
             if (pending.entry) pending.entry.updated_at = savedVersion;
           });

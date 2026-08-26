@@ -44,6 +44,18 @@ const descriptionOptionsByType = {
         };
       }
 
+      function createSyncDiagnostics() {
+        return {
+          lastAttemptAt: null,
+          lastSuccessAt: null,
+          lastErrorCode: null,
+          pendingCount: 0,
+          documentSizeBytes: 0,
+        };
+      }
+
+      const DOCUMENT_SIZE_WARNING_BYTES = 4 * 1024 * 1024;
+
       const state = {
         types: [...defaultTypes],
 
@@ -94,7 +106,12 @@ const descriptionOptionsByType = {
         lastSyncedAt: null,
 
         syncConflict: null,
+
+        syncDiagnostics: createSyncDiagnostics(),
       };
+      let lastSyncProgressRenderedAt = 0;
+      let lastSyncProgressPhase = null;
+      let appReloadRequested = false;
       const synchronization = window.MGSyncService.create({
         state,
         repository,
@@ -102,7 +119,14 @@ const descriptionOptionsByType = {
         normalizeEntryIds,
         onProgress: (progress) => {
           state.syncProgress = progress;
-          setSyncStatus("syncing", "Sincronizando alterações...");
+          const now = performance.now();
+          const phaseChanged = progress.phase !== lastSyncProgressPhase;
+          const finished = progress.total > 0 && progress.completed >= progress.total;
+          if (phaseChanged || finished || now - lastSyncProgressRenderedAt >= 200) {
+            lastSyncProgressRenderedAt = now;
+            lastSyncProgressPhase = progress.phase || null;
+            setSyncStatus("syncing", "Sincronizando alterações...");
+          }
         },
       });
       const SYNC_DEBOUNCE_MS = 900;
@@ -308,6 +332,44 @@ const descriptionOptionsByType = {
         return state.syncQueue.length + (state.settingsDirty ? 1 : 0) + (state.recurrenceDirty ? 1 : 0);
       }
 
+      function refreshSyncDiagnostics(patch = {}) {
+        const remoteStats = repository.getDocumentStats?.() || {};
+        state.syncDiagnostics = {
+          ...createSyncDiagnostics(),
+          ...state.syncDiagnostics,
+          ...patch,
+          pendingCount: pendingSyncCount(),
+          documentSizeBytes: remoteStats.sizeBytes ?? state.syncDiagnostics?.documentSizeBytes ?? 0,
+        };
+      }
+
+      function recordSyncAttempt() {
+        refreshSyncDiagnostics({ lastAttemptAt: new Date().toISOString(), lastErrorCode: null });
+      }
+
+      function recordSyncFailure(error) {
+        refreshSyncDiagnostics({ lastErrorCode: error?.message || "SYNC_UNKNOWN_ERROR" });
+      }
+
+      function syncErrorLabel(code) {
+        if (code === "GOOGLE_DRIVE_INVALID_DOCUMENT") return "a cópia do Drive é inválida";
+        if (code === "GOOGLE_DRIVE_UNSUPPORTED_SCHEMA") return "a cópia foi criada por uma versão mais nova";
+        if (code === "GOOGLE_DRIVE_TIMEOUT") return "o Google Drive demorou para responder";
+        if (["GOOGLE_AUTH_EXPIRED", "GOOGLE_AUTH_REQUIRED"].includes(code)) return "é necessário autorizar o Google Drive";
+        if (code === "GOOGLE_DRIVE_CANCELLED") return "a sincronização foi cancelada";
+        return "não foi possível concluir a sincronização";
+      }
+
+      function formatFileSize(bytes) {
+        if (!Number.isFinite(bytes) || bytes <= 0) return null;
+        if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+        return `${(bytes / (1024 * 1024)).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`;
+      }
+
+      function isRemoteDocumentLarge() {
+        return Number(state.syncDiagnostics?.documentSizeBytes || 0) >= DOCUMENT_SIZE_WARNING_BYTES;
+      }
+
       function formatLastSync() {
         if (!state.lastSyncedAt) return "Ainda não sincronizado neste dispositivo";
         const value = new Date(state.lastSyncedAt);
@@ -328,7 +390,27 @@ const descriptionOptionsByType = {
           : pending > 0
             ? pendingLabel
             : "Dados protegidos";
-        settingsSyncSummary.innerHTML = `<strong>${title}</strong>${formatLastSync()}. Os dados também ficam salvos neste dispositivo.`;
+        const titleElement = document.createElement("strong");
+        titleElement.textContent = title;
+        const detail = document.createElement("span");
+        const fileSize = formatFileSize(state.syncDiagnostics?.documentSizeBytes);
+        detail.textContent = `${formatLastSync()}. Os dados também ficam salvos neste dispositivo.${fileSize ? ` Documento no Drive: ${fileSize}.` : ""}`;
+        settingsSyncSummary.replaceChildren(titleElement, detail);
+        if (stateName !== "synced" && state.syncDiagnostics?.lastErrorCode) {
+          const attempt = state.syncDiagnostics.lastAttemptAt
+            ? new Date(state.syncDiagnostics.lastAttemptAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })
+            : null;
+          const errorDetail = document.createElement("span");
+          errorDetail.textContent = `Última tentativa${attempt ? ` em ${attempt}` : ""}: ${syncErrorLabel(state.syncDiagnostics.lastErrorCode)}.`;
+          errorDetail.title = `Código: ${state.syncDiagnostics.lastErrorCode}`;
+          settingsSyncSummary.append(errorDetail);
+        }
+        if (isRemoteDocumentLarge()) {
+          const warning = document.createElement("span");
+          warning.className = "sync-size-warning";
+          warning.textContent = "O arquivo está ficando grande. Crie um backup antes de adicionar muitos novos lançamentos.";
+          settingsSyncSummary.append(warning);
+        }
       }
 
       function setSyncStatus(stateName, message) {
@@ -337,6 +419,7 @@ const descriptionOptionsByType = {
         syncStatus.dataset.state = stateName;
         syncNotice.dataset.state = stateName;
         updateSettingsSyncSummary(stateName);
+        syncNoticeAction.dataset.action = "";
 
         if (stateName === "synced") {
           syncStatus.textContent = "Tudo sincronizado";
@@ -344,7 +427,19 @@ const descriptionOptionsByType = {
           syncNotice.hidden = false;
           syncNoticeAction.hidden = true;
           syncNoticeTitle.textContent = "Tudo sincronizado";
-          syncNoticeDetail.textContent = `${formatLastSync()}. Seus dados também estão salvos neste dispositivo.`;
+          syncNoticeDetail.textContent = isRemoteDocumentLarge()
+            ? `${formatLastSync()}. O arquivo está ficando grande; recomendamos criar um backup.`
+            : `${formatLastSync()}. Seus dados também estão salvos neste dispositivo.`;
+          return;
+        }
+
+        if (stateName === "queued") {
+          syncStatus.textContent = "Salvo neste aparelho";
+          syncStatus.setAttribute("aria-label", `${pendingLabel}. Salvo neste aparelho e aguardando envio ao Google Drive.`);
+          syncNotice.hidden = false;
+          syncNoticeAction.hidden = true;
+          syncNoticeTitle.textContent = "Salvo neste aparelho";
+          syncNoticeDetail.textContent = `${pendingLabel.charAt(0).toUpperCase() + pendingLabel.slice(1)}. O envio ao Google Drive começará em instantes.`;
           return;
         }
 
@@ -378,6 +473,7 @@ const descriptionOptionsByType = {
           syncNoticeAction.disabled = false;
           syncNoticeAction.textContent = "Cancelar sincronização";
           syncNoticeAction.setAttribute("aria-label", "Cancelar sincronização em andamento");
+          syncNoticeAction.dataset.action = "cancel";
           return;
         }
 
@@ -388,6 +484,7 @@ const descriptionOptionsByType = {
           syncNoticeDetail.textContent = "Escolha qual versão deve ser mantida antes de continuar a sincronização.";
           syncNoticeAction.hidden = false;
           syncNoticeAction.textContent = "Resolver conflito";
+          syncNoticeAction.dataset.action = "resolve-conflict";
           return;
         }
 
@@ -411,17 +508,44 @@ const descriptionOptionsByType = {
             : "Você continua conectado ao aplicativo. Autorize o Drive apenas quando quiser sincronizar.";
           syncNoticeAction.hidden = false;
           syncNoticeAction.textContent = "Autorizar Drive";
+          syncNoticeAction.dataset.action = "authorize";
+          return;
+        }
+
+        if (state.syncDiagnostics?.lastErrorCode === "GOOGLE_DRIVE_INVALID_DOCUMENT") {
+          syncStatus.textContent = "Cópia do Drive inválida";
+          syncStatus.setAttribute("aria-label", "A cópia do Google Drive precisa de recuperação. Os dados deste aparelho foram preservados.");
+          syncNoticeTitle.textContent = "A cópia do Drive precisa de recuperação";
+          syncNoticeDetail.textContent = "Seus dados deste aparelho foram preservados. Escolha um backup válido para recuperar a sincronização.";
+          syncNoticeAction.textContent = "Restaurar backup";
+          syncNoticeAction.setAttribute("aria-label", "Abrir as opções para restaurar um backup válido");
+          syncNoticeAction.dataset.action = "restore-backup";
+          return;
+        }
+
+        if (state.syncDiagnostics?.lastErrorCode === "GOOGLE_DRIVE_UNSUPPORTED_SCHEMA") {
+          syncStatus.textContent = "Atualização necessária";
+          syncStatus.setAttribute("aria-label", "Atualize o aplicativo antes de sincronizar com o Google Drive.");
+          syncNoticeTitle.textContent = "Atualize o aplicativo para continuar";
+          syncNoticeDetail.textContent = "A cópia do Drive foi criada por uma versão mais nova. Seus dados deste aparelho continuam preservados.";
+          syncNoticeAction.textContent = "Verificar atualização";
+          syncNoticeAction.setAttribute("aria-label", "Verificar se há uma atualização do aplicativo");
+          syncNoticeAction.dataset.action = "update-app";
           return;
         }
 
         syncStatus.textContent = "Sincronização pendente";
         syncStatus.setAttribute("aria-label", `${pendingLabel}; tente novamente`);
         syncNoticeTitle.textContent = "Não foi possível sincronizar agora";
-        syncNoticeDetail.textContent = pending > 0
-          ? `${pendingLabel.charAt(0).toUpperCase() + pendingLabel.slice(1)}. Tudo continua salvo neste dispositivo.`
-          : "Os dados continuam salvos neste dispositivo. Tente conferir o Google Drive novamente.";
+        syncNoticeDetail.textContent = state.syncDiagnostics?.lastErrorCode === "GOOGLE_DRIVE_TIMEOUT"
+          ? "O Google Drive demorou para responder. Seus dados continuam salvos neste aparelho."
+          : pending > 0
+            ? `${pendingLabel.charAt(0).toUpperCase() + pendingLabel.slice(1)}. Tudo continua salvo neste dispositivo.`
+            : "Os dados continuam salvos neste dispositivo. Tente conferir o Google Drive novamente.";
         syncNoticeAction.hidden = false;
         syncNoticeAction.textContent = "Tentar novamente";
+        syncNoticeAction.setAttribute("aria-label", "Tentar sincronizar novamente com o Google Drive");
+        syncNoticeAction.dataset.action = "retry";
       }
 
       selectionActions.onclick = (e) => {
@@ -460,6 +584,7 @@ const descriptionOptionsByType = {
 
       function saveLocal() {
         if (!state.user) return Promise.resolve();
+        refreshSyncDiagnostics();
         return localStore.save(state.user.id, {
           entries: state.entries,
           recurrenceSeries: state.recurrenceSeries,
@@ -474,8 +599,12 @@ const descriptionOptionsByType = {
           syncQueue: state.syncQueue,
           lastSyncedAt: state.lastSyncedAt,
           syncConflict: state.syncConflict,
+          syncDiagnostics: state.syncDiagnostics,
           savedAt: new Date().toISOString(),
-        }).catch((error) => console.error("Não foi possível salvar os dados locais.", error));
+        }).catch((error) => {
+          console.error("Não foi possível salvar os dados locais.", error);
+          throw error;
+        });
       }
 
       async function loadLocal(userId) {
@@ -494,6 +623,7 @@ const descriptionOptionsByType = {
         state.syncQueue = cached.syncQueue || [];
         state.lastSyncedAt = cached.lastSyncedAt || null;
         state.syncConflict = cached.syncConflict || null;
+        state.syncDiagnostics = { ...createSyncDiagnostics(), ...(cached.syncDiagnostics || {}) };
         state.deletedEntryIds = new Set(
           state.syncQueue.filter((item) => item.type === "delete").map((item) => item.id),
         );
@@ -520,6 +650,7 @@ const descriptionOptionsByType = {
         state.settingsDirty = false;
         state.lastSyncedAt = null;
         state.syncConflict = null;
+        state.syncDiagnostics = createSyncDiagnostics();
         state.selectedCalendarDate = null;
         state.filterDate = null;
         state.calendarExpanded = false;
@@ -552,11 +683,17 @@ const descriptionOptionsByType = {
         state.syncProgress = null;
         state.lastSyncedAt = new Date().toISOString();
         state.syncConflict = null;
+        refreshSyncDiagnostics({
+          lastAttemptAt: state.syncDiagnostics?.lastAttemptAt || state.lastSyncedAt,
+          lastSuccessAt: state.lastSyncedAt,
+          lastErrorCode: null,
+        });
         await saveLocal();
         setSyncStatus("synced", "Tudo sincronizado");
       }
 
       async function performSynchronization() {
+        recordSyncAttempt();
         setSyncStatus("syncing", "Sincronizando alterações...");
         try {
           await syncEntries();
@@ -572,30 +709,38 @@ const descriptionOptionsByType = {
           return true;
         } catch (error) {
           state.syncProgress = null;
+          recordSyncFailure(error);
           console.error(error);
           if (error.message === "GOOGLE_DRIVE_CANCELLED") {
             await saveLocal();
             setSyncStatus("pending", "Sincronização cancelada");
-            show("Sincronização cancelada. As alterações continuam salvas neste dispositivo para uma nova tentativa.");
+            show("Sincronização cancelada. As alterações continuam salvas neste dispositivo para uma nova tentativa.", null, { announce: false });
             return false;
           }
           if (["GOOGLE_AUTH_EXPIRED", "GOOGLE_AUTH_REQUIRED"].includes(error.message)) {
             await expireGoogleSession();
-            show("Seus dados estão salvos neste dispositivo. Reconecte o Google para sincronizar.");
+            show("Seus dados estão salvos neste dispositivo. Reconecte o Google para sincronizar.", null, { announce: false });
             return false;
           }
           if (isSyncConflict(error)) {
             state.syncConflict = { message: error.message, occurredAt: new Date().toISOString() };
             await saveLocal();
             setSyncStatus("conflict", "Conflito de sincronização");
-            show("Há alterações em dois dispositivos. Escolha qual versão deseja manter.");
+            show("Há alterações em dois dispositivos. Escolha qual versão deseja manter.", null, { announce: false });
             return false;
           }
           setSyncStatus("pending", "Sincronização pendente");
+          await saveLocal().catch((saveError) => console.error("Não foi possível registrar a falha de sincronização.", saveError));
           show(
-            error.message === "GOOGLE_DRIVE_TIMEOUT"
+            error.message === "GOOGLE_DRIVE_INVALID_DOCUMENT"
+              ? "A cópia no Google Drive parece inválida. Seus dados locais foram preservados."
+              : error.message === "GOOGLE_DRIVE_UNSUPPORTED_SCHEMA"
+                ? "A cópia no Google Drive foi criada por uma versão mais nova do aplicativo. Seus dados locais foram preservados."
+                : error.message === "GOOGLE_DRIVE_TIMEOUT"
               ? "O Google Drive demorou para responder. A alteração está salva neste dispositivo e será enviada na próxima tentativa."
               : "Alteração salva neste dispositivo e aguardando conexão para sincronizar.",
+            null,
+            { announce: false },
           );
           return false;
         }
@@ -647,7 +792,7 @@ const descriptionOptionsByType = {
           return;
         }
         if (scheduledSyncTimer) clearTimeout(scheduledSyncTimer);
-        setSyncStatus("syncing", "Alterações salvas. Preparando sincronização...");
+        setSyncStatus("queued", "Alterações salvas neste aparelho. Aguardando envio ao Google Drive.");
         scheduledSyncTimer = setTimeout(() => {
           scheduledSyncTimer = null;
           flushSynchronization().catch((error) => console.error(error));
@@ -671,7 +816,7 @@ const descriptionOptionsByType = {
         const synced = await save({ waitForSync: true });
         if (synced) {
           render();
-          show("Alterações pendentes foram sincronizadas.");
+          show("Alterações pendentes foram sincronizadas.", null, { announce: false });
         }
         return synced;
       }
@@ -785,7 +930,8 @@ const descriptionOptionsByType = {
         return missing.length;
       }
 
-      async function loadCloudRecurrenceSeries() {
+      async function loadCloudRecurrenceSeries({ preserveLocalDirty = false } = {}) {
+        if (preserveLocalDirty && state.recurrenceDirty) return;
         state.recurrenceSeries = await repository.fetchRecurrenceSeries();
         state.recurrenceDirty = false;
         let generatedEntries = 0;
@@ -807,7 +953,8 @@ const descriptionOptionsByType = {
           state.hiddenDescriptionsByType,
         );
       }
-      async function loadCloudSettings() {
+      async function loadCloudSettings({ preserveLocalDirty = false } = {}) {
+        if (preserveLocalDirty && state.settingsDirty) return;
         const data = await repository.fetchSettings();
         if (data) {
           state.settings = normalizeSettings(data);
@@ -821,7 +968,7 @@ const descriptionOptionsByType = {
           await syncSettings();
           state.settingsDirty = false;
         }
-        saveLocal();
+        await saveLocal();
         render();
       }
       async function setCurrentUser(user) {
@@ -842,24 +989,17 @@ const descriptionOptionsByType = {
           }
           let hasPendingSync = false;
           try {
+            recordSyncAttempt();
             normalizeEntryIds();
-            try {
-              await syncEntries();
-            } catch (error) {
-              // Uma operação pendente não pode impedir a leitura da nuvem.
-              // A fila continua preservada para uma nova tentativa posterior.
-              hasPendingSync = true;
-              console.error(error);
-              if (isSyncConflict(error)) {
-                state.syncConflict = { message: error.message, occurredAt: new Date().toISOString() };
-                setSyncStatus("conflict", "Conflito de sincronização");
-              } else {
-                setSyncStatus("pending", "Sincronização pendente");
-              }
+            if (hasPendingChanges()) {
+              // Envie todas as coleções locais antes de ler a nuvem. Se o envio
+              // falhar, os loaders abaixo preservam cada coleção ainda marcada
+              // como dirty para não descartar uma edição feita offline.
+              hasPendingSync = !(await performSynchronization());
             }
             await loadCloudEntries();
-            await loadCloudSettings();
-            await loadCloudRecurrenceSeries();
+            await loadCloudSettings({ preserveLocalDirty: hasPendingSync });
+            await loadCloudRecurrenceSeries({ preserveLocalDirty: hasPendingSync });
             if (new URLSearchParams(window.location.search).get("restore-financiamento") === "1") {
               const restored = await restoreTodayFinancingTypes();
               window.history.replaceState({}, "", window.location.pathname);
@@ -868,13 +1008,20 @@ const descriptionOptionsByType = {
             if (!hasPendingSync) await markSynchronizationComplete();
             else await saveLocal();
           } catch (error) {
+            recordSyncFailure(error);
             console.error(error);
             setSyncStatus("pending", "Sincronização pendente");
             await saveLocal();
             show(
-              error.message === "GOOGLE_DRIVE_TIMEOUT"
+              error.message === "GOOGLE_DRIVE_INVALID_DOCUMENT"
+                ? "A cópia no Google Drive parece inválida. Seus dados locais foram preservados."
+                : error.message === "GOOGLE_DRIVE_UNSUPPORTED_SCHEMA"
+                  ? "A cópia no Drive foi criada por uma versão mais nova. Atualize o aplicativo antes de sincronizar."
+                  : error.message === "GOOGLE_DRIVE_TIMEOUT"
                 ? "O Google Drive demorou para responder. Seus dados locais foram preservados e a sincronização será tentada novamente."
                 : "Não foi possível concluir a sincronização agora. Seus dados locais foram preservados.",
+              null,
+              { announce: false },
             );
           } finally {
             // Mesmo com falha temporária de rede, a tela continua responsiva.
@@ -989,18 +1136,27 @@ const descriptionOptionsByType = {
           trigger.setAttribute("aria-busy", "true");
           trigger.textContent = "Sincronizando...";
         }
+        recordSyncAttempt();
         setSyncStatus("syncing", "Sincronizando com o Google Drive");
 
         try {
+          repository.beginSync?.();
           await repository.load();
-          await retryPendingSynchronization();
+          const synced = await retryPendingSynchronization();
           await loadCloudEntries();
-          await loadCloudSettings();
-          await loadCloudRecurrenceSeries();
+          await loadCloudSettings({ preserveLocalDirty: !synced });
+          await loadCloudRecurrenceSeries({ preserveLocalDirty: !synced });
+          if (!synced) {
+            await saveLocal();
+            render();
+            return false;
+          }
           await markSynchronizationComplete();
           render();
-          show("Dados sincronizados com o Google Drive.");
+          show("Dados sincronizados com o Google Drive.", null, { announce: false });
+          return true;
         } catch (error) {
+          recordSyncFailure(error);
           console.error(error);
           if (["GOOGLE_AUTH_EXPIRED", "GOOGLE_AUTH_REQUIRED"].includes(error.message)) {
             await expireGoogleSession();
@@ -1011,6 +1167,7 @@ const descriptionOptionsByType = {
           } else {
             setSyncStatus("pending", "Sincronização pendente");
           }
+          await saveLocal().catch((saveError) => console.error("Não foi possível registrar a falha de sincronização.", saveError));
         } finally {
           if (trigger?.isConnected) {
             trigger.disabled = false;
@@ -1086,11 +1243,12 @@ const descriptionOptionsByType = {
 
       signInGoogleScreen.onclick = () => signInWithGoogle(signInGoogleScreen);
       syncNoticeAction.onclick = async () => {
-        if (syncStatus.dataset.state === "syncing") {
-          cancelSynchronization();
-          return;
-        }
-        if (state.syncConflict) {
+        const action = syncNoticeAction.dataset.action;
+        if (action === "cancel") return cancelSynchronization();
+        if (action === "authorize") return signInWithGoogle(syncNoticeAction);
+        if (action === "restore-backup") return openBackupRecovery();
+        if (action === "update-app") return verifyApplicationUpdate(syncNoticeAction);
+        if (action === "resolve-conflict") {
           if (!googleAuth.hasAccessToken()) await signInWithGoogle(syncNoticeAction);
           if (googleAuth.hasAccessToken()) openSyncConflictDialog();
           return;
@@ -1106,13 +1264,19 @@ const descriptionOptionsByType = {
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState !== "visible" || !state.user || !googleAuth.hasAccessToken()) return;
         retryPendingSynchronization()
-          .then(() => repository.load())
-          .then(async () => {
+          .then(async (synced) => {
+            await repository.load();
             await loadCloudEntries();
-            await loadCloudRecurrenceSeries();
+            await loadCloudSettings({ preserveLocalDirty: !synced });
+            await loadCloudRecurrenceSeries({ preserveLocalDirty: !synced });
             render();
           })
-          .catch((error) => console.error(error));
+          .catch((error) => {
+            recordSyncFailure(error);
+            setSyncStatus("pending", "Sincronização pendente");
+            saveLocal().catch((saveError) => console.error("Não foi possível registrar a falha de sincronização.", saveError));
+            console.error(error);
+          });
       });
 
       window.addEventListener("online", () => {
@@ -1124,7 +1288,7 @@ const descriptionOptionsByType = {
       });
 
       window.addEventListener("beforeunload", (event) => {
-        if (!state.user || !hasPendingChanges()) return;
+        if (appReloadRequested || !state.user || !hasPendingChanges()) return;
         event.preventDefault();
         event.returnValue = "";
       });
@@ -1826,6 +1990,28 @@ const descriptionOptionsByType = {
         settingsDialog.showModal();
       }
 
+      async function openBackupRecovery() {
+        if (!settingsDialog.open) openSettingsDialog();
+        const backups = await loadGoogleDriveBackups();
+        const target = backups.length ? driveBackupSelect : loadDriveBackups;
+        target.scrollIntoView({ block: "center", behavior: "smooth" });
+        target.focus({ preventScroll: true });
+      }
+
+      async function verifyApplicationUpdate(trigger) {
+        const resetButton = setButtonBusy(trigger, true, "Verificando...");
+        try {
+          const registration = await navigator.serviceWorker?.getRegistration();
+          await registration?.update();
+          appReloadRequested = true;
+          window.location.reload();
+        } catch (error) {
+          console.error(error);
+          resetButton();
+          show("Não foi possível verificar a atualização agora. Tente novamente quando estiver conectado.");
+        }
+      }
+
       function getRecentRecordGroups() {
         return domain.recentEntryGroups(state.entries);
       }
@@ -1981,7 +2167,7 @@ const descriptionOptionsByType = {
       async function loadGoogleDriveBackups() {
         if (!state.user || !googleAuth.hasAccessToken()) {
           show("Reconecte o Google para consultar seus backups.");
-          return;
+          return [];
         }
         const resetButton = setButtonBusy(loadDriveBackups, true, "Carregando...");
         try {
@@ -1996,9 +2182,11 @@ const descriptionOptionsByType = {
           });
           restoreDriveBackup.disabled = true;
           show(backups.length ? `${backups.length} backup${backups.length === 1 ? " encontrado" : "s encontrados"} no Google Drive.` : "Nenhum backup do Google Drive foi encontrado.");
+          return backups;
         } catch (error) {
           console.error(error);
           show("Não foi possível consultar os backups agora.");
+          return [];
         } finally {
           resetButton();
         }
@@ -2011,7 +2199,7 @@ const descriptionOptionsByType = {
         const resetButton = setButtonBusy(restoreDriveBackup, true, "Restaurando...");
         try {
           const backup = await repository.fetchDriveBackup(id);
-          if (!Array.isArray(backup?.entries) || !backup?.settings) throw new Error("BACKUP_INVALID");
+          await repository.createDriveBackup(createBackupSnapshot());
           const settings = backup.settings;
           const previousEntries = state.entries;
           state.entries = structuredClone(backup.entries);
@@ -2029,7 +2217,7 @@ const descriptionOptionsByType = {
           state.entries.forEach((entry) => queueUpsert(entry));
           await save();
           render();
-          show("Backup restaurado. A sincronização foi iniciada para enviar a versão restaurada ao Google Drive.");
+          show("Backup restaurado. Uma cópia dos dados anteriores foi criada no Drive e a sincronização foi iniciada.");
         } catch (error) {
           console.error(error);
           show(error.message === "BACKUP_INVALID" ? "Este arquivo não é um backup válido do Meus Gastos." : "Não foi possível restaurar o backup agora.");
@@ -2084,8 +2272,10 @@ const descriptionOptionsByType = {
         return d.toISOString().slice(0, 10);
       }
       let toastTimer = null;
-      function show(msg, action = null) {
+      function show(msg, action = null, { announce = true } = {}) {
         clearTimeout(toastTimer);
+        toast.setAttribute("role", announce ? "status" : "presentation");
+        toast.setAttribute("aria-live", announce ? "polite" : "off");
         toast.replaceChildren();
         const message = document.createElement("span");
         message.textContent = msg;
@@ -2097,12 +2287,18 @@ const descriptionOptionsByType = {
           button.onclick = () => {
             clearTimeout(toastTimer);
             toast.classList.remove("show");
+            toast.setAttribute("role", "status");
+            toast.setAttribute("aria-live", "polite");
             action.onClick();
           };
           toast.appendChild(button);
         }
         toast.classList.add("show");
-        toastTimer = setTimeout(() => toast.classList.remove("show"), action ? 5000 : 2400);
+        toastTimer = setTimeout(() => {
+          toast.classList.remove("show");
+          toast.setAttribute("role", "status");
+          toast.setAttribute("aria-live", "polite");
+        }, action ? 5000 : 2400);
       }
 
       function enterSelectionMode(id) {

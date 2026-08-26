@@ -46,6 +46,11 @@ identificadores de mutação para preservar edições feitas enquanto outro envi
 andamento. O aplicativo interrompe a gravação quando identifica que o mesmo registro
 mudou em outro dispositivo.
 
+Antes de substituir a cópia local, o documento remoto é validado quanto ao schema,
+IDs duplicados, datas, coleções e configurações. O resumo de sincronização registra a
+última tentativa, o último sucesso e o tamanho do documento. A restauração de um
+backup cria primeiro uma cópia automática do estado atual no Google Drive.
+
 Versões antigas criavam um arquivo de diferença por lançamento. Esses arquivos são
 lidos uma vez durante a migração e suas versões são registradas no documento
 consolidado, evitando baixá-los novamente em cada dispositivo.
@@ -82,8 +87,13 @@ ser executada antes do corte da versão em produção.
 
 ```powershell
 node test/domain.test.js
+node test/document-validator.test.js
+node test/sync-service.test.js
 node test/google-drive-repository.test.js
+node test/google-auth.test.js
+node test/local-store.test.js
 node --check js/app.js
+node --check js/document-validator.js
 node --check js/google-auth.js
 node --check js/google-drive-repository.js
 node --check js/local-store.js

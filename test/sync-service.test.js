@@ -96,6 +96,20 @@ require("../js/sync-service.js");
   assert.equal(raceState.syncQueue[0].baseUpdatedAt, "remote-v2");
   assert.equal(raceState.entries[0].updated_at, "remote-v2");
 
+  raceSync.queueUpsert({ id: "remote-backed", value: 1, updated_at: "remote-base" });
+  raceSync.queueUpsert({ id: "remote-backed", value: 2, updated_at: "local-edit" });
+  assert.equal(
+    raceState.syncQueue.filter((operation) => operation.entry?.id === "remote-backed").length,
+    1,
+    "edições repetidas devem ocupar uma única posição na fila",
+  );
+  raceSync.queueDelete("remote-backed");
+  assert.equal(
+    raceState.syncQueue.find((operation) => operation.id === "remote-backed")?.baseUpdatedAt,
+    "remote-base",
+    "a exclusão deve preservar a versão remota que originou a edição pendente",
+  );
+
   const transient = { id: "local-only", value: 10 };
   raceSync.queueUpsert(transient);
   raceSync.queueDelete(transient.id);
