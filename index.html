@@ -1991,6 +1991,22 @@
           </article>
         </div>
       </details>
+      <section class="panel calendar-panel">
+        <div class="calendar-head">
+          <div><h2>Projeção de saldo</h2><p id="calendarCaption">Selecione um mês para visualizar a projeção.</p></div>
+          <div class="calendar-toolbar">
+            <div class="calendar-balance" aria-live="polite"><span id="monthlyMinimumLabel">Menor saldo previsto no mês</span><strong id="monthlyMinimumBalance">R$ 0,00</strong></div>
+            <div class="calendar-controls" aria-label="Navegação do calendário">
+              <button class="calendar-nav" id="previousMonth" type="button" aria-label="Mês anterior">‹</button>
+              <input id="filterMonth" type="month" aria-label="Mês do calendário e dos lançamentos" />
+              <button class="calendar-nav" id="nextMonth" type="button" aria-label="Próximo mês">›</button>
+            </div>
+          </div>
+          <button class="calendar-toggle" id="toggleCalendar" type="button" aria-expanded="false">Ver calendário</button>
+        </div>
+        <div class="calendar-weekdays"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div>
+        <div class="calendar-grid" id="calendarGrid"></div>
+      </section>
       <section class="panel entries-panel">
         <div class="panel-head">
           <div>
@@ -2011,6 +2027,12 @@
             </select>
           </div>
           <div class="filter-field">
+            <label for="filterDescription">Descrição</label>
+            <select id="filterDescription">
+              <option value="">Todas as descrições</option>
+            </select>
+          </div>
+          <div class="filter-field">
             <label for="filterStatus">Status</label>
             <select id="filterStatus">
               <option value="">Todos os status</option>
@@ -2022,22 +2044,6 @@
         </div>
 
         <div class="entries" id="rows"></div>
-      </section>
-      <section class="panel calendar-panel">
-        <div class="calendar-head">
-          <div><h2>Projeção de saldo</h2><p id="calendarCaption">Selecione um mês para visualizar a projeção.</p></div>
-          <div class="calendar-toolbar">
-            <div class="calendar-balance" aria-live="polite"><span id="monthlyMinimumLabel">Menor saldo previsto no mês</span><strong id="monthlyMinimumBalance">R$ 0,00</strong></div>
-            <div class="calendar-controls" aria-label="Navegação do calendário">
-              <button class="calendar-nav" id="previousMonth" type="button" aria-label="Mês anterior">‹</button>
-              <input id="filterMonth" type="month" aria-label="Mês do calendário e dos lançamentos" />
-              <button class="calendar-nav" id="nextMonth" type="button" aria-label="Próximo mês">›</button>
-            </div>
-          </div>
-          <button class="calendar-toggle" id="toggleCalendar" type="button" aria-expanded="false">Ver calendário</button>
-        </div>
-        <div class="calendar-weekdays"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div>
-        <div class="calendar-grid" id="calendarGrid"></div>
       </section>
       <button class="primary mobile-new-entry" id="openModalMobile" type="button" hidden><span aria-hidden="true">＋</span> Novo lançamento</button>
     </main>
