@@ -35,6 +35,12 @@ test("abre edição pelo card e restringe mudança de status ao botão dedicado"
   assert.doesNotMatch(app, /state\.activeEntry = card\.dataset\.entry;\s*toggleEntryStatus\(\);/);
 });
 
+test("identifica o modal de lançamento e preserva descrição ao editar", () => {
+  assert.match(app, /modalTitle = document\.querySelector\("#entryDialogTitle"\)/);
+  assert.match(app, /modalTitle\.textContent = "Editar lançamento";\s*fillForm\(entry\);/);
+  assert.match(app, /renderEntryOptions\(entry\.type, entry\.description\);/);
+});
+
 test("oferece desfazer para status e exclusões", () => {
   assert.match(app, /successMessage, \{\s*label: "Desfazer"/);
   assert.match(app, /show\("Lançamento excluído\.", \{\s*label: "Desfazer"/);
@@ -47,4 +53,19 @@ test("considera receitas e a ordem das datas no alerta de saldo", () => {
   assert.match(app, /upcomingIncomeTotal/);
   assert.match(app, /receitas a receber já foram consideradas na projeção/);
   assert.doesNotMatch(app, /upcomingTotal > Math\.max\(currentBalance, 0\)/);
+});
+
+test("revalida a data final da recorrência depois que o usuário corrige o campo", () => {
+  assert.match(
+    app,
+    /function updateEntryFormValidity\(\)[\s\S]*?endDate\.setCustomValidity\([\s\S]*?invalidEndDate[\s\S]*?\);/,
+  );
+  assert.match(
+    app,
+    /\[dateInput, valueInput\]\.forEach\(\(control\) => \{\s*control\.onchange = updateEntryFormValidity;\s*control\.oninput = updateEntryFormValidity;/,
+  );
+  assert.match(
+    app,
+    /\[flowType, recurrence, recurrenceInterval, customUnit, endMode, endDate, occurrenceCount, businessDayAdjustment\][\s\S]*?control\.oninput = updateEntryFormVisibility;/,
+  );
 });

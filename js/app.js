@@ -186,7 +186,7 @@ const descriptionOptionsByType = {
 
       const dialog = document.querySelector("#entryDialog"),
         form = document.querySelector("#entryForm"),
-        modalTitle = document.querySelector(".modal h2"),
+        modalTitle = document.querySelector("#entryDialogTitle"),
         dateInput = document.querySelector("#date"),
         valueInput = document.querySelector("#value"),
         detailInput = document.querySelector("#detail"),
@@ -1960,6 +1960,22 @@ const descriptionOptionsByType = {
         return ["weekly", "monthly", "annual", "custom"].includes(value);
       }
 
+      function updateEntryFormValidity() {
+        const totalValue = Number(valueInput.value);
+        const invalidValue = valueInput.value !== ""
+          && (totalValue === 0 || ((isRecurringValue() || flowType.value === "income") && totalValue < 0));
+        valueInput.setCustomValidity(invalidValue ? "Informe um valor maior que zero." : "");
+
+        const invalidEndDate = isRecurringValue()
+          && endMode.value === "on_date"
+          && endDate.value !== ""
+          && dateInput.value !== ""
+          && endDate.value < dateInput.value;
+        endDate.setCustomValidity(
+          invalidEndDate ? "A data final deve ser igual ou posterior à data inicial." : "",
+        );
+      }
+
       function openBulkDateDialog() {
         if (state.selectedEntries.size === 0) return;
         bulkDateInput.value = todayISO();
@@ -2036,6 +2052,7 @@ const descriptionOptionsByType = {
         occurrenceCount.required = recurring && endMode.value === "after_occurrences";
         paidLabel.textContent = flowType.value === "income" ? "Marcar como recebido" : "Marcar como pago";
         paidField.hidden = recurring;
+        updateEntryFormValidity();
         updateRecurrenceSummary();
       }
 
@@ -3022,10 +3039,7 @@ const descriptionOptionsByType = {
         dateInput.value = entry.date;
         valueInput.value = entry.value;
         flowType.value = entry.flow_type || "expense";
-        type.value = entry.type;
-        renderEntryOptions();
-        desc.value = entry.description;
-        renderEntryOptions();
+        renderEntryOptions(entry.type, entry.description);
         detailInput.value = entry.detail;
         paidInput.checked = entry.paid;
         recurrence.value = series?.frequency || (entry.installment ? "installments" : "single");
@@ -3248,6 +3262,10 @@ const descriptionOptionsByType = {
           control.onchange = updateEntryFormVisibility;
           control.oninput = updateEntryFormVisibility;
         });
+      [dateInput, valueInput].forEach((control) => {
+        control.onchange = updateEntryFormValidity;
+        control.oninput = updateEntryFormValidity;
+      });
 
       [filterMonth, filterType, filterStatus].forEach((control) => {
         control.onchange = () => {
@@ -3482,16 +3500,7 @@ const descriptionOptionsByType = {
         const detail = detailInput.value.trim();
         const paid = paidInput.checked;
 
-        valueInput.setCustomValidity(
-          totalValue === 0 || ((isRecurringValue() || flowType.value === "income") && totalValue < 0)
-            ? "Informe um valor maior que zero."
-            : "",
-        );
-        endDate.setCustomValidity(
-          isRecurringValue() && endMode.value === "on_date" && endDate.value < date
-            ? "A data final deve ser igual ou posterior à data inicial."
-            : "",
-        );
+        updateEntryFormValidity();
         if (!form.reportValidity()) return;
 
         const entry = {
