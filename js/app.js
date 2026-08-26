@@ -213,6 +213,7 @@ const descriptionOptionsByType = {
         editScope = document.querySelector("#editScope"),
         paidLabel = document.querySelector("#paidLabel"),
         filterType = document.querySelector("#filterType"),
+        filterDescription = document.querySelector("#filterDescription"),
         filterMonth = document.querySelector("#filterMonth"),
         filterStatus = document.querySelector("#filterStatus"),
         monthTotal = document.querySelector("#monthTotal"),
@@ -1326,9 +1327,13 @@ const descriptionOptionsByType = {
 
       function entryDescriptionOptions(selectedType, selectedDescription = "") {
         const hidden = state.hiddenDescriptionsByType[selectedType] || [];
+        const descriptionsFromEntries = state.entries
+          .filter((entry) => entry.type === selectedType)
+          .map((entry) => entry.description);
         return [
           ...(descriptionOptionsByType[selectedType] || []),
           ...(state.customDescriptionOptionsByType[selectedType] || []),
+          ...descriptionsFromEntries,
           selectedDescription,
         ].filter((option) => option === selectedDescription || !hidden.includes(option));
       }
@@ -1627,15 +1632,32 @@ const descriptionOptionsByType = {
         filterType.value = selected;
       }
 
+      function renderFilterDescriptions() {
+        const selected = filterDescription.value;
+        const selectedType = filterType.value;
+        const descriptions = state.entries
+          .filter((entry) => !selectedType || entry.type === selectedType)
+          .map((entry) => entry.description);
+
+        filterDescription.innerHTML =
+          '<option value="">Todas as descrições</option>' +
+          sortedOptions(descriptions)
+            .map((description) => `<option>${esc(description)}</option>`)
+            .join("");
+
+        filterDescription.value = descriptions.includes(selected) ? selected : "";
+      }
+
       function getMonthlyEntries(month) {
         return state.entries.filter((e) => !e.excluded_from_series && e.date.slice(0, 7) === month);
       }
 
-      function getFilteredEntries(entries, type, status, date = state.filterDate) {
+      function getFilteredEntries(entries, type, description, status, date = state.filterDate) {
         return entries
           .filter(
             (e) =>
               (!type || e.type === type) &&
+              (!description || e.description === description) &&
               (!status || (status === "paid") === e.paid) &&
               (!date || e.date === date),
           )
@@ -1728,8 +1750,10 @@ const descriptionOptionsByType = {
         renderOptionManagement();
 
         renderFilterTypes();
+        renderFilterDescriptions();
 
         const ft = filterType.value,
+          fd = filterDescription.value,
           fs = filterStatus.value;
 
         const current = new Date().toISOString().slice(0, 7);
@@ -1745,7 +1769,7 @@ const descriptionOptionsByType = {
         const referenceDate = state.settings.balance_reference_date || todayISO();
         balanceReferenceSummary.textContent = `Calculado desde ${new Date(`${referenceDate}T12:00`).toLocaleDateString("pt-BR")}`;
 
-        const list = getFilteredEntries(monthly, ft, fs);
+        const list = getFilteredEntries(monthly, ft, fd, fs);
 
         updateCount(list);
         filteredSubtotal.textContent = money(
@@ -1931,6 +1955,7 @@ const descriptionOptionsByType = {
         const list = getFilteredEntries(
           getMonthlyEntries(filterMonth.value),
           filterType.value,
+          filterDescription.value,
           filterStatus.value,
         );
 
@@ -3267,7 +3292,7 @@ const descriptionOptionsByType = {
         control.oninput = updateEntryFormValidity;
       });
 
-      [filterMonth, filterType, filterStatus].forEach((control) => {
+      [filterMonth, filterType, filterDescription, filterStatus].forEach((control) => {
         control.onchange = () => {
           if (control === filterMonth) state.filterDate = null;
           state.selectedEntries.clear();

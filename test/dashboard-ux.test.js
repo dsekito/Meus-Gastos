@@ -7,14 +7,14 @@ const projectRoot = path.resolve(__dirname, "..");
 const html = fs.readFileSync(path.join(projectRoot, "index.html"), "utf8");
 const app = fs.readFileSync(path.join(projectRoot, "js", "app.js"), "utf8");
 
-test("prioriza decisões e lançamentos antes do calendário", () => {
+test("posiciona a projeção de saldo logo antes dos filtros de lançamentos", () => {
   const decisionIndex = html.indexOf('class="decision-overview"');
   const entriesIndex = html.indexOf('class="panel entries-panel"');
   const calendarIndex = html.indexOf('class="panel calendar-panel"');
 
   assert.ok(decisionIndex > -1);
-  assert.ok(entriesIndex > decisionIndex);
-  assert.ok(calendarIndex > entriesIndex);
+  assert.ok(calendarIndex > decisionIndex);
+  assert.ok(entriesIndex > calendarIndex);
   assert.match(html, /id="monthEndBalanceTotal"/);
   assert.match(html, /id="nextSevenDaysTotal"/);
   assert.match(html, /id="financialGuidance"[^>]*aria-labelledby="financialGuidanceTitle"/);
@@ -22,7 +22,9 @@ test("prioriza decisões e lançamentos antes do calendário", () => {
 
 test("mantém filtros e confirmação de exclusão nomeados", () => {
   assert.match(html, /<label for="filterType">Tipo<\/label>/);
+  assert.match(html, /<label for="filterDescription">Descrição<\/label>/);
   assert.match(html, /<label for="filterStatus">Status<\/label>/);
+  assert.match(app, /\(!description \|\| e\.description === description\)/);
   assert.match(
     html,
     /id="deleteConfirmDialog"[^>]*aria-labelledby="deleteConfirmTitle"[^>]*aria-describedby="deleteConfirmDescription"/,
@@ -39,6 +41,14 @@ test("identifica o modal de lançamento e preserva descrição ao editar", () =>
   assert.match(app, /modalTitle = document\.querySelector\("#entryDialogTitle"\)/);
   assert.match(app, /modalTitle\.textContent = "Editar lançamento";\s*fillForm\(entry\);/);
   assert.match(app, /renderEntryOptions\(entry\.type, entry\.description\);/);
+});
+
+test("oferece no formulário as descrições já registradas para o tipo selecionado", () => {
+  assert.match(
+    app,
+    /function entryDescriptionOptions\(selectedType, selectedDescription = ""\)[\s\S]*?state\.entries\s*\.filter\(\(entry\) => entry\.type === selectedType\)\s*\.map\(\(entry\) => entry\.description\)/,
+  );
+  assert.match(app, /\.\.\.descriptionsFromEntries,[\s\S]*?selectedDescription/);
 });
 
 test("oferece desfazer para status e exclusões", () => {
