@@ -1773,6 +1773,66 @@
         .recent-records-shortcut { width: auto; }
         .conflict-actions { padding: 0 14px 14px; }
       }
+
+      /* Dashboard orientado a decisões. */
+      .decision-overview { margin-bottom: 14px; }
+      .decision-overview-head { display: flex; align-items: end; justify-content: space-between; margin-bottom: 10px; }
+      .decision-overview-head h2 { margin: 2px 0 0; font-size: 20px; letter-spacing: -0.02em; }
+      .eyebrow { color: var(--brand); font-size: 13px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+      .decision-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+      .decision-card .amount[data-negative="true"] { color: var(--danger); }
+      .financial-guidance {
+        display: flex;
+        min-height: 64px;
+        align-items: center;
+        gap: 12px;
+        margin-top: 10px;
+        padding: 12px 16px;
+        border: 1px solid #c7d9d0;
+        border-radius: 18px;
+        background: #edf7f1;
+      }
+      .financial-guidance-icon { width: 12px; height: 12px; flex: 0 0 12px; border-radius: 50%; background: #16805c; box-shadow: 0 0 0 6px rgba(22, 128, 92, 0.12); }
+      .financial-guidance strong { display: block; font-size: 16px; }
+      .financial-guidance p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+      .financial-guidance[data-tone="attention"] { border-color: #f0d5a7; background: #fff8e8; }
+      .financial-guidance[data-tone="attention"] .financial-guidance-icon { background: #b54708; box-shadow: 0 0 0 6px rgba(181, 71, 8, 0.12); }
+      .financial-guidance[data-tone="danger"] { border-color: #f1c7c3; background: #fff1f0; }
+      .financial-guidance[data-tone="danger"] .financial-guidance-icon { background: var(--danger); box-shadow: 0 0 0 6px rgba(180, 35, 24, 0.12); }
+      .month-breakdown { margin-bottom: 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); }
+      .month-breakdown > summary { display: flex; min-height: 48px; align-items: center; padding: 0 16px; color: var(--brand); font-size: 15px; font-weight: 800; cursor: pointer; }
+      .month-breakdown > summary::after { margin-left: auto; content: "+"; font-size: 20px; }
+      .month-breakdown[open] > summary::after { content: "−"; }
+      .month-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; padding: 0 12px 12px; }
+      .month-summary .card { min-height: 76px; box-shadow: none; }
+      .entries-panel { margin-bottom: 14px; }
+      .filter-field { display: grid; gap: 5px; }
+      .filter-field label { color: var(--muted); font-size: 14px; font-weight: 700; }
+      .delete-confirm-copy { display: grid; gap: 4px; margin: 0 22px 8px; padding: 16px; border: 1px solid #f1c7c3; border-radius: 16px; background: #fff6f5; }
+      .delete-confirm-copy strong { overflow-wrap: anywhere; font-size: 16px; }
+      .delete-confirm-copy span { color: var(--muted); font-size: 14px; }
+      .primary.danger-action { background: var(--danger); box-shadow: 0 10px 22px rgba(180, 35, 24, 0.2); }
+      .primary.danger-action:hover { background: #8f1c13; }
+
+      @media (max-width: 768px) {
+        .decision-overview-head h2 { font-size: 18px; }
+        .eyebrow { font-size: 12px; }
+        .decision-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+        .decision-cards .balance-card { grid-column: 1 / -1; min-height: 84px; }
+        .decision-cards .card { min-height: 92px; padding: 12px; }
+        .decision-cards .label { min-height: auto; font-size: 14px; }
+        .decision-cards .amount { font-size: clamp(19px, 5.4vw, 23px); }
+        .decision-cards .card-note { margin-top: 4px; font-size: 12px; line-height: 1.25; white-space: normal; }
+        .financial-guidance { min-height: 72px; padding: 12px 14px; }
+        .financial-guidance p { font-size: 14px; line-height: 1.35; }
+        .month-summary { grid-template-columns: 1fr; gap: 8px; padding: 0 10px 10px; }
+        .month-summary .card { min-height: 72px; }
+        .month-summary .paid-summary-card { display: block; }
+        .filters > .filter-field { min-width: 0; flex: 1 1 calc(50% - 5px); }
+        .filters > .filter-field select { width: 100%; min-width: 0; }
+        .calendar-panel { margin-top: 0; }
+        .delete-confirm-copy { margin: 12px 14px 4px; }
+      }
     </style>
   </head>
   <body aria-busy="true">
@@ -1816,24 +1876,86 @@
         </div>
         <button class="secondary" id="syncNoticeAction" type="button">Tentar novamente</button>
       </section>
-      <section class="summary">
-        <article class="card balance-card">
-          <div class="label">Saldo disponível</div>
+      <section class="decision-overview" aria-labelledby="decisionOverviewTitle">
+        <div class="decision-overview-head">
+          <div>
+            <span class="eyebrow" id="decisionPeriodLabel">Visão do mês</span>
+            <h2 id="decisionOverviewTitle">O que precisa da sua atenção</h2>
+          </div>
+        </div>
+        <div class="decision-cards">
+          <article class="card balance-card">
+          <div class="label">Saldo hoje</div>
           <div class="amount" id="currentBalanceTotal">R$ 0,00</div>
           <small class="card-note" id="balanceReferenceSummary">Base de cálculo</small>
         </article>
-        <article class="card">
-          <div class="label">Gastos do mês</div>
-          <div class="amount warn" id="monthTotal">R$ 0,00</div>
-        </article>
-        <article class="card paid-summary-card">
-          <div class="label">Já pago</div>
-          <div class="amount good" id="paidTotal">R$ 0,00</div>
-        </article>
-        <article class="card">
-          <div class="label">A pagar</div>
-          <div class="amount" id="pendingTotal">R$ 0,00</div>
-        </article>
+          <article class="card decision-card">
+            <div class="label">Saldo no fim do mês</div>
+            <div class="amount" id="monthEndBalanceTotal">R$ 0,00</div>
+            <small class="card-note">Considera os lançamentos previstos</small>
+          </article>
+          <article class="card decision-card">
+            <div class="label">Próximos 7 dias</div>
+            <div class="amount" id="nextSevenDaysTotal">R$ 0,00</div>
+            <small class="card-note" id="nextSevenDaysSummary">Nenhuma conta em aberto</small>
+          </article>
+        </div>
+        <section class="financial-guidance" id="financialGuidance" data-tone="positive" aria-labelledby="financialGuidanceTitle" aria-describedby="financialGuidanceDetail">
+          <span class="financial-guidance-icon" aria-hidden="true"></span>
+          <div>
+            <strong id="financialGuidanceTitle">Tudo sob controle</strong>
+            <p id="financialGuidanceDetail">Não há contas em aberto para os próximos 7 dias.</p>
+          </div>
+        </section>
+      </section>
+      <details class="month-breakdown">
+        <summary>Ver detalhes do mês</summary>
+        <div class="summary month-summary">
+          <article class="card">
+            <div class="label">Gastos do mês</div>
+            <div class="amount warn" id="monthTotal">R$ 0,00</div>
+          </article>
+          <article class="card paid-summary-card">
+            <div class="label">Já pago</div>
+            <div class="amount good" id="paidTotal">R$ 0,00</div>
+          </article>
+          <article class="card">
+            <div class="label">A pagar</div>
+            <div class="amount" id="pendingTotal">R$ 0,00</div>
+          </article>
+        </div>
+      </details>
+      <section class="panel entries-panel">
+        <div class="panel-head">
+          <div>
+            <h2 id="panelTitle">Lançamentos</h2>
+            <span id="count">0 lançamentos</span>
+          </div>
+
+          <div id="selectionActions"></div>
+          <button class="secondary recent-records-shortcut" id="openRecentRecordsMain" type="button" aria-label="Abrir histórico de registros recentes">Histórico</button>
+          <button class="secondary recent-records-shortcut" id="openRecordsManagerMain" type="button" aria-label="Gerenciar todos os registros">Gerenciar</button>
+          <div class="date-filter" id="dateFilterInfo"><span id="dateFilterLabel"></span><button id="clearDateFilter" type="button" aria-label="Limpar filtro da data">×</button></div>
+        </div>
+        <div class="filters" aria-label="Filtros dos lançamentos">
+          <div class="filter-field">
+            <label for="filterType">Tipo</label>
+            <select id="filterType">
+              <option value="">Todos os tipos</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label for="filterStatus">Status</label>
+            <select id="filterStatus">
+              <option value="">Todos os status</option>
+              <option value="paid">Pagos</option>
+              <option value="pending" selected>Em aberto</option>
+            </select>
+          </div>
+          <div class="filter-subtotal">Subtotal filtrado<strong id="filteredSubtotal">R$ 0,00</strong></div>
+        </div>
+
+        <div class="entries" id="rows"></div>
       </section>
       <section class="panel calendar-panel">
         <div class="calendar-head">
@@ -1850,33 +1972,6 @@
         </div>
         <div class="calendar-weekdays"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div>
         <div class="calendar-grid" id="calendarGrid"></div>
-      </section>
-      <section class="panel">
-        <div class="panel-head">
-          <div>
-            <h2 id="panelTitle">Lançamentos</h2>
-            <span id="count">0 lançamentos</span>
-          </div>
-
-          <div id="selectionActions"></div>
-          <button class="secondary recent-records-shortcut" id="openRecentRecordsMain" type="button" aria-label="Abrir histórico de registros recentes">Histórico</button>
-          <button class="secondary recent-records-shortcut" id="openRecordsManagerMain" type="button" aria-label="Gerenciar todos os registros">Gerenciar</button>
-          <div class="date-filter" id="dateFilterInfo"><span id="dateFilterLabel"></span><button id="clearDateFilter" type="button" aria-label="Limpar filtro da data">×</button></div>
-        </div>
-        <div class="filters">
-          <select id="filterType">
-            <option value="">Todos os tipos</option>
-          </select>
-
-          <select id="filterStatus">
-            <option value="">Todos os status</option>
-            <option value="paid">Pagos</option>
-            <option value="pending" selected>Em aberto</option>
-          </select>
-          <div class="filter-subtotal">Subtotal filtrado<strong id="filteredSubtotal">R$ 0,00</strong></div>
-        </div>
-
-        <div class="entries" id="rows"></div>
       </section>
       <button class="primary mobile-new-entry" id="openModalMobile" type="button" hidden><span aria-hidden="true">＋</span> Novo lançamento</button>
     </main>
@@ -2188,6 +2283,26 @@
         <div class="records-manager-list" id="recordsManagerList"></div>
         <div class="modal-foot"><button class="secondary" type="button" data-close-records-manager>Fechar</button></div>
       </section>
+    </dialog>
+
+    <dialog id="deleteConfirmDialog" aria-labelledby="deleteConfirmTitle" aria-describedby="deleteConfirmDescription">
+      <form class="modal" id="deleteConfirmForm">
+        <div class="modal-head">
+          <div>
+            <h2 id="deleteConfirmTitle">Excluir lançamento?</h2>
+            <p id="deleteConfirmDescription">O lançamento será removido da sua lista.</p>
+          </div>
+          <button class="close" type="button" data-close-delete-confirm aria-label="Fechar confirmação de exclusão">&times;</button>
+        </div>
+        <div class="delete-confirm-copy">
+          <strong id="deleteConfirmEntry"></strong>
+          <span>Você poderá desfazer logo após confirmar.</span>
+        </div>
+        <div class="modal-foot">
+          <button class="secondary" type="button" data-close-delete-confirm>Cancelar</button>
+          <button class="primary danger-action" id="confirmDelete" type="submit">Excluir</button>
+        </div>
+      </form>
     </dialog>
 
     <div id="contextMenu" class="context-menu hidden" role="menu" aria-label="Ações do registro">

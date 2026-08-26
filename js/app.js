@@ -212,6 +212,13 @@ const descriptionOptionsByType = {
         monthTotal = document.querySelector("#monthTotal"),
         currentBalanceTotal = document.querySelector("#currentBalanceTotal"),
         balanceReferenceSummary = document.querySelector("#balanceReferenceSummary"),
+        monthEndBalanceTotal = document.querySelector("#monthEndBalanceTotal"),
+        nextSevenDaysTotal = document.querySelector("#nextSevenDaysTotal"),
+        nextSevenDaysSummary = document.querySelector("#nextSevenDaysSummary"),
+        decisionPeriodLabel = document.querySelector("#decisionPeriodLabel"),
+        financialGuidance = document.querySelector("#financialGuidance"),
+        financialGuidanceTitle = document.querySelector("#financialGuidanceTitle"),
+        financialGuidanceDetail = document.querySelector("#financialGuidanceDetail"),
         paidTotal = document.querySelector("#paidTotal"),
         pendingTotal = document.querySelector("#pendingTotal"),
         count = document.querySelector("#count"),
@@ -225,6 +232,12 @@ const descriptionOptionsByType = {
         openModalMobile = document.querySelector("#openModalMobile"),
         rows = document.querySelector("#rows"),
         contextMenu = document.querySelector("#contextMenu"),
+        deleteConfirmDialog = document.querySelector("#deleteConfirmDialog"),
+        deleteConfirmForm = document.querySelector("#deleteConfirmForm"),
+        deleteConfirmTitle = document.querySelector("#deleteConfirmTitle"),
+        deleteConfirmDescription = document.querySelector("#deleteConfirmDescription"),
+        deleteConfirmEntry = document.querySelector("#deleteConfirmEntry"),
+        confirmDelete = document.querySelector("#confirmDelete"),
         authArea = document.querySelector("#authArea"),
         authScreen = document.querySelector("#authScreen"),
         appShell = document.querySelector("#appShell"),
@@ -303,6 +316,7 @@ const descriptionOptionsByType = {
       let returnToRecentAfterEdit = false;
       const managerSelectedEntries = new Set();
       let optionDialogResolver = null;
+      let pendingDeletionAction = null;
 
       function todayISO() {
         return domain.todayISO();
@@ -1499,7 +1513,7 @@ const descriptionOptionsByType = {
           ? (isIncome ? "Recebido" : "Pago")
           : (isIncome ? "A receber" : "Em aberto");
         return `
-          <div class="entry dense-entry ${selected ? "selected" : ""} ${statusPending ? "status-pending" : ""} ${statusChanged ? "status-changed" : ""}" data-entry="${e.id}" role="button" tabindex="0" aria-disabled="${statusPending}" aria-busy="${statusPending}" aria-label="Alterar status de ${esc(e.description)}. Status atual: ${statusLabel}">
+          <article class="entry dense-entry ${selected ? "selected" : ""} ${statusPending ? "status-pending" : ""} ${statusChanged ? "status-changed" : ""}" data-entry="${e.id}" role="${state.selectionMode ? "button" : "group"}" ${state.selectionMode ? `tabindex="0" aria-pressed="${selected}"` : ""} aria-busy="${statusPending}" aria-label="${state.selectionMode ? `Selecionar ${esc(e.description)}` : `${esc(e.description)}, ${money(e.value)}, ${statusLabel}. Toque para editar.`}">
             <div class="entry-content">
               <div class="entry-summary">
                 <div class="entry-header">
@@ -1521,7 +1535,7 @@ const descriptionOptionsByType = {
               </div>
             </div>
             ${state.selectionMode ? "" : `<button class="entry-menu" data-edit="${e.id}" aria-label="Mais opções para ${esc(e.description)}">⋮</button>`}
-          </div>`;
+          </article>`;
       }
 
       function updateSummary(entries) {
@@ -1537,6 +1551,54 @@ const descriptionOptionsByType = {
         pendingTotal.textContent = money(
           expenses.filter((e) => !e.paid).reduce((a, e) => a + Number(e.value), 0),
         );
+      }
+
+      function updateDecisionOverview(month) {
+        const [year, monthNumber] = month.split("-").map(Number);
+        const monthEnd = `${month}-${String(new Date(year, monthNumber, 0).getDate()).padStart(2, "0")}`;
+        const entryNet = buildDailyEntryNet();
+        const currentBalance = getProjectedBalance(todayISO(), entryNet);
+        const monthEndBalance = getProjectedBalance(monthEnd, entryNet);
+        const nextSevenDaysEnd = domain.addDays(todayISO(), 6);
+        const upcomingEntries = state.entries.filter((entry) =>
+          !entry.excluded_from_series
+          && !entry.paid
+          && (entry.flow_type || "expense") === "expense"
+          && entry.date >= todayISO()
+          && entry.date <= nextSevenDaysEnd
+        );
+        const upcomingTotal = upcomingEntries.reduce((total, entry) => total + Number(entry.value), 0);
+        const monthLabel = new Date(year, monthNumber - 1, 1, 12).toLocaleDateString("pt-BR", {
+          month: "long",
+          year: "numeric",
+        });
+
+        decisionPeriodLabel.textContent = `Visão de ${monthLabel}`;
+        currentBalanceTotal.textContent = money(currentBalance);
+        monthEndBalanceTotal.textContent = money(monthEndBalance);
+        monthEndBalanceTotal.dataset.negative = String(monthEndBalance < 0);
+        nextSevenDaysTotal.textContent = money(upcomingTotal);
+        nextSevenDaysSummary.textContent = upcomingEntries.length
+          ? `${upcomingEntries.length} conta${upcomingEntries.length === 1 ? "" : "s"} em aberto`
+          : "Nenhuma conta em aberto";
+
+        if (monthEndBalance < 0) {
+          financialGuidance.dataset.tone = "danger";
+          financialGuidanceTitle.textContent = "Saldo negativo previsto";
+          financialGuidanceDetail.textContent = `A projeção indica ${money(Math.abs(monthEndBalance))} abaixo de zero no fim do mês.`;
+        } else if (upcomingTotal > Math.max(currentBalance, 0)) {
+          financialGuidance.dataset.tone = "danger";
+          financialGuidanceTitle.textContent = "Contas próximas acima do saldo";
+          financialGuidanceDetail.textContent = `${money(upcomingTotal)} vencem nos próximos 7 dias e superam o saldo disponível hoje.`;
+        } else if (upcomingEntries.length) {
+          financialGuidance.dataset.tone = "attention";
+          financialGuidanceTitle.textContent = `${upcomingEntries.length} conta${upcomingEntries.length === 1 ? "" : "s"} nos próximos 7 dias`;
+          financialGuidanceDetail.textContent = `${money(upcomingTotal)} precisam de atenção nesse período.`;
+        } else {
+          financialGuidance.dataset.tone = "positive";
+          financialGuidanceTitle.textContent = "Tudo sob controle";
+          financialGuidanceDetail.textContent = "Não há contas em aberto para os próximos 7 dias.";
+        }
       }
 
       function renderFilterTypes() {
@@ -1664,11 +1726,9 @@ const descriptionOptionsByType = {
         const monthly = getMonthlyEntries(month);
 
         updateSummary(monthly);
-        currentBalanceTotal.textContent = money(
-          getProjectedBalance(todayISO(), buildDailyEntryNet()),
-        );
+        updateDecisionOverview(month);
         const referenceDate = state.settings.balance_reference_date || todayISO();
-        balanceReferenceSummary.textContent = `Saldo informado em ${new Date(`${referenceDate}T12:00`).toLocaleDateString("pt-BR")}`;
+        balanceReferenceSummary.textContent = `Calculado desde ${new Date(`${referenceDate}T12:00`).toLocaleDateString("pt-BR")}`;
 
         const list = getFilteredEntries(monthly, ft, fs);
 
@@ -2678,6 +2738,42 @@ const descriptionOptionsByType = {
         }, 700);
       }
 
+      function closeDeleteConfirmation() {
+        pendingDeletionAction = null;
+        if (deleteConfirmDialog.open) deleteConfirmDialog.close();
+      }
+
+      function requestDeleteConfirmation({ title, description, entryLabel, confirmLabel = "Excluir", onConfirm }) {
+        pendingDeletionAction = onConfirm;
+        deleteConfirmTitle.textContent = title;
+        deleteConfirmDescription.textContent = description;
+        deleteConfirmEntry.textContent = entryLabel;
+        confirmDelete.textContent = confirmLabel;
+        deleteConfirmDialog.showModal();
+      }
+
+      async function performDeleteEntry(entry) {
+        const originalIndex = state.entries.findIndex((item) => item.id === entry.id);
+        const snapshot = structuredClone(entry);
+        state.entries = state.entries.filter((item) => item.id !== entry.id);
+        queueDelete(entry.id, entry.updated_at);
+        closeContextMenu();
+        render();
+        await save();
+        show("Lançamento excluído.", {
+          label: "Desfazer",
+          onClick: async () => {
+            if (state.entries.some((item) => item.id === snapshot.id)) return;
+            state.entries.splice(Math.max(0, Math.min(originalIndex, state.entries.length)), 0, snapshot);
+            state.deletedEntryIds.delete(snapshot.id);
+            queueUpsert(snapshot);
+            render();
+            await save();
+            show("Lançamento restaurado.");
+          },
+        });
+      }
+
       function deleteEntry() {
         const entry = getActiveEntry();
         if (!entry) return;
@@ -2686,19 +2782,24 @@ const descriptionOptionsByType = {
           seriesScopeDialog.showModal();
           return;
         }
-        if (!confirm("Deseja realmente excluir este lançamento?")) return;
-        state.entries = state.entries.filter((e) => e.id !== entry.id);
-        queueDelete(entry.id, entry.updated_at);
         closeContextMenu();
-        save();
-        render();
-        show("Lançamento excluído.");
+        requestDeleteConfirmation({
+          title: "Excluir lançamento?",
+          description: "O lançamento será removido da sua lista e sincronizado com o Google Drive.",
+          entryLabel: `${entry.description} · ${money(entry.value)}`,
+          onConfirm: () => performDeleteEntry(entry),
+        });
       }
 
       async function deleteRecurringScope(scope) {
         const entry = getActiveEntry();
         if (!entry?.series_id) return;
         const series = state.recurrenceSeries.find((item) => item.id === entry.series_id);
+        const seriesIndex = state.recurrenceSeries.findIndex((item) => item.id === entry.series_id);
+        const seriesSnapshot = series ? structuredClone(series) : null;
+        const entriesSnapshot = state.entries
+          .filter((item) => item.series_id === entry.series_id)
+          .map((item) => structuredClone(item));
         const cutDate = entry.scheduled_date || entry.date;
         if (scope === "this") {
           entry.detached_from_series = true;
@@ -2723,50 +2824,98 @@ const descriptionOptionsByType = {
           state.recurrenceDirty = true;
         }
         seriesScopeDialog.close();
-        await save();
         render();
-        show(scope === "this" ? "Ocorrência excluída." : scope === "future" ? "Esta e as próximas ocorrências foram excluídas." : "Série recorrente excluída.");
+        await save();
+        const successMessage = scope === "this"
+          ? "Ocorrência excluída."
+          : scope === "future"
+            ? "Esta e as próximas ocorrências foram excluídas."
+            : "Série recorrente excluída.";
+        show(successMessage, {
+          label: "Desfazer",
+          onClick: async () => {
+            const snapshotIds = new Set(entriesSnapshot.map((item) => item.id));
+            state.entries
+              .filter((item) => item.series_id === entry.series_id && !snapshotIds.has(item.id))
+              .forEach((item) => queueDelete(item.id, item.updated_at));
+            state.entries = state.entries.filter((item) => item.series_id !== entry.series_id);
+            entriesSnapshot.forEach((item) => {
+              state.entries.push(item);
+              state.deletedEntryIds.delete(item.id);
+              queueUpsert(item);
+            });
+            if (seriesSnapshot) {
+              state.recurrenceSeries = state.recurrenceSeries.filter((item) => item.id !== seriesSnapshot.id);
+              state.recurrenceSeries.splice(
+                Math.max(0, Math.min(seriesIndex, state.recurrenceSeries.length)),
+                0,
+                seriesSnapshot,
+              );
+              state.recurrenceDirty = true;
+            }
+            render();
+            await save();
+            show("Exclusão da recorrência desfeita.");
+          },
+        });
       }
 
-      function deleteSelectedEntries() {
-        const total = state.selectedEntries.size;
-
-        if (total === 0) {
-          exitSelectionMode();
-          return;
-        }
-
-        if (
-          !confirm(
-            `Deseja realmente excluir ${total} lançamento${total > 1 ? "s" : ""}?`,
-          )
-        ) {
-          return;
-        }
-
-        const deletedEntries = state.entries.filter(
-          (entry) => state.selectedEntries.has(entry.id),
-        );
+      async function performDeleteSelectedEntries(selectedIds) {
+        const snapshots = state.entries
+          .map((entry, index) => ({ entry: structuredClone(entry), index }))
+          .filter(({ entry }) => selectedIds.has(entry.id));
         state.entries = state.entries.filter(
-          (entry) => !state.selectedEntries.has(entry.id) || Boolean(entry.series_id),
+          (entry) => !selectedIds.has(entry.id) || Boolean(entry.series_id),
         );
-        deletedEntries.forEach((entry) => {
-          if (entry.series_id) {
-            entry.detached_from_series = true;
-            entry.excluded_from_series = true;
-            queueUpsert(entry);
+        snapshots.forEach(({ entry }) => {
+          const currentEntry = state.entries.find((item) => item.id === entry.id);
+          if (entry.series_id && currentEntry) {
+            currentEntry.detached_from_series = true;
+            currentEntry.excluded_from_series = true;
+            queueUpsert(currentEntry);
           } else {
             queueDelete(entry.id, entry.updated_at);
           }
         });
 
-        save();
-
         exitSelectionMode();
-
+        await save();
+        const total = snapshots.length;
         show(
           `${total} lançamento${total > 1 ? "s" : ""} excluído${total > 1 ? "s" : ""}.`,
+          {
+            label: "Desfazer",
+            onClick: async () => {
+              snapshots.sort((a, b) => a.index - b.index).forEach(({ entry, index }) => {
+                const existing = state.entries.find((item) => item.id === entry.id);
+                if (existing) Object.assign(existing, entry);
+                else state.entries.splice(Math.max(0, Math.min(index, state.entries.length)), 0, entry);
+                state.deletedEntryIds.delete(entry.id);
+                queueUpsert(entry);
+              });
+              render();
+              await save();
+              show("Exclusão desfeita.");
+            },
+          },
         );
+      }
+
+      function deleteSelectedEntries() {
+        const selectedIds = new Set(state.selectedEntries);
+        const total = selectedIds.size;
+
+        if (total === 0) {
+          exitSelectionMode();
+          return;
+        }
+        requestDeleteConfirmation({
+          title: `Excluir ${total} lançamento${total > 1 ? "s" : ""}?`,
+          description: "Os itens selecionados serão removidos da lista.",
+          entryLabel: `${total} lançamento${total > 1 ? "s selecionados" : " selecionado"}`,
+          confirmLabel: `Excluir ${total}`,
+          onConfirm: () => performDeleteSelectedEntries(selectedIds),
+        });
       }
       function fillForm(entry) {
         const series = entry.series_id
@@ -3023,6 +3172,28 @@ const descriptionOptionsByType = {
         handleMenuAction(button.dataset.action);
       };
 
+      deleteConfirmForm.onsubmit = async (event) => {
+        event.preventDefault();
+        const action = pendingDeletionAction;
+        if (!action) return;
+        pendingDeletionAction = null;
+        confirmDelete.disabled = true;
+        confirmDelete.setAttribute("aria-busy", "true");
+        deleteConfirmDialog.close();
+        try {
+          await action();
+        } finally {
+          confirmDelete.disabled = false;
+          confirmDelete.removeAttribute("aria-busy");
+        }
+      };
+      document.querySelectorAll("[data-close-delete-confirm]").forEach((button) => {
+        button.onclick = closeDeleteConfirmation;
+      });
+      deleteConfirmDialog.addEventListener("cancel", () => {
+        pendingDeletionAction = null;
+      });
+
       document.addEventListener("pointerdown", (event) => {
         if (contextMenu.classList.contains("hidden")) return;
         if (contextMenu.contains(event.target)) return;
@@ -3179,8 +3350,8 @@ const descriptionOptionsByType = {
           return;
         }
 
-        state.activeEntry = card.dataset.entry;
-        toggleEntryStatus();
+        const entry = state.entries.find((item) => item.id === card.dataset.entry);
+        if (entry) editEntry(entry);
       });
 
       rows.addEventListener("keydown", (e) => {
@@ -3190,14 +3361,9 @@ const descriptionOptionsByType = {
         const card = e.target.closest("[data-entry]");
         if (!card) return;
 
+        if (!state.selectionMode) return;
         e.preventDefault();
-        if (state.selectionMode) {
-          toggleSelection(card.dataset.entry);
-          return;
-        }
-
-        state.activeEntry = card.dataset.entry;
-        toggleEntryStatus();
+        toggleSelection(card.dataset.entry);
       });
 
       form.onsubmit = async (e) => {
