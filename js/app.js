@@ -825,8 +825,8 @@ const descriptionOptionsByType = {
         const name = state.user.user_metadata?.full_name || state.user.email;
         const reconnectButton = googleAuth.hasAccessToken()
           ? ""
-          : '<button class="auth-button" id="reconnectGoogle" type="button" aria-label="Autorizar Google Drive para sincronizar" title="Autorizar sincronização"><span aria-hidden="true">↻</span><span class="button-label">Sincronizar</span></button>';
-        authArea.innerHTML = `<span class="signed-user" title="${esc(state.user.email || "")}">${esc(name || "Usuário")}</span>${reconnectButton}<button class="auth-button" id="signOut" type="button" aria-label="Sair da conta" title="Sair da conta"><span aria-hidden="true">⎋</span><span class="button-label">Sair</span></button>`;
+          : '<button class="auth-button" id="reconnectGoogle" type="button" aria-label="Autorizar Google Drive para sincronizar" title="Autorizar sincronização"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.34 5.66"/><path d="M20 4v7h-7"/></svg><span class="button-label">Sincronizar</span></button>';
+        authArea.innerHTML = `<span class="signed-user" title="${esc(state.user.email || "")}">${esc(name || "Usuário")}</span>${reconnectButton}<button class="auth-button" id="signOut" type="button" aria-label="Sair da conta" title="Sair da conta"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M10 17l5-5-5-5m5 5H3"/><path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"/></svg><span class="button-label">Sair</span></button>`;
       }
 
       async function syncEntries() {
@@ -1415,7 +1415,7 @@ const descriptionOptionsByType = {
           ? entries.map((entry) => `<article class="managed-record">
               <input type="checkbox" data-manager-select="${entry.id}" ${managerSelectedEntries.has(entry.id) ? "checked" : ""} aria-label="Selecionar ${esc(entry.description)}" />
               <div><strong>${esc(entry.description)}</strong><small>${new Date(`${entry.date}T12:00`).toLocaleDateString("pt-BR")} · ${esc(entry.type)} · ${entry.paid ? "Pago" : "Em aberto"} · ${money(entry.value)}</small></div>
-              <button class="secondary" type="button" data-manager-edit="${entry.id}" aria-label="Editar ${esc(entry.description)}">✏</button>
+              <button class="secondary" type="button" data-manager-edit="${entry.id}" aria-label="Editar ${esc(entry.description)}"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
             </article>`).join("")
           : '<div class="recent-records-empty">Nenhum registro encontrado com estes filtros.</div>';
       }
@@ -1861,7 +1861,7 @@ const descriptionOptionsByType = {
                       type="button"
                       aria-label="Alterar data dos selecionados"
                       title="Alterar data dos selecionados">
-                      <span aria-hidden="true">📅</span>
+                      <svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M3 5h18v16H3zM16 3v4M8 3v4M3 10h18"/></svg>
                   </button>
 
                   <button
@@ -1870,7 +1870,7 @@ const descriptionOptionsByType = {
                       type="button"
                       aria-label="Excluir selecionados"
                       title="Excluir selecionados">
-                      🗑
+                      <svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2m-9 0 1 15h8l1-15M10 10v7m4-7v7"/></svg>
                   </button>
 
               </div>
@@ -2451,11 +2451,6 @@ const descriptionOptionsByType = {
         return clean;
       }
 
-      function addMonths(dateString, months) {
-        const d = new Date(dateString + "T12:00");
-        d.setMonth(d.getMonth() + months);
-        return d.toISOString().slice(0, 10);
-      }
       let toastTimer = null;
       function show(msg, action = null, { announce = true } = {}) {
         clearTimeout(toastTimer);
@@ -2589,7 +2584,7 @@ const descriptionOptionsByType = {
         returnToRecentAfterEdit = returnToHistory;
         if (recentRecordsDialog.open) recentRecordsDialog.close();
         state.editingId = entry.id;
-        modalTitle.textContent = "Editar lançamento";
+        modalTitle.textContent = entry.installment ? "Editar compra parcelada" : "Editar lançamento";
         fillForm(entry);
         dialog.showModal();
       }
@@ -2797,6 +2792,92 @@ const descriptionOptionsByType = {
           : `${scopeLabel} neste dispositivo. Sincronização pendente.`;
       }
 
+      function installmentEntriesFor(entry) {
+        const groupKey = domain.installmentGroupKey(entry);
+        if (!groupKey) return [];
+        return state.entries.filter((item) => domain.installmentGroupKey(item) === groupKey);
+      }
+
+      function removeInstallmentGroup(entry) {
+        const removed = installmentEntriesFor(entry);
+        const removedIds = new Set(removed.map((item) => item.id));
+        removed.forEach((item) => queueDelete(item.id, item.updated_at));
+        state.entries = state.entries.filter((item) => !removedIds.has(item.id));
+        return removed;
+      }
+
+      function updateInstallmentPlan(entry) {
+        const sourceEntries = installmentEntriesFor(entry);
+        if (!sourceEntries.length) return null;
+        const quantity = Math.max(2, Number(installments.value) || 2);
+        const groupId = entry.installment_group_id || generateId();
+        const reconciliation = domain.reconcileInstallmentEntries(sourceEntries, {
+          quantity,
+          group_id: groupId,
+          start_date: dateInput.value,
+          value: Number(valueInput.value),
+          flow_type: "expense",
+          type: type.value,
+          description: desc.value,
+          detail: detailInput.value.trim(),
+        });
+
+        reconciliation.upserts.forEach((updatedEntry) => {
+          if (updatedEntry.id === entry.id) updatedEntry.paid = paidInput.checked;
+          const index = state.entries.findIndex((item) => item.id === updatedEntry.id);
+          if (index >= 0) state.entries[index] = updatedEntry;
+          queueUpsert(updatedEntry);
+        });
+
+        const staleIds = new Set(reconciliation.staleEntries.map((item) => item.id));
+        reconciliation.staleEntries.forEach((item) => queueDelete(item.id, item.updated_at));
+        state.entries = state.entries.filter((item) => !staleIds.has(item.id));
+
+        const createdAt = sourceEntries[0]?.created_at || new Date().toISOString();
+        reconciliation.missingInstallments.forEach((installmentEntry) => {
+          const created = {
+            id: generateId(),
+            created_at: createdAt,
+            paid: false,
+            ...installmentEntry,
+          };
+          state.entries.push(created);
+          queueUpsert(created);
+        });
+
+        state.editingId = null;
+        return quantity;
+      }
+
+      function collapseInstallmentPlan(entry, values) {
+        const groupEntries = installmentEntriesFor(entry).sort((a, b) =>
+          Number(a.installment?.current || 0) - Number(b.installment?.current || 0),
+        );
+        if (!groupEntries.length) return false;
+        const primary = groupEntries[0];
+        const removed = groupEntries.slice(1);
+        const removedIds = new Set(removed.map((item) => item.id));
+        removed.forEach((item) => queueDelete(item.id, item.updated_at));
+        state.entries = state.entries.filter((item) => !removedIds.has(item.id));
+
+        const updated = {
+          ...primary,
+          ...values,
+          series_id: null,
+          scheduled_date: null,
+          detached_from_series: false,
+          excluded_from_series: false,
+          installment: null,
+          installment_group_id: null,
+        };
+        const index = state.entries.findIndex((item) => item.id === primary.id);
+        if (index < 0) return false;
+        state.entries[index] = updated;
+        queueUpsert(updated);
+        state.editingId = null;
+        return true;
+      }
+
       function createEntry(entry) {
         const createdAt = new Date().toISOString();
         if (recurrence.value === "single") {
@@ -2815,33 +2896,27 @@ const descriptionOptionsByType = {
           return;
         }
         const qty = Math.max(2, Number(installments.value));
-        const installmentValue = Math.floor((entry.value / qty) * 100) / 100;
-        let remaining = entry.value;
-        for (let i = 0; i < qty; i++) {
-          const value =
-            i === qty - 1 ? Number(remaining.toFixed(2)) : installmentValue;
-          remaining -= value;
+        const installmentGroupId = generateId();
+        const installmentPlan = domain.reconcileInstallmentEntries([], {
+          quantity: qty,
+          group_id: installmentGroupId,
+          start_date: entry.date,
+          value: entry.value,
+          flow_type: "expense",
+          type: entry.type,
+          description: entry.description,
+          detail: entry.detail,
+        });
+        installmentPlan.missingInstallments.forEach((installmentEntry) => {
           const created = {
             id: generateId(),
             created_at: createdAt,
-            ...entry,
-            flow_type: "expense",
-            series_id: null,
-            scheduled_date: null,
-            detached_from_series: false,
-            excluded_from_series: false,
-            date: addMonths(entry.date, i),
-            value,
             paid: false,
-            installment: {
-              current: i + 1,
-              total: qty,
-              original: entry.value,
-            },
+            ...installmentEntry,
           };
           state.entries.push(created);
           queueUpsert(created);
-        }
+        });
       }
 
       async function toggleEntryStatus() {
@@ -3069,8 +3144,15 @@ const descriptionOptionsByType = {
           ? state.recurrenceSeries.find((item) => item.id === entry.series_id)
           : null;
         const formValues = domain.recurringEntryFormValues(entry, series);
-        dateInput.value = entry.date;
-        valueInput.value = formValues.value;
+        const installmentGroup = entry.installment
+          ? installmentEntriesFor(entry).sort((a, b) =>
+              Number(a.installment?.current || 0) - Number(b.installment?.current || 0),
+            )
+          : [];
+        dateInput.value = installmentGroup[0]?.date || entry.date;
+        valueInput.value = entry.installment
+          ? Number(entry.installment.original ?? installmentGroup.reduce((total, item) => total + Number(item.value), 0))
+          : formValues.value;
         flowType.value = formValues.flow_type || "expense";
         renderEntryOptions(formValues.type, formValues.description);
         detailInput.value = formValues.detail || "";
@@ -3551,12 +3633,30 @@ const descriptionOptionsByType = {
         saveEntry.textContent = "Salvando…";
         try {
           let recurringEditScope = null;
+          let installmentEditQuantity = null;
           if (editing && editingEntry?.series_id) {
             recurringEditScope = await editRecurringSeries(editingEntry);
             if (!recurringEditScope) {
               show("Não foi possível localizar a ocorrência para atualizar. Atualize a tela e tente novamente.");
               return;
             }
+            state.editingId = null;
+          } else if (editing && editingEntry?.installment) {
+            if (recurrence.value === "installments") {
+              installmentEditQuantity = updateInstallmentPlan(editingEntry);
+              if (!installmentEditQuantity) return;
+            } else if (isRecurringValue()) {
+              removeInstallmentGroup(editingEntry);
+              await createRecurringSeries();
+              state.editingId = null;
+            } else if (!collapseInstallmentPlan(editingEntry, entry)) {
+              return;
+            }
+          } else if (editing && recurrence.value === "installments") {
+            state.entries = state.entries.filter((item) => item.id !== editingEntry.id);
+            queueDelete(editingEntry.id, editingEntry.updated_at);
+            createEntry(entry);
+            installmentEditQuantity = Math.max(2, Number(installments.value) || 2);
             state.editingId = null;
           } else if (editing && isRecurringValue()) {
             state.entries = state.entries.filter((item) => item.id !== editingEntry.id);
@@ -3577,6 +3677,10 @@ const descriptionOptionsByType = {
           show(
             recurringEditScope
               ? recurringEditSuccessMessage(recurringEditScope, synced)
+              : installmentEditQuantity
+                ? synced
+                  ? `Compra parcelada atualizada para ${installmentEditQuantity} parcelas e sincronizada.`
+                  : `Compra parcelada atualizada para ${installmentEditQuantity} parcelas neste dispositivo. Sincronização pendente.`
               : synced
                 ? editing
                   ? "Lançamento atualizado e sincronizado."
@@ -3588,7 +3692,9 @@ const descriptionOptionsByType = {
         } catch (error) {
           console.error(error);
           show(
-            editing && editingEntry?.series_id
+            editing && editingEntry?.installment
+              ? "Não foi possível atualizar o parcelamento. Nenhuma alteração foi confirmada no Google Drive."
+              : editing && editingEntry?.series_id
               ? "Não foi possível atualizar a recorrência. Seus dados não foram confirmados no Google Drive."
               : "Não foi possível salvar a recorrência. Tente novamente.",
           );

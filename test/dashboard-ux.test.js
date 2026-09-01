@@ -39,10 +39,18 @@ test("abre edição pelo card e restringe mudança de status ao botão dedicado"
 
 test("identifica o modal e usa os valores atuais da série ao editar", () => {
   assert.match(app, /modalTitle = document\.querySelector\("#entryDialogTitle"\)/);
-  assert.match(app, /modalTitle\.textContent = "Editar lançamento";\s*fillForm\(entry\);/);
+  assert.match(app, /modalTitle\.textContent = entry\.installment \? "Editar compra parcelada" : "Editar lançamento";\s*fillForm\(entry\);/);
   assert.match(app, /formValues = domain\.recurringEntryFormValues\(entry, series\)/);
   assert.match(app, /renderEntryOptions\(formValues\.type, formValues\.description\);/);
   assert.match(app, /function recurrenceSeriesFromForm[\s\S]*?description: desc\.value/);
+});
+
+test("reconcilia a compra inteira ao alterar a quantidade de parcelas", () => {
+  assert.match(app, /function updateInstallmentPlan\(entry\)/);
+  assert.match(app, /domain\.reconcileInstallmentEntries\(sourceEntries,/);
+  assert.match(app, /reconciliation\.staleEntries\.forEach\(\(item\) => queueDelete\(item\.id, item\.updated_at\)\)/);
+  assert.match(app, /else if \(editing && editingEntry\?\.installment\) \{[\s\S]*?recurrence\.value === "installments"[\s\S]*?updateInstallmentPlan\(editingEntry\)/);
+  assert.match(app, /entry\.installment\.original \?\? installmentGroup\.reduce/);
 });
 
 test("reconcilia ocorrências ao editar toda a série sem perder status", () => {

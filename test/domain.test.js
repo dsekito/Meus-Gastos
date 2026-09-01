@@ -11,10 +11,12 @@ const {
   dailyEntryNet,
   recentEntries,
   recentEntryGroups,
+  installmentGroupKey,
   descriptionOptionsForType,
   typeColorMap,
   recurringEntryFormValues,
   reconcileSeriesEntries,
+  reconcileInstallmentEntries,
   projectedBalance,
   minimumProjectedBalance,
 } = global.MGDomain;
@@ -127,6 +129,88 @@ const groupedRecent = recentEntryGroups([
 assert.equal(groupedRecent.length, 3);
 assert.equal(groupedRecent[1].entries.length, 2);
 assert.equal(groupedRecent[2].entries.length, 2);
+
+assert.equal(
+  installmentGroupKey({
+    installment_group_id: "purchase-1",
+    installment: { current: 1, total: 3 },
+  }),
+  "id:purchase-1",
+);
+assert.equal(
+  installmentGroupKey({
+    created_at: "2026-08-08T12:00:00.000Z",
+    description: "NOTEBOOK",
+    type: "COMPRA",
+    installment: { current: 1, total: 3 },
+  }),
+  "legacy:2026-08-08T12:00:00.000Z:NOTEBOOK:COMPRA",
+);
+
+const reducedInstallments = reconcileInstallmentEntries(
+  Array.from({ length: 5 }, (_, index) => ({
+    id: `parcel-${index + 1}`,
+    date: `2026-0${index + 1}-31`,
+    value: 20,
+    paid: index === 0,
+    installment: { current: index + 1, total: 5, original: 100 },
+  })),
+  {
+    quantity: 3,
+    group_id: "purchase-1",
+    start_date: "2026-01-31",
+    value: 90,
+    flow_type: "expense",
+    type: "COMPRAS",
+    description: "NOTEBOOK",
+    detail: "Corrigido",
+  },
+);
+assert.deepEqual(
+  reducedInstallments.upserts.map((entry) => ({
+    id: entry.id,
+    date: entry.date,
+    value: entry.value,
+    paid: entry.paid,
+    current: entry.installment.current,
+    total: entry.installment.total,
+    original: entry.installment.original,
+    group: entry.installment_group_id,
+  })),
+  [
+    { id: "parcel-1", date: "2026-01-31", value: 30, paid: true, current: 1, total: 3, original: 90, group: "purchase-1" },
+    { id: "parcel-2", date: "2026-02-28", value: 30, paid: false, current: 2, total: 3, original: 90, group: "purchase-1" },
+    { id: "parcel-3", date: "2026-03-31", value: 30, paid: false, current: 3, total: 3, original: 90, group: "purchase-1" },
+  ],
+);
+assert.deepEqual(reducedInstallments.staleEntries.map((entry) => entry.id), ["parcel-4", "parcel-5"]);
+assert.deepEqual(reducedInstallments.missingInstallments, []);
+
+const expandedInstallments = reconcileInstallmentEntries(
+  reducedInstallments.upserts.slice(0, 2),
+  {
+    quantity: 4,
+    group_id: "purchase-1",
+    start_date: "2026-01-31",
+    value: 100,
+    flow_type: "expense",
+    type: "COMPRAS",
+    description: "NOTEBOOK",
+  },
+);
+assert.equal(expandedInstallments.upserts.length, 2);
+assert.deepEqual(
+  expandedInstallments.missingInstallments.map((entry) => ({
+    date: entry.date,
+    value: entry.value,
+    current: entry.installment.current,
+    total: entry.installment.total,
+  })),
+  [
+    { date: "2026-03-31", value: 25, current: 3, total: 4 },
+    { date: "2026-04-30", value: 25, current: 4, total: 4 },
+  ],
+);
 
 assert.deepEqual(
   descriptionOptionsForType({

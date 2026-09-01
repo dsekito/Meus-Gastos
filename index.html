@@ -5,7 +5,7 @@
     <link rel="apple-touch-icon" href="./icons/app-icon-192.png" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#126b5b" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -1901,6 +1901,286 @@
         .calendar-panel { margin-top: 0; }
         .delete-confirm-copy { margin: 12px 14px 4px; }
       }
+
+      /* =======================================================
+         MOBILE-FIRST HARDENING — PHONE PORTRAIT + LANDSCAPE
+         Final responsive layer shared by every screen and dialog.
+      ======================================================= */
+      .ui-icon {
+        width: 22px;
+        height: 22px;
+        flex: 0 0 22px;
+        fill: none;
+        stroke: currentColor;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 2;
+      }
+
+      button,
+      [role="button"],
+      summary { touch-action: manipulation; }
+
+      html,
+      body { max-width: 100%; overflow-x: clip; }
+
+      body { min-height: 100svh; }
+
+      .bootstrap-screen,
+      .auth-screen {
+        min-height: 100svh;
+        padding-top: max(24px, env(safe-area-inset-top));
+        padding-right: max(16px, env(safe-area-inset-right));
+        padding-bottom: max(24px, env(safe-area-inset-bottom));
+        padding-left: max(16px, env(safe-area-inset-left));
+      }
+
+      @media (max-width: 768px) {
+        .shell {
+          width: 100%;
+          padding-right: max(16px, env(safe-area-inset-right));
+          padding-bottom: calc(112px + env(safe-area-inset-bottom));
+          padding-left: max(16px, env(safe-area-inset-left));
+        }
+
+        .top {
+          top: 0;
+          min-width: 0;
+          margin-right: calc(0px - max(16px, env(safe-area-inset-right)));
+          margin-left: calc(0px - max(16px, env(safe-area-inset-left)));
+          padding-top: max(10px, env(safe-area-inset-top));
+          padding-right: max(16px, env(safe-area-inset-right));
+          padding-bottom: 10px;
+          padding-left: max(16px, env(safe-area-inset-left));
+        }
+
+        .brand,
+        .brand > div:last-child,
+        .header-actions,
+        #authArea { min-width: 0; }
+
+        .brand h1 {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .header-actions,
+        #authArea { gap: 8px; }
+
+        .auth-button,
+        .settings-button,
+        #reconnectGoogle,
+        #signOut {
+          width: 48px;
+          min-width: 48px;
+          height: 48px;
+          min-height: 48px;
+          padding: 0;
+        }
+
+        .decision-overview,
+        .month-breakdown,
+        .calendar-panel,
+        .entries-panel { min-width: 0; }
+
+        .decision-overview-head {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 2px;
+        }
+
+        .decision-cards,
+        .summary { align-items: stretch; }
+
+        .summary .card-note,
+        .decision-cards .card-note {
+          overflow: visible;
+          font-size: 12px;
+          line-height: 1.35;
+          text-overflow: clip;
+          white-space: normal;
+        }
+
+        .financial-guidance { align-items: flex-start; }
+        .financial-guidance-icon { margin-top: 7px; }
+
+        .calendar-head,
+        .panel-head,
+        .filters { min-width: 0; }
+
+        .entries-panel .panel-head {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          align-items: stretch;
+          gap: 8px;
+        }
+
+        .entries-panel .panel-head > div:first-child,
+        .entries-panel .date-filter { grid-column: 1 / -1; }
+
+        .entries-panel #selectionActions:empty { display: none; }
+
+        .entries-panel .recent-records-shortcut {
+          width: 100%;
+          min-width: 0;
+          padding-right: 10px;
+          padding-left: 10px;
+        }
+
+        .calendar-toolbar { min-width: 0; }
+        .calendar-balance strong { overflow-wrap: anywhere; }
+
+        .filters > .filter-field {
+          min-width: 0;
+          flex: 1 1 100%;
+        }
+
+        .filter-subtotal { width: 100%; }
+
+        .entry.dense-entry { min-width: 0; }
+        .dense-entry .entry-header { min-width: 0; }
+        .dense-entry .entry-value { flex: 0 0 auto; }
+
+        .mobile-new-entry {
+          right: max(16px, env(safe-area-inset-right));
+          bottom: calc(16px + env(safe-area-inset-bottom));
+          min-width: 48px;
+        }
+
+        dialog:not(#settingsDialog):not(#recordsManagerDialog) {
+          width: calc(100% - 32px);
+          max-width: 420px;
+          max-height: calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        }
+
+        dialog .modal {
+          max-width: 100%;
+          max-height: inherit;
+        }
+
+        .modal-head {
+          padding: 16px;
+        }
+
+        .modal-head > div { min-width: 0; }
+        .modal-head h2 { overflow-wrap: anywhere; }
+
+        .modal .form-grid {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 14px;
+          padding: 16px;
+          scrollbar-gutter: stable;
+        }
+
+        .modal .field,
+        .modal .field.wide,
+        .recurrence-fields,
+        .recurrence-summary { grid-column: 1; min-width: 0; }
+
+        .modal label,
+        .filter-field label {
+          font-size: 14px;
+          line-height: 1.35;
+        }
+
+        .modal-foot {
+          padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+        }
+
+        .series-scope-actions,
+        .conflict-actions {
+          padding-right: 16px;
+          padding-bottom: calc(16px + env(safe-area-inset-bottom));
+          padding-left: 16px;
+        }
+
+        #settingsDialog,
+        #recordsManagerDialog {
+          width: 100%;
+          height: 100dvh;
+          max-height: 100dvh;
+        }
+
+        #settingsDialog .modal-head,
+        #recordsManagerDialog .modal-head {
+          padding-top: max(16px, env(safe-area-inset-top));
+        }
+
+        #settingsDialog .form-grid {
+          padding-right: max(16px, env(safe-area-inset-right));
+          padding-left: max(16px, env(safe-area-inset-left));
+        }
+
+        #settingsDialog .settings-group,
+        #settingsDialog .option-manager-card,
+        #settingsDialog .backup-actions { padding: 14px; }
+
+        .option-manager-row,
+        .option-manager-row.description,
+        .backup-actions,
+        .settings-history-action { grid-template-columns: minmax(0, 1fr); }
+
+        .option-manager-row button,
+        .backup-actions button,
+        .settings-history-action button { width: 100%; }
+
+        .manager-selection-bar { align-items: stretch; }
+        .manager-selection-bar button { min-width: 0; }
+
+        .recent-record-head {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .recent-record-value { overflow-wrap: anywhere; }
+
+        .context-menu {
+          padding-right: env(safe-area-inset-right);
+          padding-bottom: calc(8px + env(safe-area-inset-bottom));
+          padding-left: env(safe-area-inset-left);
+        }
+
+        .context-menu button {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .toast {
+          right: max(16px, env(safe-area-inset-right));
+          bottom: calc(88px + env(safe-area-inset-bottom));
+          left: max(16px, env(safe-area-inset-left));
+        }
+      }
+
+      @media (max-width: 359px) {
+        .brand h1 { display: none; }
+        .top { gap: 8px; }
+        .header-actions, #authArea { gap: 4px; }
+
+        .calendar-panel.compact .calendar-head h2 {
+          overflow: visible;
+          white-space: normal;
+        }
+
+        .decision-cards,
+        .summary { grid-template-columns: minmax(0, 1fr); }
+
+        .decision-cards .balance-card,
+        .summary .balance-card { grid-column: 1; }
+
+        .modal-foot { grid-template-columns: minmax(0, 1fr); }
+      }
+
+      @media (max-width: 480px) and (orientation: landscape), (max-height: 520px) and (orientation: landscape) {
+        .top { position: relative; }
+        .shell { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
+        dialog:not(#settingsDialog):not(#recordsManagerDialog) { max-height: calc(100dvh - 16px); }
+        .modal .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .modal .field.wide, .recurrence-summary { grid-column: 1 / -1; }
+      }
     </style>
   </head>
   <body aria-busy="true">
@@ -1913,7 +2193,7 @@
     </section>
     <section class="auth-screen" id="authScreen" hidden>
       <div class="auth-card">
-        <div class="auth-logo">$</div>
+        <div class="auth-logo" aria-hidden="true">$</div>
         <h1>Meus Gastos</h1>
         <p>Seus dados ficam neste dispositivo e no seu próprio Google Drive.</p>
         <button class="google-button" id="signInGoogleScreen" type="button" aria-label="Continuar com sua conta Google">
@@ -1924,7 +2204,7 @@
     <main class="shell" id="appShell" hidden>
       <header class="top">
         <div class="brand">
-          <div class="mark">$</div>
+          <div class="mark" aria-hidden="true">$</div>
           <div>
             <h1>Meus Gastos</h1>
             <p>Seu controle financeiro, sem complicação.</p>
@@ -1933,8 +2213,8 @@
         <div class="header-actions">
           <span class="sync-status" id="syncStatus" data-state="idle" role="status" aria-live="polite" aria-atomic="true">Aguardando sincronização</span>
           <div id="authArea"></div>
-          <button class="auth-button settings-button" id="openSettings" type="button" aria-label="Configurações financeiras" title="Configurações financeiras"><span aria-hidden="true">⚙</span><span class="button-label">Configurações</span></button>
-          <button class="primary" id="openModal"><span aria-hidden="true">＋</span> Novo lançamento</button>
+          <button class="auth-button settings-button" id="openSettings" type="button" aria-label="Configurações financeiras" title="Configurações financeiras"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.08a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3v-4h.08A1.7 1.7 0 0 0 4.64 9 1.7 1.7 0 0 0 4.3 7.1l-.06-.06L7.07 4.2l.06.06A1.7 1.7 0 0 0 9 4.6h.01A1.7 1.7 0 0 0 10 3.08V3h4v.08A1.7 1.7 0 0 0 15.03 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9v.01A1.7 1.7 0 0 0 20.92 10H21v4h-.08A1.7 1.7 0 0 0 19.4 15Z"/></svg><span class="button-label">Configurações</span></button>
+          <button class="primary" id="openModal" type="button"><span aria-hidden="true">＋</span> Novo lançamento</button>
         </div>
       </header>
       <section class="sync-notice" id="syncNotice" data-state="pending" aria-labelledby="syncNoticeTitle" hidden>
@@ -2411,19 +2691,19 @@
     </dialog>
 
     <div id="contextMenu" class="context-menu hidden" role="menu" aria-label="Ações do registro">
-      <button type="button" role="menuitem" data-action="edit">✏ Editar</button>
-      <button type="button" role="menuitem" data-action="delete" class="danger">🗑 Excluir</button>
+      <button type="button" role="menuitem" data-action="edit"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Editar</button>
+      <button type="button" role="menuitem" data-action="delete" class="danger"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2m-9 0 1 15h8l1-15M10 10v7m4-7v7"/></svg>Excluir</button>
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="./js/config.js?v=2026081001"></script>
-    <script src="./js/domain.js?v=2026082608"></script>
+    <script src="./js/domain.js?v=2026083101"></script>
     <script src="./js/document-validator.js?v=2026082602"></script>
     <script src="./js/local-store.js?v=2026082601"></script>
     <script src="./js/google-auth.js?v=2026081003"></script>
     <script src="./js/google-drive-repository.js?v=2026082601"></script>
     <script src="./js/sync-service.js?v=2026082601"></script>
-    <script src="./js/app.js?v=2026082608"></script>
+    <script src="./js/app.js?v=2026083102"></script>
   </body>
 </html>

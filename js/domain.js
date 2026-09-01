@@ -115,13 +115,19 @@
     });
   }
 
+  function installmentGroupKey(entry = {}) {
+    if (!entry.installment) return null;
+    if (entry.installment_group_id) return `id:${entry.installment_group_id}`;
+    return `legacy:${entry.created_at || ""}:${entry.description || ""}:${entry.type || ""}`;
+  }
+
   function recentEntryGroups(entries) {
     const groups = new Map();
     for (const entry of recentEntries(entries)) {
       const key = entry.series_id
         ? `series:${entry.series_id}`
         : entry.installment
-          ? `installment:${entry.created_at || entry.date}:${entry.description}:${entry.type}`
+          ? `installment:${installmentGroupKey(entry)}`
           : `entry:${entry.id}`;
       if (!groups.has(key)) groups.set(key, { primary: entry, entries: [] });
       groups.get(key).entries.push(entry);
@@ -250,6 +256,53 @@
     };
   }
 
+  function reconcileInstallmentEntries(entries = [], plan = {}) {
+    const quantity = Math.max(2, Number(plan.quantity) || 2);
+    const totalValue = Number(plan.value);
+    const totalCents = Math.round(totalValue * 100);
+    const regularCents = Math.trunc(totalCents / quantity);
+    const sortedEntries = [...entries].sort((a, b) =>
+      Number(a.installment?.current || 0) - Number(b.installment?.current || 0)
+      || String(a.date || "").localeCompare(String(b.date || "")),
+    );
+    const reusableCount = Math.min(sortedEntries.length, quantity);
+    const sharedFields = {
+      flow_type: plan.flow_type || "expense",
+      type: plan.type,
+      description: plan.description,
+      detail: plan.detail || "",
+      series_id: null,
+      scheduled_date: null,
+      detached_from_series: false,
+      excluded_from_series: false,
+      installment_group_id: plan.group_id || null,
+    };
+    const installmentAt = (index) => ({
+      ...sharedFields,
+      date: addMonthsClamped(plan.start_date, index),
+      value: (index === quantity - 1
+        ? totalCents - regularCents * (quantity - 1)
+        : regularCents) / 100,
+      installment: {
+        current: index + 1,
+        total: quantity,
+        original: totalValue,
+      },
+    });
+
+    return {
+      upserts: sortedEntries.slice(0, reusableCount).map((entry, index) => ({
+        ...entry,
+        ...installmentAt(index),
+      })),
+      staleEntries: sortedEntries.slice(quantity),
+      missingInstallments: Array.from(
+        { length: Math.max(0, quantity - sortedEntries.length) },
+        (_, offset) => installmentAt(sortedEntries.length + offset),
+      ),
+    };
+  }
+
   function projectedBalance(date, settings, entryTotals) {
     const referenceDate = settings.balance_reference_date || todayISO();
     let balance = Number(settings.current_balance);
@@ -285,10 +338,12 @@
     dailyIncomeTotals,
     recentEntries,
     recentEntryGroups,
+    installmentGroupKey,
     descriptionOptionsForType,
     typeColorMap,
     recurringEntryFormValues,
     reconcileSeriesEntries,
+    reconcileInstallmentEntries,
     projectedBalance,
     minimumProjectedBalance,
   };

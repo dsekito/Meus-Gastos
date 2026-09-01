@@ -1,4 +1,4 @@
-const CACHE_NAME = "meus-gastos-v13";
+const CACHE_NAME = "meus-gastos-v15";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -6,14 +6,14 @@ const APP_SHELL = [
   "./icons/app-icon.svg",
   "./icons/app-icon-192.png",
   "./icons/app-icon-512.png",
-  "./js/config.js",
-  "./js/domain.js",
-  "./js/document-validator.js",
-  "./js/local-store.js",
-  "./js/google-auth.js",
-  "./js/google-drive-repository.js",
-  "./js/sync-service.js",
-  "./js/app.js",
+  "./js/config.js?v=2026081001",
+  "./js/domain.js?v=2026083101",
+  "./js/document-validator.js?v=2026082602",
+  "./js/local-store.js?v=2026082601",
+  "./js/google-auth.js?v=2026081003",
+  "./js/google-drive-repository.js?v=2026082601",
+  "./js/sync-service.js?v=2026082601",
+  "./js/app.js?v=2026083102",
 ];
 
 self.addEventListener("install", (event) => {
@@ -47,7 +47,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  const cacheKey = new Request(`${url.origin}${url.pathname}`);
+  const cacheKey = new Request(url.href);
   event.respondWith(
     caches.match(cacheKey).then((cached) => {
       const updated = fetch(event.request).then((response) => {
