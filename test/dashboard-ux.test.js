@@ -80,10 +80,11 @@ test("oferece desfazer para status e exclusões", () => {
   assert.match(app, /"Exclusão desfeita\."/);
 });
 
-test("considera receitas e a ordem das datas no alerta de saldo", () => {
+test("mantém alertas de risco e oculta o aviso redundante de contas próximas", () => {
   assert.match(app, /domain\.minimumProjectedBalance\(/);
   assert.match(app, /upcomingIncomeTotal/);
-  assert.match(app, /receitas a receber já foram consideradas na projeção/);
+  assert.match(app, /financialGuidance\.hidden = false;/);
+  assert.match(app, /else if \(upcomingEntries\.length\) \{\s*financialGuidance\.hidden = true;/);
   assert.doesNotMatch(app, /upcomingTotal > Math\.max\(currentBalance, 0\)/);
 });
 

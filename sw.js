@@ -1,4 +1,4 @@
-const CACHE_NAME = "meus-gastos-v15";
+const CACHE_NAME = "meus-gastos-v16";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -13,7 +13,7 @@ const APP_SHELL = [
   "./js/google-auth.js?v=2026081003",
   "./js/google-drive-repository.js?v=2026082601",
   "./js/sync-service.js?v=2026082601",
-  "./js/app.js?v=2026083102",
+  "./js/app.js?v=2026091001",
 ];
 
 self.addEventListener("install", (event) => {

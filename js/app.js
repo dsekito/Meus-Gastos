@@ -198,7 +198,6 @@ const descriptionOptionsByType = {
         filterDescription = document.querySelector("#filterDescription"),
         filterMonth = document.querySelector("#filterMonth"),
         filterStatus = document.querySelector("#filterStatus"),
-        monthTotal = document.querySelector("#monthTotal"),
         currentBalanceTotal = document.querySelector("#currentBalanceTotal"),
         balanceReferenceSummary = document.querySelector("#balanceReferenceSummary"),
         monthEndBalanceTotal = document.querySelector("#monthEndBalanceTotal"),
@@ -208,8 +207,6 @@ const descriptionOptionsByType = {
         financialGuidance = document.querySelector("#financialGuidance"),
         financialGuidanceTitle = document.querySelector("#financialGuidanceTitle"),
         financialGuidanceDetail = document.querySelector("#financialGuidanceDetail"),
-        paidTotal = document.querySelector("#paidTotal"),
-        pendingTotal = document.querySelector("#pendingTotal"),
         count = document.querySelector("#count"),
         panelTitle = document.querySelector("#panelTitle"),
         toast = document.querySelector("#toast"),
@@ -1519,21 +1516,6 @@ const descriptionOptionsByType = {
           </article>`;
       }
 
-      function updateSummary(entries) {
-        const expenses = entries.filter((entry) => (entry.flow_type || "expense") === "expense");
-        monthTotal.textContent = money(
-          expenses.reduce((a, e) => a + Number(e.value), 0),
-        );
-
-        paidTotal.textContent = money(
-          expenses.filter((e) => e.paid).reduce((a, e) => a + Number(e.value), 0),
-        );
-
-        pendingTotal.textContent = money(
-          expenses.filter((e) => !e.paid).reduce((a, e) => a + Number(e.value), 0),
-        );
-      }
-
       function updateDecisionOverview(month) {
         const [year, monthNumber] = month.split("-").map(Number);
         const monthEnd = `${month}-${String(new Date(year, monthNumber, 0).getDate()).padStart(2, "0")}`;
@@ -1579,10 +1561,12 @@ const descriptionOptionsByType = {
           : "Nenhuma conta em aberto";
 
         if (monthEndBalance < 0) {
+          financialGuidance.hidden = false;
           financialGuidance.dataset.tone = "danger";
           financialGuidanceTitle.textContent = "Saldo negativo previsto";
           financialGuidanceDetail.textContent = `A projeção indica ${money(Math.abs(monthEndBalance))} abaixo de zero no fim do mês.`;
         } else if (upcomingEntries.length && sevenDayMinimum.balance < 0) {
+          financialGuidance.hidden = false;
           financialGuidance.dataset.tone = "danger";
           financialGuidanceTitle.textContent = "Contas próximas acima do saldo previsto";
           const minimumDate = new Date(`${sevenDayMinimum.date}T12:00`).toLocaleDateString("pt-BR");
@@ -1590,15 +1574,9 @@ const descriptionOptionsByType = {
             ? `Mesmo considerando ${money(upcomingIncomeTotal)} de receitas a receber, o saldo pode ficar ${money(Math.abs(sevenDayMinimum.balance))} abaixo de zero em ${minimumDate}.`
             : `O saldo pode ficar ${money(Math.abs(sevenDayMinimum.balance))} abaixo de zero em ${minimumDate}.`;
         } else if (upcomingEntries.length) {
-          financialGuidance.dataset.tone = "attention";
-          financialGuidanceTitle.textContent = `${upcomingEntries.length} conta${upcomingEntries.length === 1 ? "" : "s"} nos próximos 7 dias`;
-          financialGuidanceDetail.textContent = upcomingIncomeTotal > 0
-            ? `${money(upcomingTotal)} vencem no período; ${money(upcomingIncomeTotal)} de receitas a receber já foram consideradas na projeção.`
-            : `${money(upcomingTotal)} precisam de atenção nesse período.`;
+          financialGuidance.hidden = true;
         } else {
-          financialGuidance.dataset.tone = "positive";
-          financialGuidanceTitle.textContent = "Tudo sob controle";
-          financialGuidanceDetail.textContent = "Não há contas em aberto para os próximos 7 dias.";
+          financialGuidance.hidden = true;
         }
       }
 
@@ -1749,7 +1727,6 @@ const descriptionOptionsByType = {
 
         const monthly = getMonthlyEntries(month);
 
-        updateSummary(monthly);
         updateDecisionOverview(month);
         const referenceDate = state.settings.balance_reference_date || todayISO();
         balanceReferenceSummary.textContent = `Calculado desde ${new Date(`${referenceDate}T12:00`).toLocaleDateString("pt-BR")}`;

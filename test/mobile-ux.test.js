@@ -31,8 +31,8 @@ test("evita estouro nas ações dos lançamentos e usa ícones vetoriais", () =>
 });
 
 test("invalida o cache anterior para distribuir a revisão mobile", () => {
-  assert.match(serviceWorker, /const CACHE_NAME = "meus-gastos-v15";/);
-  assert.match(html, /\.\/js\/app\.js\?v=2026083102/);
-  assert.match(serviceWorker, /\.\/js\/app\.js\?v=2026083102/);
+  assert.match(serviceWorker, /const CACHE_NAME = "meus-gastos-v16";/);
+  assert.match(html, /\.\/js\/app\.js\?v=2026091001/);
+  assert.match(serviceWorker, /\.\/js\/app\.js\?v=2026091001/);
   assert.match(serviceWorker, /const cacheKey = new Request\(url\.href\);/);
 });
