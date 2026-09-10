@@ -7,14 +7,14 @@ const projectRoot = path.resolve(__dirname, "..");
 const html = fs.readFileSync(path.join(projectRoot, "index.html"), "utf8");
 const app = fs.readFileSync(path.join(projectRoot, "js", "app.js"), "utf8");
 
-test("posiciona a projeção de saldo logo antes dos filtros de lançamentos", () => {
+test("prioriza resumo e lançamentos antes do calendário expansível", () => {
   const decisionIndex = html.indexOf('class="decision-overview"');
   const entriesIndex = html.indexOf('class="panel entries-panel"');
   const calendarIndex = html.indexOf('class="panel calendar-panel"');
 
   assert.ok(decisionIndex > -1);
-  assert.ok(calendarIndex > decisionIndex);
-  assert.ok(entriesIndex > calendarIndex);
+  assert.ok(entriesIndex > decisionIndex);
+  assert.ok(calendarIndex > entriesIndex);
   assert.match(html, /id="monthEndBalanceTotal"/);
   assert.match(html, /id="nextSevenDaysTotal"/);
   assert.match(html, /id="financialGuidance"[^>]*aria-labelledby="financialGuidanceTitle"/);

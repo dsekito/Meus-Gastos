@@ -1685,13 +1685,15 @@ const descriptionOptionsByType = {
         }
         calendarGrid.innerHTML = cells.join("");
 
-        monthlyMinimumLabel.textContent = `Menor saldo em ${new Date(`${minimumBalanceDate}T12:00`).toLocaleDateString("pt-BR")}`;
-        monthlyMinimumBalance.textContent = calendarMoney(minimumBalance);
+        monthlyMinimumLabel.textContent = `Previsto em ${new Date(`${minimumBalanceDate}T12:00`).toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}`;
+        monthlyMinimumBalance.textContent = money(minimumBalance);
+        document.querySelector("#monthlyMinimumCard").dataset.negative = String(minimumBalance < 0);
+        document.querySelector("#monthlyMinimumWarning").hidden = minimumBalance >= 0;
         calendarPanel.classList.toggle("compact", !state.calendarExpanded);
         toggleCalendar.setAttribute("aria-expanded", String(state.calendarExpanded));
         toggleCalendar.textContent = state.calendarExpanded
-          ? "Ocultar calendário"
-          : "Ver calendário";
+          ? "Ocultar projeção"
+          : "Ver projeção";
       }
 
       function updateCount(entries) {
@@ -1726,6 +1728,11 @@ const descriptionOptionsByType = {
         const month = filterMonth.value;
 
         const monthly = getMonthlyEntries(month);
+        document.querySelector("#activeFiltersSummary").textContent = [
+          filterStatus.selectedOptions[0]?.textContent || "Todos os status",
+          filterType.selectedOptions[0]?.textContent || "Todos os tipos",
+          fd ? filterDescription.selectedOptions[0]?.textContent : null,
+        ].filter(Boolean).join(" · ");
 
         updateDecisionOverview(month);
         const referenceDate = state.settings.balance_reference_date || todayISO();
@@ -1753,6 +1760,7 @@ const descriptionOptionsByType = {
         count.style.display = state.selectionMode ? "none" : "";
         openRecentRecordsMain.hidden = state.selectionMode;
         openRecordsManagerMain.hidden = state.selectionMode;
+        document.querySelector("#entryActions").hidden = state.selectionMode;
         dateFilterInfo.classList.toggle(
           "visible",
           Boolean(state.filterDate) && !state.selectionMode,
@@ -3201,8 +3209,14 @@ const descriptionOptionsByType = {
         });
         if (added) show(`Descrição “${added}” adicionada às opções de ${selectedType}.`);
       };
-      openRecentRecordsMain.onclick = () => openRecentRecordsDialog(false);
-      openRecordsManagerMain.onclick = openRecordsManagerDialog;
+      openRecentRecordsMain.onclick = () => {
+        document.querySelector("#entryActions").open = false;
+        openRecentRecordsDialog(false);
+      };
+      openRecordsManagerMain.onclick = () => {
+        document.querySelector("#entryActions").open = false;
+        openRecordsManagerDialog();
+      };
       [managerFilterType, managerFilterDescription, managerFilterStatus].forEach((control) => {
         control.onchange = renderRecordsManager;
       });

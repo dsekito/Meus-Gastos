@@ -2171,6 +2171,85 @@
         .modal .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .modal .field.wide, .recurrence-summary { grid-column: 1 / -1; }
       }
+      /* Hierarquia financeira: saldo atual, menor saldo e compromissos. */
+      :root {
+        --ink: #18332a;
+        --muted: #52645c;
+        --bg: #f4f6f5;
+        --paper: #ffffff;
+        --soft: #eaf3ef;
+        --line: #d9e2dd;
+      }
+      body { font-size: 16px; }
+      .card, .panel { box-shadow: none; border-radius: 18px; }
+      .decision-overview-head { align-items: center; gap: 16px; }
+      .decision-overview-head .calendar-controls { display: flex; gap: 8px; }
+      .decision-overview-head .calendar-controls input { display: block; width: auto; min-width: 0; flex: 1; }
+      .decision-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .decision-cards .card { min-width: 0; padding: 16px; min-height: 0; }
+      .decision-cards .balance-card { grid-column: auto; }
+      .decision-cards .label { font-size: 16px; line-height: 1.4; }
+      .decision-cards .amount { font-size: 26px; letter-spacing: -0.03em; overflow-wrap: anywhere; }
+      .decision-cards .balance-card .amount { font-size: 36px; }
+      .decision-cards .minimum-card .amount { font-size: 30px; }
+      .decision-cards .amount { line-height: 1.25; margin-top: 8px; }
+      .decision-cards .card-note { font-size: 14px; line-height: 1.4; }
+      .minimum-card[data-negative="true"] { background: #fff2f0; border-color: #e9b4ad; }
+      .minimum-card[data-negative="true"] .amount, .minimum-warning { color: var(--danger); }
+      .minimum-warning { display: block; margin-top: 8px; font-size: 16px; font-weight: 600; }
+      .calendar-panel { background: var(--paper); border-color: var(--line); margin-bottom: 16px; }
+      .calendar-panel .calendar-head, .calendar-panel.compact .calendar-head {
+        display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between;
+        gap: 8px; padding: 8px 16px;
+      }
+      .calendar-panel .calendar-head p { font-size: 14px; }
+      .calendar-toggle { display: inline-flex; min-height: 48px; min-width: 48px; align-items: center; padding: 8px; font-size: 16px; }
+      .calendar-panel.compact .calendar-weekdays, .calendar-panel.compact .calendar-grid { display: none; }
+      .entries-panel .panel-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 16px 16px 8px; }
+      .entries-panel .panel-head > div:first-child { flex: 1; }
+      .entry-actions { max-width: 100%; }
+      .entry-actions summary { padding: 8px 12px; }
+      .entry-actions-content { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 8px; }
+      .entry-actions[open] { width: 100%; }
+      .entry-actions-content button { flex: 1; }
+      summary { min-height: 48px; cursor: pointer; border-radius: 10px; }
+      summary:hover, summary:active { background: var(--soft); }
+      summary:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+      .filter-disclosure { margin: 0 16px; }
+      .filter-disclosure summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 0; }
+      .filter-disclosure summary::-webkit-details-marker { display: none; }
+      .filter-disclosure summary span { color: var(--muted); font-size: 16px; overflow-wrap: anywhere; }
+      .filter-disclosure summary strong { color: var(--brand); flex-shrink: 0; }
+      .filter-disclosure[open] summary strong::after { content: " −"; }
+      .filter-disclosure .filters { padding: 8px 0 16px; gap: 12px; }
+      .filter-field label { font-size: 16px; }
+      .entries-panel > .filter-subtotal { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; width: auto; margin: 8px 16px; padding: 10px 12px; font-size: 14px; border-radius: 10px; }
+      .entries-panel > .filter-subtotal strong { margin: 0; font-size: 16px; font-variant-numeric: tabular-nums; }
+      .entry.dense-entry { padding: 16px 8px 16px 16px; }
+      .dense-entry .entry-header { align-items: flex-start; }
+      .dense-entry .entry-title, .dense-entry .entry-value { font-size: 16px; line-height: 1.45; }
+      .dense-entry .entry-title-text { white-space: normal; overflow-wrap: anywhere; }
+      .dense-entry .entry-value { font-variant-numeric: tabular-nums; }
+      .dense-entry .entry-meta-line { gap: 8px; font-size: 14px; line-height: 1.5; flex-wrap: wrap; }
+      .dense-entry .status-button { min-height: 48px; min-width: 48px; margin: 0; padding: 8px; font-size: 14px; }
+      @media (max-width: 768px) {
+        .decision-overview-head { align-items: stretch; gap: 12px; }
+        .decision-overview-head h2 { font-size: 20px; }
+        .decision-overview-head .calendar-controls { width: 100%; }
+        .decision-cards .balance-card, .decision-cards .minimum-card { grid-column: 1 / -1; }
+        .decision-cards .decision-card { padding: 14px 12px; }
+        .decision-cards .decision-card .amount { font-size: clamp(20px, 5.5vw, 26px); }
+        .calendar-panel.compact .calendar-head > div:first-child { flex: 1; }
+        .calendar-panel.compact .calendar-head p { display: none; }
+        .calendar-panel.compact .calendar-toggle { width: auto; margin: 0; font-size: 16px; }
+        .mobile-new-entry { left: 16px; right: 16px; width: calc(100% - 32px); bottom: calc(16px + env(safe-area-inset-bottom)); }
+        .shell { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
+        html { scroll-padding-bottom: 112px; }
+        .dense-entry .entry-header { flex-wrap: wrap; }
+        .dense-entry .entry-value { margin-left: auto; }
+      }
+      @media (max-width: 359px) { .decision-cards { grid-template-columns: minmax(0, 1fr); } }
+      @media (prefers-reduced-motion: reduce) { button, summary { transition: none; } }
     </style>
   </head>
   <body aria-busy="true">
@@ -2218,7 +2297,12 @@
         <div class="decision-overview-head">
           <div>
             <span class="eyebrow" id="decisionPeriodLabel">Visão do mês</span>
-            <h2 id="decisionOverviewTitle">O que precisa da sua atenção</h2>
+            <h2 id="decisionOverviewTitle">Seu mês em resumo</h2>
+          </div>
+          <div class="calendar-controls" aria-label="Mês do resumo e dos lançamentos">
+            <button class="calendar-nav" id="previousMonth" type="button" aria-label="Mês anterior">‹</button>
+            <input id="filterMonth" type="month" aria-label="Mês do calendário e dos lançamentos" />
+            <button class="calendar-nav" id="nextMonth" type="button" aria-label="Próximo mês">›</button>
           </div>
         </div>
         <div class="decision-cards">
@@ -2227,13 +2311,19 @@
           <div class="amount" id="currentBalanceTotal">R$ 0,00</div>
           <small class="card-note" id="balanceReferenceSummary">Base de cálculo</small>
         </article>
+          <article class="card minimum-card" id="monthlyMinimumCard" aria-labelledby="monthlyMinimumTitle">
+            <div class="label" id="monthlyMinimumTitle">Menor saldo do mês</div>
+            <div class="amount" id="monthlyMinimumBalance">R$ 0,00</div>
+            <small class="card-note" id="monthlyMinimumLabel">Calculando previsão</small>
+            <span class="minimum-warning" id="monthlyMinimumWarning" hidden>Saldo negativo previsto</span>
+          </article>
           <article class="card decision-card">
             <div class="label">Saldo no fim do mês</div>
             <div class="amount" id="monthEndBalanceTotal">R$ 0,00</div>
             <small class="card-note">Considera os lançamentos previstos</small>
           </article>
           <article class="card decision-card">
-            <div class="label">Próximos 7 dias</div>
+            <div class="label">A pagar em 7 dias</div>
             <div class="amount" id="nextSevenDaysTotal">R$ 0,00</div>
             <small class="card-note" id="nextSevenDaysSummary">Nenhuma conta em aberto</small>
           </article>
@@ -2246,22 +2336,6 @@
           </div>
         </section>
       </section>
-      <section class="panel calendar-panel">
-        <div class="calendar-head">
-          <div><h2>Projeção de saldo</h2><p id="calendarCaption">Selecione um mês para visualizar a projeção.</p></div>
-          <div class="calendar-toolbar">
-            <div class="calendar-balance" aria-live="polite"><span id="monthlyMinimumLabel">Menor saldo previsto no mês</span><strong id="monthlyMinimumBalance">R$ 0,00</strong></div>
-            <div class="calendar-controls" aria-label="Navegação do calendário">
-              <button class="calendar-nav" id="previousMonth" type="button" aria-label="Mês anterior">‹</button>
-              <input id="filterMonth" type="month" aria-label="Mês do calendário e dos lançamentos" />
-              <button class="calendar-nav" id="nextMonth" type="button" aria-label="Próximo mês">›</button>
-            </div>
-          </div>
-          <button class="calendar-toggle" id="toggleCalendar" type="button" aria-expanded="false">Ver calendário</button>
-        </div>
-        <div class="calendar-weekdays"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div>
-        <div class="calendar-grid" id="calendarGrid"></div>
-      </section>
       <section class="panel entries-panel">
         <div class="panel-head">
           <div>
@@ -2270,10 +2344,17 @@
           </div>
 
           <div id="selectionActions"></div>
-          <button class="secondary recent-records-shortcut" id="openRecentRecordsMain" type="button" aria-label="Abrir histórico de registros recentes">Histórico</button>
-          <button class="secondary recent-records-shortcut" id="openRecordsManagerMain" type="button" aria-label="Gerenciar todos os registros">Gerenciar</button>
+          <details class="entry-actions" id="entryActions">
+            <summary aria-label="Mais ações dos lançamentos">Mais ações</summary>
+            <div class="entry-actions-content">
+              <button class="secondary recent-records-shortcut" id="openRecentRecordsMain" type="button" aria-label="Abrir histórico de registros recentes">Histórico</button>
+              <button class="secondary recent-records-shortcut" id="openRecordsManagerMain" type="button" aria-label="Gerenciar todos os registros">Gerenciar</button>
+            </div>
+          </details>
           <div class="date-filter" id="dateFilterInfo"><span id="dateFilterLabel"></span><button id="clearDateFilter" type="button" aria-label="Limpar filtro da data">×</button></div>
         </div>
+        <details class="filter-disclosure">
+          <summary aria-label="Filtrar lançamentos"><span id="activeFiltersSummary">Em aberto · Todos os tipos</span><strong>Filtrar</strong></summary>
         <div class="filters" aria-label="Filtros dos lançamentos">
           <div class="filter-field">
             <label for="filterType">Tipo</label>
@@ -2295,10 +2376,19 @@
               <option value="pending" selected>Em aberto</option>
             </select>
           </div>
-          <div class="filter-subtotal">Subtotal filtrado<strong id="filteredSubtotal">R$ 0,00</strong></div>
         </div>
+        </details>
+        <div class="filter-subtotal">Subtotal filtrado<strong id="filteredSubtotal">R$ 0,00</strong></div>
 
         <div class="entries" id="rows"></div>
+      </section>
+      <section class="panel calendar-panel">
+        <div class="calendar-head">
+          <div><h2>Projeção de saldo</h2><p id="calendarCaption">Selecione um mês para visualizar a projeção.</p></div>
+          <button class="calendar-toggle" id="toggleCalendar" type="button" aria-expanded="false" aria-controls="calendarGrid">Ver projeção</button>
+        </div>
+        <div class="calendar-weekdays"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div>
+        <div class="calendar-grid" id="calendarGrid"></div>
       </section>
       <button class="primary mobile-new-entry" id="openModalMobile" type="button" hidden><span aria-hidden="true">＋</span> Novo lançamento</button>
     </main>
@@ -2677,6 +2767,6 @@
     <script src="./js/google-auth.js?v=2026081003"></script>
     <script src="./js/google-drive-repository.js?v=2026082601"></script>
     <script src="./js/sync-service.js?v=2026082601"></script>
-    <script src="./js/app.js?v=2026091001"></script>
+    <script src="./js/app.js?v=2026091002"></script>
   </body>
 </html>
