@@ -57,8 +57,12 @@ test("reconcilia ocorrências ao editar toda a série sem perder status", () => 
   assert.match(app, /function reconcileGeneratedSeriesEntries\(/);
   assert.match(app, /domain\.reconcileSeriesEntries\(sourceEntries, occurrences, series\)/);
   assert.match(app, /reconciliation\.upserts\.forEach[\s\S]*?queueUpsert\(updatedEntry\)/);
+  assert.match(
+    app,
+    /editScope\.value === "future"[\s\S]*?reconcileGeneratedSeriesEntries\(nextSeries, \{[\s\S]*?sourceSeriesId: original\.id,[\s\S]*?fromScheduledDate: cutDate/,
+  );
   assert.match(app, /reconcileGeneratedSeriesEntries\(updated\);/);
-  assert.doesNotMatch(app, /await removeGeneratedSeriesEntries\(original\.id\)/);
+  assert.doesNotMatch(app, /removeGeneratedSeriesEntries/);
 });
 
 test("oferece no formulário as descrições já registradas para o tipo selecionado", () => {

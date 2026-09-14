@@ -2740,7 +2740,6 @@ const descriptionOptionsByType = {
           const originalIndex = state.recurrenceSeries.findIndex((series) => series.id === original.id);
           state.recurrenceSeries[originalIndex] = shortened;
           state.recurrenceDirty = true;
-          await removeGeneratedSeriesEntries(original.id, cutDate);
 
           const nextSeries = recurrenceSeriesFromForm(generateId(), dateInput.value);
           nextSeries.updated_at = new Date().toISOString();
