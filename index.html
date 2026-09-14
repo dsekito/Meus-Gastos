@@ -658,6 +658,26 @@
         gap: 10px;
         margin-top: 23px;
       }
+      .repeat-entry {
+        border-color: var(--brand);
+        color: var(--brand);
+      }
+      .entry-repeat-status {
+        margin: 16px 16px 0;
+        padding: 10px 12px;
+        border: 1px solid #bbd8ca;
+        border-radius: 12px;
+        background: #eff8f3;
+        color: var(--ink);
+        font-size: 14px;
+        line-height: 1.4;
+      }
+      .entry-repeat-status[hidden] { display: none; }
+      .entry-repeat-status[data-state="error"] {
+        border-color: #efb4ae;
+        background: #fff1f0;
+        color: var(--danger);
+      }
       .onboarding-modal {
         width: min(620px, 100%);
       }
@@ -1592,6 +1612,7 @@
         }
 
         .modal-foot button { width: 100%; min-height: 48px; padding: 8px 10px; }
+        .entry-modal-foot .repeat-entry { grid-column: 1 / -1; }
       }
 
       .recurrence-fields {
@@ -2542,8 +2563,15 @@
             <label class="checkbox-label"><input id="paid" type="checkbox" /><span id="paidLabel">Marcar como pago</span></label>
           </div>
         </div>
-        <div class="modal-foot">
-          <button class="secondary" type="button" data-close>Cancelar</button
+        <p class="entry-repeat-status" id="entryFormStatus" role="status" aria-live="polite" hidden></p>
+        <div class="modal-foot entry-modal-foot">
+          <button
+            class="secondary repeat-entry"
+            id="saveAndAddAnother"
+            type="submit"
+            aria-label="Salvar lançamento e adicionar outro mantendo os demais dados"
+          >Salvar e adicionar outro</button
+          ><button class="secondary" type="button" data-close>Cancelar</button
           ><button class="primary" id="saveEntry" type="submit">Salvar lançamento</button>
         </div>
       </form>
@@ -2767,6 +2795,6 @@
     <script src="./js/google-auth.js?v=2026081003"></script>
     <script src="./js/google-drive-repository.js?v=2026082601"></script>
     <script src="./js/sync-service.js?v=2026082601"></script>
-    <script src="./js/app.js?v=2026091401"></script>
+    <script src="./js/app.js?v=2026091402"></script>
   </body>
 </html>

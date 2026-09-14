@@ -169,6 +169,7 @@ const descriptionOptionsByType = {
       const dialog = document.querySelector("#entryDialog"),
         form = document.querySelector("#entryForm"),
         modalTitle = document.querySelector("#entryDialogTitle"),
+        entryFormStatus = document.querySelector("#entryFormStatus"),
         dateInput = document.querySelector("#date"),
         valueInput = document.querySelector("#value"),
         detailInput = document.querySelector("#detail"),
@@ -293,6 +294,7 @@ const descriptionOptionsByType = {
         bulkDateInput = document.querySelector("#bulkDate"),
         saveBulkDate = document.querySelector("#saveBulkDate"),
         saveEntry = document.querySelector("#saveEntry"),
+        saveAndAddAnother = document.querySelector("#saveAndAddAnother"),
         optionDialog = document.querySelector("#optionDialog"),
         optionForm = document.querySelector("#optionForm"),
         optionDialogTitle = document.querySelector("#optionDialogTitle"),
@@ -2055,6 +2057,9 @@ const descriptionOptionsByType = {
         returnToRecentAfterEdit = false;
         state.editingId = null;
         modalTitle.textContent = "Novo lançamento";
+        saveAndAddAnother.hidden = false;
+        entryFormStatus.hidden = true;
+        entryFormStatus.textContent = "";
         form.reset();
         flowType.value = "expense";
         recurrence.value = "single";
@@ -2569,6 +2574,9 @@ const descriptionOptionsByType = {
         returnToRecentAfterEdit = returnToHistory;
         if (recentRecordsDialog.open) recentRecordsDialog.close();
         state.editingId = entry.id;
+        saveAndAddAnother.hidden = true;
+        entryFormStatus.hidden = true;
+        entryFormStatus.textContent = "";
         modalTitle.textContent = entry.installment ? "Editar compra parcelada" : "Editar lançamento";
         fillForm(entry);
         dialog.showModal();
@@ -3598,7 +3606,11 @@ const descriptionOptionsByType = {
         e.preventDefault();
 
         const editing = !!state.editingId;
+        const keepAdding = !editing && e.submitter === saveAndAddAnother;
         const editingEntry = state.entries.find((entry) => entry.id === state.editingId);
+        entryFormStatus.hidden = true;
+        entryFormStatus.textContent = "";
+        entryFormStatus.removeAttribute("data-state");
 
         const date = dateInput.value;
         const totalValue = Number(valueInput.value);
@@ -3618,9 +3630,11 @@ const descriptionOptionsByType = {
           paid,
         };
 
+        const activeSubmitButton = keepAdding ? saveAndAddAnother : saveEntry;
         saveEntry.disabled = true;
-        saveEntry.setAttribute("aria-busy", "true");
-        saveEntry.textContent = "Salvando…";
+        saveAndAddAnother.disabled = true;
+        activeSubmitButton.setAttribute("aria-busy", "true");
+        activeSubmitButton.textContent = "Salvando…";
         try {
           let recurringEditScope = null;
           let installmentEditQuantity = null;
@@ -3662,10 +3676,8 @@ const descriptionOptionsByType = {
           }
 
           const synced = await save();
-          closeEntryDialog();
           render();
-          show(
-            recurringEditScope
+          const successMessage = recurringEditScope
               ? recurringEditSuccessMessage(recurringEditScope, synced)
               : installmentEditQuantity
                 ? synced
@@ -3677,21 +3689,39 @@ const descriptionOptionsByType = {
                   : isRecurringValue()
                     ? "Recorrência criada e sincronizada."
                     : "Lançamento salvo e sincronizado."
-                : "Lançamento salvo neste dispositivo e aguardando sincronização.",
-          );
+                : "Lançamento salvo neste dispositivo e aguardando sincronização.";
+
+          if (keepAdding) {
+            valueInput.value = "";
+            detailInput.value = "";
+            updateEntryFormValidity();
+            entryFormStatus.textContent = `${successMessage} Os demais dados foram mantidos; informe o próximo valor e detalhe.`;
+            entryFormStatus.hidden = false;
+            valueInput.focus();
+          } else {
+            closeEntryDialog();
+            show(successMessage);
+          }
         } catch (error) {
           console.error(error);
-          show(
-            editing && editingEntry?.installment
+          const errorMessage = editing && editingEntry?.installment
               ? "Não foi possível atualizar o parcelamento. Nenhuma alteração foi confirmada no Google Drive."
               : editing && editingEntry?.series_id
               ? "Não foi possível atualizar a recorrência. Seus dados não foram confirmados no Google Drive."
-              : "Não foi possível salvar a recorrência. Tente novamente.",
-          );
+              : "Não foi possível salvar o lançamento. Tente novamente.";
+          if (keepAdding) {
+            entryFormStatus.dataset.state = "error";
+            entryFormStatus.textContent = errorMessage;
+            entryFormStatus.hidden = false;
+          } else {
+            show(errorMessage);
+          }
         } finally {
           saveEntry.disabled = false;
-          saveEntry.removeAttribute("aria-busy");
+          saveAndAddAnother.disabled = false;
+          activeSubmitButton.removeAttribute("aria-busy");
           saveEntry.textContent = "Salvar lançamento";
+          saveAndAddAnother.textContent = "Salvar e adicionar outro";
         }
       };
 
