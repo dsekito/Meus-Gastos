@@ -2199,8 +2199,6 @@
         .top { position: relative; }
         .shell { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
         dialog:not(#settingsDialog):not(#recordsManagerDialog) { max-height: calc(100dvh - 16px); }
-        .modal .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        .modal .field.wide, .recurrence-summary { grid-column: 1 / -1; }
       }
       /* Hierarquia financeira: saldo atual, menor saldo e compromissos. */
       :root {
@@ -2281,6 +2279,50 @@
       }
       @media (max-width: 359px) { .decision-cards { grid-template-columns: minmax(0, 1fr); } }
       @media (prefers-reduced-motion: reduce) { button, summary { transition: none; } }
+
+      /* Adapt to the app window, including foldable split-screen and keyboards. */
+      .calendar-scroll {
+        min-width: 0;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+      }
+      .calendar-scroll .calendar-weekdays,
+      .calendar-scroll .calendar-grid { min-width: 336px; }
+      .calendar-panel.compact .calendar-scroll { display: none; }
+      .calendar-scroll:focus-visible { outline: 3px solid var(--brand); outline-offset: -3px; }
+      .checkbox-label:active { background: var(--soft); }
+      .managed-record input { width: 48px; height: 48px; min-width: 48px; }
+      .recent-records-list { grid-template-columns: minmax(0, 1fr); }
+      .recent-record, .recent-record-head, .recent-record-meta { min-width: 0; }
+
+      @media (max-width: 768px) {
+        .decision-cards .decision-card .label { min-height: 2.8em; }
+        .modal-head { gap: 12px; }
+        .modal label, .modal p { font-size: 16px; line-height: 1.4; }
+        .modal .field :is(input, select, textarea) { min-width: 0; max-width: 100%; }
+        .recent-record-title { white-space: normal; overflow-wrap: anywhere; }
+        .recent-record-meta { overflow-wrap: anywhere; }
+        .dense-entry .entry-header { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+        .dense-entry .entry-value { justify-self: end; overflow-wrap: anywhere; max-width: 100%; }
+        .mobile-new-entry {
+          left: max(16px, env(safe-area-inset-left));
+          right: max(16px, env(safe-area-inset-right));
+          width: auto;
+        }
+        #recordsManagerDialog .modal { overflow-y: auto; }
+        #recordsManagerDialog .modal > * { flex-shrink: 0; }
+        #recordsManagerDialog .records-manager-list { overflow: visible; }
+      }
+
+      @media (max-height: 520px) {
+        .top { position: relative; }
+        /* Scroll the whole dialog when fixed actions would crowd out the fields. */
+        dialog .modal { overflow-y: auto; }
+        dialog .modal > * { flex-shrink: 0; }
+        dialog .modal .form-grid,
+        dialog .recent-records-list { overflow: visible; }
+        dialog .modal-foot { position: static; }
+      }
     </style>
   </head>
   <body aria-busy="true">
@@ -2418,8 +2460,10 @@
           <div><h2>Projeção de saldo</h2><p id="calendarCaption">Selecione um mês para visualizar a projeção.</p></div>
           <button class="calendar-toggle" id="toggleCalendar" type="button" aria-expanded="false" aria-controls="calendarGrid">Ver projeção</button>
         </div>
+        <div class="calendar-scroll" role="region" aria-label="Calendário de projeção; deslize na horizontal para ver todos os dias" tabindex="0">
         <div class="calendar-weekdays"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div>
         <div class="calendar-grid" id="calendarGrid"></div>
+        </div>
       </section>
       <button class="primary mobile-new-entry" id="openModalMobile" type="button" hidden><span aria-hidden="true">＋</span> Novo lançamento</button>
     </main>
