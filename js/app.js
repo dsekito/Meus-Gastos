@@ -1493,7 +1493,7 @@ const descriptionOptionsByType = {
           ? (isIncome ? "Recebido" : "Pago")
           : (isIncome ? "A receber" : "Em aberto");
         return `
-          <article class="entry dense-entry ${selected ? "selected" : ""} ${statusPending ? "status-pending" : ""} ${statusChanged ? "status-changed" : ""}" data-entry="${e.id}" role="${state.selectionMode ? "button" : "group"}" ${state.selectionMode ? `tabindex="0" aria-pressed="${selected}"` : ""} aria-busy="${statusPending}" aria-label="${state.selectionMode ? `Selecionar ${esc(e.description)}, tipo ${esc(e.type)}` : `${esc(e.description)}, tipo ${esc(e.type)}, ${money(e.value)}, ${statusLabel}. Toque para editar.`}" style="--type-color:${typeColor}">
+          <article class="entry dense-entry ${selected ? "selected" : ""} ${statusPending ? "status-pending" : ""} ${statusChanged ? "status-changed" : ""}" data-entry="${e.id}" role="${state.selectionMode ? "button" : "group"}" ${state.selectionMode ? `tabindex="0" aria-pressed="${selected}"` : ""} aria-busy="${statusPending}" aria-label="${state.selectionMode ? `Selecionar ${esc(e.description)}, tipo ${esc(e.type)}, ${isIncome ? "receita" : "despesa"}` : `${esc(e.description)}, tipo ${esc(e.type)}, ${isIncome ? "receita" : "despesa"}, ${money(e.value)}, ${statusLabel}. Toque para editar.`}" style="--type-color:${typeColor}">
             <div class="entry-content">
               <div class="entry-summary">
                 <div class="entry-header">
@@ -1501,13 +1501,12 @@ const descriptionOptionsByType = {
                     <span class="entry-dot" aria-hidden="true"></span>
                     <span class="entry-title-text">${esc(e.description)}${e.detail ? ` <span class="entry-detail-inline">- ${esc(e.detail)}</span>` : ""}</span>
                   </div>
-                  <div class="entry-value ${isIncome ? "income" : ""}">${isIncome ? "+ " : ""}${money(e.value)}</div>
+                  <div class="entry-value ${isIncome ? "income" : ""}">${isIncome ? "+ " : "− "}${money(e.value)}</div>
                 </div>
                 <div class="entry-footer">
                   <div class="entry-meta-line">
                     <span>${formatDay(e.date)} ${formatMonth(e.date)}</span>
                     <span class="entry-type">${esc(e.type)}</span>
-                    <span class="entry-flow">${isIncome ? "Receita" : "Despesa"}</span>
                     ${e.installment ? `<span class="entry-installment">${e.installment.current}/${e.installment.total}</span>` : ""}
                     ${state.selectionMode ? "" : `<button type="button" class="status-button ${e.paid ? "paid" : "pending"}" data-toggle-status="${e.id}" aria-label="Alterar status de ${esc(e.description)}. Status atual: ${statusLabel}" aria-pressed="${e.paid}" ${statusPending ? "disabled" : ""}><span class="status-button-label">${statusPending ? "Salvando" : statusLabel}</span></button>`}
                   </div>

@@ -2259,7 +2259,9 @@
       .dense-entry .entry-title, .dense-entry .entry-value { font-size: 16px; line-height: 1.45; }
       .dense-entry .entry-title-text { white-space: normal; overflow-wrap: anywhere; }
       .dense-entry .entry-value { font-variant-numeric: tabular-nums; }
-      .dense-entry .entry-meta-line { gap: 8px; font-size: 14px; line-height: 1.5; flex-wrap: wrap; }
+      .dense-entry .entry-meta-line { gap: 8px; font-size: 14px; line-height: 1.5; flex-wrap: nowrap; }
+      .dense-entry .entry-meta-line > :not(.entry-type) { flex-shrink: 0; }
+      .dense-entry .entry-type { min-width: 0; }
       .dense-entry .status-button { min-height: 48px; min-width: 48px; margin: 0; padding: 8px; font-size: 14px; }
       @media (max-width: 768px) {
         .decision-overview-head { align-items: stretch; gap: 12px; }
@@ -2849,6 +2851,6 @@
     <script src="./js/google-auth.js?v=2026081003"></script>
     <script src="./js/google-drive-repository.js?v=2026082601"></script>
     <script src="./js/sync-service.js?v=2026082601"></script>
-    <script src="./js/app.js?v=2026091402"></script>
+    <script src="./js/app.js?v=2026092301"></script>
   </body>
 </html>
