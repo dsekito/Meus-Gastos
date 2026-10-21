@@ -46,6 +46,22 @@ identificadores de mutação para preservar edições feitas enquanto outro envi
 andamento. O aplicativo interrompe a gravação quando identifica que o mesmo registro
 mudou em outro dispositivo.
 
+Cada envio consolida lançamentos, configurações e recorrências em uma única gravação
+quando houver alterações nessas coleções. As operações remotas são serializadas,
+e novas edições durante o upload permanecem pendentes para o próximo lote. Após
+uma resposta perdida, um resultado remoto idêntico é reconhecido sem reenviar o
+mesmo conteúdo. Conflitos com conteúdo diferente continuam exigindo resolução.
+
+O limite de tempo cobre a leitura completa da resposta, inclusive o corpo do
+arquivo. Cancelar interrompe requisições e a espera entre tentativas. Erros
+transitórios podem disparar até três novas tentativas de ciclo, com pausas de
+5, 10 e 20 segundos, enquanto houver conexão e autorização válida. Erros de
+autorização, conflitos e documentos inválidos não entram nesse ciclo automático.
+Retornar à aba não repete consultas concluídas há menos de 30 segundos quando não
+há alterações locais. O arquivo consolidado ainda é transferido inteiro quando
+há mudanças; esta revisão não transforma o Drive em um banco com sincronização
+incremental de registros.
+
 Antes de substituir a cópia local, o documento remoto é validado quanto ao schema,
 IDs duplicados, datas, coleções e configurações. O resumo de sincronização registra a
 última tentativa, o último sucesso e o tamanho do documento. A restauração de um
@@ -85,10 +101,52 @@ ser executada antes do corte da versão em produção.
 
 ## Testes
 
+A interface tem cinco destinos: Início, Registros, Projeção, Mensal e Ajustes, com
+navegação pelo histórico do navegador. O mês escolhido é compartilhado entre as
+áreas. No formulário, repetição e detalhes ficam em uma seção opcional. Em compras
+parceladas, informe o **valor total da compra**: a prévia mostra a divisão e o
+ajuste dos centavos na última parcela, conforme a regra financeira existente.
+
+Na área **Mensal** (`#mensal`), escolha o ano e a situação dos lançamentos para
+consultar entradas, saídas, saldo de cada mês e acumulado desde janeiro, além dos
+totais anuais. O saldo é **entradas menos saídas**, sem incluir o saldo inicial da
+conta. O filtro permite realizados, em aberto ou ambos. Parcelas e recorrências
+são somadas por ocorrência registrada, na respectiva data; não há estimativa de
+ocorrências ainda não geradas. Despesas negativas reduzem o total de saídas.
+**Ver lançamentos** abre os registros daquele mês com a mesma situação selecionada.
+
+Na aba Projeção, **Entradas do mês** e **Saídas do mês** mostram o período inteiro,
+com destaque para o que ainda está a receber e a pagar. O painel abaixo do
+calendário mostra somente a data selecionada: um dia sem receitas pode ter
+entradas zeradas mesmo quando há entradas em outros dias do mês. Dias com
+entradas têm o indicador `+`.
+
+“A receber” identifica uma entrada ainda não recebida. Essa distinção aparece no
+resumo de sete dias, no calendário, no histórico, no gerenciador e no consolidado.
+A classificação exata `A RECEBER` no tipo ou status de um registro antigo também
+é reconhecida como entrada na leitura, mesmo quando a movimentação foi gravada
+com o padrão de despesa. Os dados antigos não são regravados automaticamente.
+Há um atalho **Resumo mensal** em Registros, além da aba **Mensal**. Quando uma
+nova interface fica disponível, o app oferece atualização preservando os dados
+locais e pede para concluir formulários abertos antes de recarregar.
+
+Os cálculos usam centavos inteiros para evitar diferenças de ponto flutuante.
+Execute `node test/monthly-cash-flow.test.js` para os casos financeiros e
+`node test/monthly-cash-flow.e2e.cjs` com o servidor local na porta 8000 para
+validar filtros, navegação e layout do consolidado em cinco tamanhos de tela.
+
+Para validar a interface em um perfil fictício e isolado, mantenha o servidor
+local na porta 8000 e execute `node test/mobile-navigation.e2e.cjs`. O teste usa
+Playwright com Edge, sem acessar serviços externos, e salva capturas e medidas em
+`outputs/mobile-improvements/`. Ele verifica navegação, calendário, ajustes,
+parcelamento, persistência local e acesso aos controles em telas pequenas e em
+paisagem. A integração real com o Google Drive depende de uma conta autorizada.
+
 ```powershell
 node test/domain.test.js
 node test/document-validator.test.js
 node test/sync-service.test.js
+node test/sync-resilience.test.js
 node test/google-drive-repository.test.js
 node test/google-auth.test.js
 node test/local-store.test.js
@@ -98,3 +156,9 @@ node --check js/google-auth.js
 node --check js/google-drive-repository.js
 node --check js/local-store.js
 ```
+
+`node test/sync-pipeline.e2e.cjs` exercita o app e o repositório reais com serviços
+Google simulados, incluindo edição de configuração durante o upload. Nenhum
+dado de usuário é enviado ao Google nesses testes. O envio combinado é validado
+como uma única gravação por lote; um segundo upload só é necessário quando há
+uma edição adicional durante o primeiro.

@@ -2326,6 +2326,7 @@
         dialog .modal-foot { position: static; }
       }
     </style>
+    <link rel="stylesheet" href="./mobile.css?v=2026102106" />
   </head>
   <body aria-busy="true">
     <section class="bootstrap-screen" id="bootstrapScreen" role="status" aria-live="polite">
@@ -2368,7 +2369,14 @@
         </div>
         <button class="secondary" id="syncNoticeAction" type="button">Tentar novamente</button>
       </section>
-      <section class="decision-overview" aria-labelledby="decisionOverviewTitle">
+      <div class="view-heading">
+        <div><h2 id="appViewTitle" tabindex="-1">Seu mês em resumo</h2><p id="appViewDescription">Seu saldo e os próximos compromissos.</p></div>
+      </div>
+      <section id="interfaceUpdateNotice" class="panel interface-update-notice" aria-label="Atualização do aplicativo" hidden>
+        <p>Uma nova versão da interface está disponível.</p><button class="secondary" type="button" id="reloadInterface" aria-label="Atualizar a interface preservando os dados locais">Atualizar interface</button>
+      </section>
+      <div id="periodToolbar" class="period-toolbar" aria-label="Período exibido"></div>
+      <section class="decision-overview" data-app-panel="home" aria-labelledby="decisionOverviewTitle">
         <div class="decision-overview-head">
           <div>
             <span class="eyebrow" id="decisionPeriodLabel">Visão do mês</span>
@@ -2402,6 +2410,11 @@
             <div class="amount" id="nextSevenDaysTotal">R$ 0,00</div>
             <small class="card-note" id="nextSevenDaysSummary">Nenhuma conta em aberto</small>
           </article>
+          <article class="card decision-card">
+            <div class="label">A receber em 7 dias</div>
+            <div class="amount" id="nextSevenDaysIncomeTotal">R$ 0,00</div>
+            <small class="card-note" id="nextSevenDaysIncomeSummary">Nenhuma entrada a receber</small>
+          </article>
         </div>
         <section class="financial-guidance" id="financialGuidance" data-tone="positive" aria-labelledby="financialGuidanceTitle" aria-describedby="financialGuidanceDetail" hidden>
           <span class="financial-guidance-icon" aria-hidden="true"></span>
@@ -2411,7 +2424,13 @@
           </div>
         </section>
       </section>
-      <section class="panel entries-panel">
+      <section class="panel home-upcoming" data-app-panel="home" aria-labelledby="upcomingTitle">
+        <div class="panel-head"><h2 id="upcomingTitle">Próximas movimentações</h2><button class="secondary" type="button" data-app-destination="records" aria-label="Ver todos os lançamentos">Ver todas</button></div>
+        <p>A pagar e a receber nos próximos 7 dias.</p><div id="upcomingList"></div>
+        <button class="secondary" type="button" data-app-destination="projection" aria-label="Ver projeção do mês">Ver projeção do mês</button>
+        <button class="secondary" type="button" data-app-destination="monthly" aria-label="Ver consolidado mensal de entradas e saídas">Entradas × saídas mês a mês</button>
+      </section>
+      <section class="panel entries-panel" data-app-panel="records" hidden>
         <div class="panel-head">
           <div>
             <h2 id="panelTitle">Lançamentos</h2>
@@ -2419,6 +2438,7 @@
           </div>
 
           <div id="selectionActions"></div>
+          <button class="secondary monthly-shortcut" type="button" data-app-destination="monthly" aria-label="Abrir consolidado mensal de entradas e saídas">Resumo mensal</button>
           <details class="entry-actions" id="entryActions">
             <summary aria-label="Mais ações dos lançamentos">Mais ações</summary>
             <div class="entry-actions-content">
@@ -2447,27 +2467,76 @@
             <label for="filterStatus">Status</label>
             <select id="filterStatus">
               <option value="">Todos os status</option>
-              <option value="paid">Pagos</option>
-              <option value="pending" selected>Em aberto</option>
+              <option value="paid">Pagos / recebidos</option>
+              <option value="pending" selected>A pagar / a receber</option>
             </select>
           </div>
         </div>
+        <button class="secondary" type="button" id="clearEntryFilters" aria-label="Limpar filtros dos lançamentos">Limpar filtros</button>
         </details>
         <div class="filter-subtotal">Subtotal filtrado<strong id="filteredSubtotal">R$ 0,00</strong></div>
 
         <div class="entries" id="rows"></div>
       </section>
-      <section class="panel calendar-panel">
+      <section class="panel calendar-panel" data-app-panel="projection" hidden>
         <div class="calendar-head">
           <div><h2>Projeção de saldo</h2><p id="calendarCaption">Selecione um mês para visualizar a projeção.</p></div>
           <button class="calendar-toggle" id="toggleCalendar" type="button" aria-expanded="false" aria-controls="calendarGrid">Ver projeção</button>
         </div>
-        <div class="calendar-scroll" role="region" aria-label="Calendário de projeção; deslize na horizontal para ver todos os dias" tabindex="0">
+        <p id="projectionRisk" class="projection-risk"></p>
+        <div class="projection-month-summary" aria-label="Entradas e saídas do mês inteiro">
+          <article class="monthly-total"><span>Entradas do mês</span><strong id="projectionMonthIncome">R$ 0,00</strong><span id="projectionMonthReceivable"></span></article>
+          <article class="monthly-total"><span>Saídas do mês</span><strong id="projectionMonthExpense">R$ 0,00</strong><span id="projectionMonthPayable"></span></article>
+        </div>
+        <p class="projection-calendar-help">Os totais acima consideram o mês inteiro. Selecione um dia abaixo para consultar somente aquela data. O símbolo + indica dias com entradas.</p>
+        <div class="calendar-scroll" role="region" aria-label="Calendário de projeção; selecione um dia para consultar os valores" tabindex="0">
         <div class="calendar-weekdays"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div>
         <div class="calendar-grid" id="calendarGrid"></div>
         </div>
+        <section id="calendarDayDetail" class="calendar-day-detail" aria-labelledby="calendarDayTitle" aria-live="polite">
+          <h3 id="calendarDayTitle">Detalhes do dia</h3><dl id="calendarDayMetrics"></dl>
+          <p id="calendarDayIncomeNote"></p>
+          <p id="calendarDayCount"></p><button class="secondary" type="button" id="viewCalendarEntries" aria-label="Ver lançamentos do dia selecionado">Ver lançamentos deste dia</button>
+        </section>
+      </section>
+      <section class="monthly-view" data-app-panel="monthly" aria-label="Consolidado mensal de entradas e saídas" hidden>
+        <div class="panel monthly-controls">
+          <div class="field"><label for="monthlyYear">Ano do consolidado</label>
+            <div class="monthly-year-controls">
+              <button class="secondary" type="button" id="previousCashFlowYear" aria-label="Ano anterior do consolidado">‹</button>
+              <select id="monthlyYear" aria-label="Ano do consolidado"></select>
+              <button class="secondary" type="button" id="nextCashFlowYear" aria-label="Próximo ano do consolidado">›</button>
+            </div>
+          </div>
+          <div class="field"><label for="monthlyStatus">Lançamentos considerados</label>
+            <select id="monthlyStatus" aria-label="Filtrar consolidado por situação">
+              <option value="">Realizados + previstos</option>
+              <option value="paid">Somente realizados</option>
+              <option value="pending">Somente em aberto</option>
+            </select>
+          </div>
+          <p id="monthlyBasis">Agrupado pela data de cada lançamento. O saldo é a diferença entre entradas e saídas; não inclui o saldo inicial da conta.</p>
+        </div>
+        <div id="monthlyAnnualSummary" class="monthly-annual-summary" aria-label="Totais do ano"></div>
+        <p id="monthlySummaryStatus" role="status" aria-live="polite" aria-atomic="true"></p>
+        <p class="monthly-scope-note">Parcelas e recorrências entram no mês de cada ocorrência já registrada. Ocorrências ainda não geradas não são estimadas. Despesas negativas reduzem o total de saídas.</p>
+        <div id="monthlyCashFlowList" class="monthly-cash-flow-list"></div>
+      </section>
+      <section class="panel settings-home" data-app-panel="settings" aria-label="Ajustes do aplicativo" hidden>
+        <p>Ajuste sua projeção, organize as opções e proteja seus registros.</p>
+        <button class="settings-shortcut secondary" type="button" data-settings-topic="projection" aria-label="Configurar projeção financeira"><strong>Projeção financeira</strong><span>Saldo e data de referência</span></button>
+        <button class="settings-shortcut secondary" type="button" data-settings-topic="options" aria-label="Gerenciar tipos e descrições"><strong>Tipos e descrições</strong><span>Opções para classificar seus lançamentos</span></button>
+        <button class="settings-shortcut secondary" type="button" data-settings-topic="data" aria-label="Abrir sincronização e backups"><strong>Sincronização e backups</strong><span>Cópias locais, Google Drive e restauração</span></button>
+        <details class="install-help"><summary aria-label="Como instalar o aplicativo">Instalar no celular</summary><p><strong>Android:</strong> no menu do navegador, escolha Instalar app ou Adicionar à tela inicial.</p><p><strong>iPhone:</strong> no Safari, toque em Compartilhar e em Adicionar à Tela de Início.</p></details>
       </section>
       <button class="primary mobile-new-entry" id="openModalMobile" type="button" hidden><span aria-hidden="true">＋</span> Novo lançamento</button>
+      <nav class="app-navigation" aria-label="Navegação principal">
+        <button type="button" data-app-destination="home" aria-label="Início" aria-current="page">Início</button>
+        <button type="button" data-app-destination="records" aria-label="Registros">Registros</button>
+        <button type="button" data-app-destination="projection" aria-label="Projeção de saldo">Projeção</button>
+        <button type="button" data-app-destination="monthly" aria-label="Consolidado mensal de entradas e saídas">Mensal</button>
+        <button type="button" data-app-destination="settings" aria-label="Ajustes">Ajustes</button>
+      </nav>
     </main>
     <dialog id="onboardingDialog" aria-labelledby="onboardingTitle" aria-describedby="onboardingDescription">
       <form class="modal onboarding-modal" id="onboardingForm">
@@ -2486,12 +2555,12 @@
             <label for="onboardingReferenceDate">Data desse saldo</label>
             <input id="onboardingReferenceDate" type="date" required />
           </div>
-          <fieldset class="onboarding-category-field field wide">
+          <details class="onboarding-category-disclosure field wide"><summary aria-label="Personalizar categorias iniciais">Personalizar categorias (opcional)</summary><fieldset class="onboarding-category-field">
             <legend>Quais categorias deseja usar?</legend>
             <p class="onboarding-helper">Deixamos as mais comuns selecionadas. Desmarque o que não fizer sentido para você.</p>
             <div class="onboarding-category-options" id="onboardingCategoryOptions"></div>
             <p class="onboarding-error" id="onboardingCategoryError" role="alert" hidden>Selecione pelo menos uma categoria para continuar.</p>
-          </fieldset>
+          </fieldset></details>
         </div>
         <div class="modal-foot">
           <button class="secondary" id="skipOnboarding" type="button">Agora não</button>
@@ -2518,6 +2587,19 @@
             </select>
           </div>
           <div class="field">
+            <label for="value" id="entryValueLabel">Valor</label>
+            <input
+              id="value"
+              aria-describedby="entryValueError installmentPreview"
+              type="number"
+              step="0.01"
+              inputmode="decimal"
+              placeholder="Ex.: 150,00"
+              required
+            />
+            <p id="entryValueError" class="field-error" role="alert" hidden></p>
+          </div>
+          <div class="field">
             <label for="type">Tipo</label>
             <select id="type" required></select>
           </div>
@@ -2529,17 +2611,9 @@
             <label for="date">Data</label>
             <input id="date" type="date" required />
           </div>
-          <div class="field">
-            <label for="value">Valor</label>
-            <input
-              id="value"
-              type="number"
-              step="0.01"
-              inputmode="decimal"
-              placeholder="Ex.: 150,00"
-              required
-            />
-          </div>
+          <details id="entryAdvanced" class="entry-advanced field wide">
+            <summary aria-label="Repetição e detalhes opcionais">Repetição e detalhes opcionais</summary>
+            <div class="advanced-fields">
           <div class="field wide">
             <label for="detail">Detalhe (opcional)</label
             ><textarea
@@ -2562,7 +2636,8 @@
           <div class="field" id="installmentsField" style="display: none">
             <label for="installments"> Número de parcelas </label>
 
-            <input id="installments" type="number" min="2" value="2" />
+            <input id="installments" type="number" min="2" max="5000" step="1" inputmode="numeric" value="2" />
+            <p id="installmentPreview" role="status" aria-live="polite"></p>
           </div>
 
           <div class="recurrence-fields" id="recurrenceFields" hidden>
@@ -2606,6 +2681,8 @@
             <p class="recurrence-summary" id="recurrenceSummary" aria-live="polite"></p>
           </div>
 
+            </div>
+          </details>
           <div class="field wide" id="editScopeField" hidden>
             <label for="editScope">Aplicar alteração</label>
             <select id="editScope">
@@ -2669,6 +2746,11 @@
     <dialog id="settingsDialog" aria-labelledby="settingsTitle">
       <form class="modal" id="settingsForm">
         <div class="modal-head"><div><h2 id="settingsTitle">Configurações financeiras</h2><p>Ajuste a projeção e gerencie seus dados.</p></div><button class="close" type="button" data-close-settings aria-label="Fechar configurações">&times;</button></div>
+        <nav class="settings-topic-nav" aria-label="Assuntos dos ajustes">
+          <button class="secondary" type="button" data-settings-switch="projection" aria-pressed="true" aria-label="Ajustes da projeção">Projeção</button>
+          <button class="secondary" type="button" data-settings-switch="options" aria-pressed="false" aria-label="Ajustes de tipos e descrições">Opções</button>
+          <button class="secondary" type="button" data-settings-switch="data" aria-pressed="false" aria-label="Sincronização e backups">Backups</button>
+        </nav>
         <div class="form-grid">
           <section class="settings-group wide" aria-labelledby="projectionSettingsTitle">
             <div class="settings-group-head">
@@ -2692,6 +2774,7 @@
                   <div class="field"><label for="deleteTypeOption">Tipo</label><select id="deleteTypeOption"><option value="">Selecione o tipo</option></select></div>
                   <button class="secondary danger" id="deleteTypeOptionButton" type="button" aria-label="Excluir tipo selecionado">Excluir tipo</button>
                 </div>
+                <button class="secondary" type="button" data-add-option="types" aria-label="Adicionar novo tipo de lançamento">Adicionar tipo</button>
               </section>
               <section class="option-manager-card" aria-labelledby="descriptionOptionsTitle">
                 <div class="option-manager-copy"><strong id="descriptionOptionsTitle">Descrições</strong><p>Primeiro escolha o tipo; em seguida, a descrição para gerenciar ou adicionar.</p></div>
@@ -2700,13 +2783,14 @@
                   <div class="field"><label for="deleteDescriptionOption">Descrição</label><select id="deleteDescriptionOption" disabled><option value="">Selecione a descrição</option></select></div>
                   <button class="secondary danger" id="deleteDescriptionOptionButton" type="button" aria-label="Excluir descrição selecionada">Excluir descrição</button>
                 </div>
+                <button class="secondary" type="button" data-add-option="descriptions" aria-label="Adicionar descrição ao tipo selecionado">Adicionar descrição</button>
               </section>
             </div>
           </section>
           <section class="settings-group wide" aria-labelledby="dataSettingsTitle">
             <div class="settings-group-head">
               <h3 id="dataSettingsTitle">Proteção dos dados</h3>
-              <p>Veja a sincronização e mantenha cópias de segurança quando precisar.</p>
+              <p>A sincronização atualiza a cópia do Drive. Backups guardam pontos de restauração. Os registros continuam disponíveis neste aparelho sem conexão.</p>
             </div>
             <div class="settings-sync-summary" id="settingsSyncSummary"></div>
             <div class="settings-data-actions">
@@ -2797,7 +2881,7 @@
           <div class="records-manager-filters">
             <div class="field"><label for="managerFilterType">Tipo</label><select id="managerFilterType"><option value="">Todos os tipos</option></select></div>
             <div class="field"><label for="managerFilterDescription">Descrição</label><select id="managerFilterDescription"><option value="">Todas as descrições</option></select></div>
-            <div class="field"><label for="managerFilterStatus">Status</label><select id="managerFilterStatus"><option value="">Todos os status</option><option value="paid">Pagos</option><option value="pending">Em aberto</option></select></div>
+            <div class="field"><label for="managerFilterStatus">Status</label><select id="managerFilterStatus"><option value="">Todos os status</option><option value="paid">Pagos / recebidos</option><option value="pending">A pagar / a receber</option></select></div>
           </div>
         </details>
         <div class="manager-selection-bar">
@@ -2806,7 +2890,7 @@
           <button class="primary" id="managerToggleBulk" type="button" disabled>Editar selecionados</button>
         </div>
         <div class="manager-bulk-editor" id="managerBulkEditor" hidden>
-          <button class="secondary" id="managerMarkPaid" type="button">Marcar como pago</button>
+          <button class="secondary" id="managerMarkPaid" type="button">Marcar pago / recebido</button>
           <button class="secondary" id="managerMarkPending" type="button">Marcar em aberto</button>
           <div class="field"><label for="managerBulkType">Novo tipo</label><select id="managerBulkType"><option value="">Não alterar</option></select></div>
           <div class="field"><label for="managerBulkDescription">Nova descrição</label><select id="managerBulkDescription" disabled><option value="">Não alterar</option></select></div>
@@ -2845,12 +2929,12 @@
     <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="./js/config.js?v=2026081001"></script>
-    <script src="./js/domain.js?v=2026083101"></script>
+    <script src="./js/domain.js?v=2026102105"></script>
     <script src="./js/document-validator.js?v=2026082602"></script>
     <script src="./js/local-store.js?v=2026082601"></script>
     <script src="./js/google-auth.js?v=2026081003"></script>
-    <script src="./js/google-drive-repository.js?v=2026082601"></script>
-    <script src="./js/sync-service.js?v=2026082601"></script>
-    <script src="./js/app.js?v=2026092301"></script>
+    <script src="./js/google-drive-repository.js?v=2026102105"></script>
+    <script src="./js/sync-service.js?v=2026102105"></script>
+    <script src="./js/app.js?v=2026102105"></script>
   </body>
 </html>

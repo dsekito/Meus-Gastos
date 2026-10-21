@@ -1,19 +1,20 @@
-const CACHE_NAME = "meus-gastos-v22";
+const CACHE_NAME = "meus-gastos-v28";
 const APP_SHELL = [
   "./",
   "./index.html",
+  "./mobile.css?v=2026102106",
   "./manifest.webmanifest",
   "./icons/app-icon.svg",
   "./icons/app-icon-192.png",
   "./icons/app-icon-512.png",
   "./js/config.js?v=2026081001",
-  "./js/domain.js?v=2026083101",
+  "./js/domain.js?v=2026102105",
   "./js/document-validator.js?v=2026082602",
   "./js/local-store.js?v=2026082601",
   "./js/google-auth.js?v=2026081003",
-  "./js/google-drive-repository.js?v=2026082601",
-  "./js/sync-service.js?v=2026082601",
-  "./js/app.js?v=2026092301",
+  "./js/google-drive-repository.js?v=2026102105",
+  "./js/sync-service.js?v=2026102105",
+  "./js/app.js?v=2026102105",
 ];
 
 self.addEventListener("install", (event) => {

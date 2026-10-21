@@ -78,10 +78,24 @@
     return occurrences;
   }
 
+  function entryFlowType(entry = {}) {
+    const normalize = value => String(value || "").trim().toLocaleLowerCase("pt-BR").replace(/\s+/g, " ");
+    // Historical receivables may have been stored with the expense default.
+    // Resolve the exact classification without rewriting stored records.
+    if (normalize(entry.type) === "a receber" || normalize(entry.status) === "a receber") return "income";
+    return entry.flow_type === "income" ? "income" : "expense";
+  }
+
+  function entryStatusLabel(entry) {
+    return entryFlowType(entry) === "income"
+      ? entry.paid ? "Recebido" : "A receber"
+      : entry.paid ? "Pago" : "Em aberto";
+  }
+
   function dailyEntryTotals(entries) {
     return entries.reduce((totals, entry) => {
       if (entry.excluded_from_series) return totals;
-      if ((entry.flow_type || "expense") === "income") return totals;
+      if (entryFlowType(entry) === "income") return totals;
       totals.set(entry.date, (totals.get(entry.date) || 0) + Number(entry.value));
       return totals;
     }, new Map());
@@ -91,7 +105,7 @@
     return entries.reduce((totals, entry) => {
       if (entry.excluded_from_series) return totals;
       const value = Number(entry.value);
-      const impact = (entry.flow_type || "expense") === "income" ? value : -value;
+      const impact = entryFlowType(entry) === "income" ? value : -value;
       totals.set(entry.date, (totals.get(entry.date) || 0) + impact);
       return totals;
     }, new Map());
@@ -100,7 +114,7 @@
   function dailyIncomeTotals(entries) {
     return entries.reduce((totals, entry) => {
       if (entry.excluded_from_series) return totals;
-      if ((entry.flow_type || "expense") !== "income") return totals;
+      if (entryFlowType(entry) !== "income") return totals;
       totals.set(entry.date, (totals.get(entry.date) || 0) + Number(entry.value));
       return totals;
     }, new Map());
@@ -327,7 +341,48 @@
     return minimum;
   }
 
+  // Aggregate stored occurrences by their own date, never the original purchase
+  // total. Integer cents preserve installment rounding and expense refunds.
+  function monthlyCashFlow(entries, year, { status = "" } = {}) {
+    const selectedYear = Number(year);
+    if (!Number.isInteger(selectedYear) || selectedYear < 1900 || selectedYear > 9999) {
+      throw new RangeError("Ano inválido para o consolidado mensal.");
+    }
+    if (!["", "paid", "pending"].includes(status)) throw new RangeError("Status inválido.");
+    const buckets = Array.from({ length: 12 }, (_, index) => ({
+      month: `${selectedYear}-${String(index + 1).padStart(2, "0")}`,
+      income: 0, expense: 0, count: 0,
+    }));
+    for (const entry of entries) {
+      if (entry.excluded_from_series || typeof entry.date !== "string") continue;
+      const date = /^(\d{4})-(0[1-9]|1[0-2])-\d{2}$/.exec(entry.date);
+      if (!date || Number(date[1]) !== selectedYear) continue;
+      if (status && Boolean(entry.paid) !== (status === "paid")) continue;
+      const value = Number(entry.value);
+      if (!Number.isFinite(value)) continue;
+      const bucket = buckets[Number(date[2]) - 1];
+      bucket[entryFlowType(entry)] += Math.round(value * 100);
+      bucket.count++;
+    }
+    let accumulated = 0;
+    let income = 0, expense = 0, count = 0;
+    const months = buckets.map(bucket => {
+      const balance = bucket.income - bucket.expense;
+      accumulated += balance;
+      income += bucket.income;
+      expense += bucket.expense;
+      count += bucket.count;
+      return { month: bucket.month, income: bucket.income / 100, expense: bucket.expense / 100,
+        balance: balance / 100, accumulated: accumulated / 100, count: bucket.count };
+    });
+    return { year: selectedYear, status, months,
+      totals: { income: income / 100, expense: expense / 100, balance: (income - expense) / 100, count } };
+  }
+
   global.MGDomain = {
+    entryFlowType,
+    entryStatusLabel,
+    monthlyCashFlow,
     todayISO,
     addDays,
     addMonthsClamped,

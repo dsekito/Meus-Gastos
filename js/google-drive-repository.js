@@ -22,7 +22,7 @@
     };
   }
 
-  function create({ getAccessToken, isAccessTokenExpired = () => false }) {
+  function create({ getAccessToken, isAccessTokenExpired = () => false, requestTimeoutMs = REQUEST_TIMEOUT_MS }) {
     let fileId = null;
     let document = emptyDocument();
     let legacyEntries = [];
@@ -33,6 +33,8 @@
     let entryDeltaIndexFresh = false;
     let loadPromise = null;
     let writeChain = Promise.resolve();
+    let mutationChain = Promise.resolve();
+    let sessionGeneration = 0;
     const activeControllers = new Set();
     let requestsCancelled = false;
     let documentSizeBytes = 0;
@@ -57,7 +59,7 @@
     }
 
     function retryDelay(attempt, retryAfter = null) {
-      const retryAfterSeconds = Number(retryAfter);
+      const retryAfterSeconds = retryAfter == null || retryAfter === "" ? NaN : Number(retryAfter);
       if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds >= 0) {
         return Math.min(retryAfterSeconds * 1000, 10000);
       }
@@ -65,32 +67,49 @@
     }
 
     function wait(milliseconds) {
-      return new Promise((resolve) => setTimeout(resolve, milliseconds));
+      if (requestsCancelled) return Promise.reject(new Error("GOOGLE_DRIVE_CANCELLED"));
+      return new Promise((resolve, reject) => {
+        const controller = new AbortController();
+        activeControllers.add(controller);
+        const cleanup = () => { clearTimeout(timer); activeControllers.delete(controller); };
+        const timer = setTimeout(() => { cleanup(); resolve(); }, milliseconds);
+        controller.signal.addEventListener("abort", () => {
+          cleanup(); reject(new Error("GOOGLE_DRIVE_CANCELLED"));
+        }, { once: true });
+      });
     }
 
     async function request(url, options = {}) {
       const method = (options.method || "GET").toUpperCase();
+      const generation = sessionGeneration;
       for (let attempt = 0; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
         const token = getAccessToken();
         if (!token) throw new Error("GOOGLE_AUTH_REQUIRED");
         if (isAccessTokenExpired()) throw new Error("GOOGLE_AUTH_EXPIRED");
-        if (requestsCancelled) throw new Error("GOOGLE_DRIVE_CANCELLED");
+        if (requestsCancelled || generation !== sessionGeneration) throw new Error("GOOGLE_DRIVE_CANCELLED");
 
         const controller = new AbortController();
         activeControllers.add(controller);
-        const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+        const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
         let failure = null;
         let retryAfter = null;
         try {
           const response = await fetch(url, { ...options, signal: controller.signal, headers: { Authorization: `Bearer ${token}`, ...(options.headers || {}) } });
           if (response.status === 401) throw new Error("GOOGLE_AUTH_EXPIRED");
-          if (response.ok) return response;
+          if (response.ok) {
+            // Keep timeout/cancellation active until the complete body arrives.
+            const body = await response.arrayBuffer();
+            if (generation !== sessionGeneration) throw new Error("GOOGLE_DRIVE_CANCELLED");
+            return new Response([204, 205].includes(response.status) ? null : body, {
+              status: response.status, statusText: response.statusText, headers: response.headers,
+            });
+          }
           failure = new Error(`GOOGLE_DRIVE_${response.status}`);
           failure.retryable = RETRYABLE_STATUS.has(response.status) && method !== "POST";
           retryAfter = response.headers.get("Retry-After");
         } catch (error) {
           if (error?.name === "AbortError") {
-            failure = new Error(requestsCancelled ? "GOOGLE_DRIVE_CANCELLED" : "GOOGLE_DRIVE_TIMEOUT");
+            failure = new Error(requestsCancelled || generation !== sessionGeneration ? "GOOGLE_DRIVE_CANCELLED" : "GOOGLE_DRIVE_TIMEOUT");
             failure.retryable = !requestsCancelled && ["GET", "HEAD"].includes(method);
           } else {
             failure = error;
@@ -112,12 +131,14 @@
     function escapedName(name) { return name.replace(/'/g, "\\\\'"); }
 
     async function listFiles(query) {
+      const generation = sessionGeneration;
       const files = [];
       let pageToken = null;
       do {
         const params = new URLSearchParams({ spaces: "appDataFolder", q: query, fields: "files(id,name,version),nextPageToken", pageSize: "1000" });
         if (pageToken) params.set("pageToken", pageToken);
         const page = await (await request(`${API}/files?${params.toString()}`)).json();
+        if (generation !== sessionGeneration) throw new Error("GOOGLE_DRIVE_CANCELLED");
         files.push(...(page.files || []));
         pageToken = page.nextPageToken || null;
       } while (pageToken);
@@ -144,10 +165,12 @@
     }
 
     async function readEntryDelta(file) {
+      const generation = sessionGeneration;
       const { value: delta } = await readValidatedJson(
         await request(`${API}/files/${file.id}?alt=media`),
         validator.validateEntryDelta,
       );
+      if (generation !== sessionGeneration) throw new Error("GOOGLE_DRIVE_CANCELLED");
       entryDeltaFiles.set(delta.id, { ...file, delta });
       applyEntryDelta(delta);
     }
@@ -194,6 +217,7 @@
     }
 
     async function loadNow() {
+      const generation = sessionGeneration;
       const files = await listFiles(`name = '${escapedName(FILE_NAME)}' and trashed = false`);
       let mainDocumentChanged = false;
       if (files.length) {
@@ -206,6 +230,7 @@
             await request(`${API}/files/${nextFileId}?alt=media`),
             validator.validateDocument,
           );
+          if (generation !== sessionGeneration) throw new Error("GOOGLE_DRIVE_CANCELLED");
           fileId = nextFileId;
           remoteVersion = nextRemoteVersion;
           document = { ...emptyDocument(), ...loadedDocument.value };
@@ -218,6 +243,7 @@
         await persist();
         legacyEntries = structuredClone(document.entries);
       }
+      if (generation !== sessionGeneration) throw new Error("GOOGLE_DRIVE_CANCELLED");
       if (!loaded) await loadEntryDeltas();
       else {
         await refreshEntryDeltaIndex();
@@ -225,21 +251,26 @@
         // também precisam ser sobrepostas à nova cópia do documento.
         if (mainDocumentChanged) entryDeltaFiles.forEach(({ delta }) => applyEntryDelta(delta));
       }
+      if (generation !== sessionGeneration) throw new Error("GOOGLE_DRIVE_CANCELLED");
       loaded = true;
       return document;
     }
 
-    async function load() {
+    async function loadDocument() {
       if (loadPromise) return loadPromise;
-      loadPromise = loadNow();
+      const pending = loadNow();
+      loadPromise = pending;
       try {
-        return await loadPromise;
+        return await pending;
       } finally {
-        loadPromise = null;
+        if (loadPromise === pending) loadPromise = null;
       }
     }
 
+    function load() { return mutate(loadDocument); }
+
     async function persistNow() {
+      const generation = sessionGeneration;
       if (fileId && remoteVersion) {
         const currentVersion = (await (await request(`${API}/files/${fileId}?fields=version`)).json()).version || null;
         if (currentVersion !== remoteVersion) throw new Error("GOOGLE_DRIVE_CONFLICT");
@@ -252,19 +283,31 @@
       lastValidatedAt = new Date().toISOString();
       if (fileId) {
         const response = await request(`${UPLOAD_API}/files/${fileId}?uploadType=media&fields=id,version`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body });
-        remoteVersion = (await response.json()).version || remoteVersion;
+        const saved = await response.json();
+        if (generation !== sessionGeneration) throw new Error("GOOGLE_DRIVE_CANCELLED");
+        remoteVersion = saved.version || remoteVersion;
         return;
       }
       const form = new FormData();
       form.append("metadata", new Blob([JSON.stringify({ name: FILE_NAME, parents: ["appDataFolder"] })], { type: "application/json" }));
       form.append("file", new Blob([body], { type: "application/json" }));
       const created = await (await request(`${UPLOAD_API}/files?uploadType=multipart&fields=id,version`, { method: "POST", body: form })).json();
+      if (generation !== sessionGeneration) throw new Error("GOOGLE_DRIVE_CANCELLED");
       fileId = created.id;
       remoteVersion = created.version || null;
     }
 
     function persist() { writeChain = writeChain.then(persistNow, persistNow); return writeChain; }
-    async function ensureLoaded() { if (!loaded) await load(); }
+    function mutate(task) {
+      const generation = sessionGeneration;
+      const result = mutationChain.then(() => {
+        if (generation !== sessionGeneration) throw new Error("GOOGLE_DRIVE_CANCELLED");
+        return task();
+      });
+      mutationChain = result.catch(() => {});
+      return result;
+    }
+    async function ensureLoaded() { if (!loaded) await loadDocument(); }
     function stamped(value) { return { ...value, updated_at: new Date().toISOString() }; }
 
     async function findEntryDelta(id) {
@@ -351,25 +394,48 @@
       await persist();
     }
 
-    async function applyEntryOperations(operations, _userId, onProgress = () => {}) {
+    function sameContent(left, right) {
+      const canonical = value => {
+        if (Array.isArray(value)) return value.map(canonical);
+        if (!value || typeof value !== "object") return value;
+        return Object.fromEntries(Object.keys(value).filter(key => key !== "updated_at").sort()
+          .map(key => [key, canonical(value[key])]));
+      };
+      return JSON.stringify(canonical(left)) === JSON.stringify(canonical(right));
+    }
+
+    async function applyEntryOperationsNow(operations, _userId, onProgress = () => {}, collections = {}) {
+      const generation = sessionGeneration;
       await ensureLoaded();
       onProgress({ completed: 0, total: operations.length, phase: "checking" });
       await refreshEntryDeltaIndex({ useFreshIndex: true });
-      const documentBeforeChanges = structuredClone(document);
       const entriesById = new Map(document.entries.map((entry) => [entry.id, entry]));
 
+      const saved = [];
+      const changes = [];
       for (const operation of operations) {
         const id = operation.type === "delete" ? operation.id : operation.entry.id;
         const current = entriesById.get(id);
+        // A response may be lost after a successful upload. A later refresh
+        // can acknowledge an identical result instead of creating a conflict.
+        if (operation.type === "upsert" && current && sameContent(current, operation.entry)) {
+          saved.push(current);
+          continue;
+        }
+        if (operation.type === "delete" && !current && document.tombstones?.[id]) continue;
         if (operation.baseUpdatedAt && current?.updated_at !== operation.baseUpdatedAt) {
           throw new Error("CONFLICT: este lançamento foi alterado em outro dispositivo.");
         }
+        changes.push(operation);
       }
 
-      const saved = [];
+      const settingsChanged = collections.settings && !sameContent(document.settings, collections.settings);
+      const recurrenceChanged = collections.recurrenceSeries && !sameContent(document.recurrenceSeries, collections.recurrenceSeries);
+      if (!changes.length && !settingsChanged && !recurrenceChanged) return saved;
+      const documentBeforeChanges = structuredClone(document);
       const timestamp = new Date().toISOString();
-      for (let index = 0; index < operations.length; index++) {
-        const operation = operations[index];
+      for (let index = 0; index < changes.length; index++) {
+        const operation = changes[index];
         if (operation.type === "delete") {
           entriesById.delete(operation.id);
           document.tombstones = { ...(document.tombstones || {}), [operation.id]: timestamp };
@@ -383,6 +449,8 @@
       }
 
       document.entries = [...entriesById.values()];
+      if (settingsChanged) document.settings = { ...structuredClone(collections.settings), updated_at: timestamp };
+      if (recurrenceChanged) document.recurrenceSeries = structuredClone(collections.recurrenceSeries);
       document.compactedDeltas = Object.fromEntries(
         [...entryDeltaFiles.entries()].map(([id, file]) => [id, file.version]),
       );
@@ -390,13 +458,24 @@
       try {
         await persist();
       } catch (error) {
-        document = documentBeforeChanges;
-        loaded = false;
-        entryDeltaIndexFresh = false;
+        if (generation === sessionGeneration) {
+          document = documentBeforeChanges;
+          loaded = false;
+          entryDeltaIndexFresh = false;
+        }
         throw error;
       }
       onProgress({ completed: 1, total: 1, phase: "sending" });
       return saved;
+    }
+
+    function applyEntryOperations(operations, userId, onProgress = () => {}) {
+      return mutate(() => applyEntryOperationsNow(operations, userId, onProgress));
+    }
+
+    function applySyncBatch(batch, userId, onProgress = () => {}) {
+      const snapshot = structuredClone(batch);
+      return mutate(() => applyEntryOperationsNow(snapshot.operations || [], userId, onProgress, snapshot));
     }
 
     async function upsertEntries(entries) {
@@ -419,7 +498,7 @@
       },
       beginSync() { requestsCancelled = false; },
       cancelPendingRequests() { requestsCancelled = true; activeControllers.forEach((controller) => controller.abort()); },
-      reset() { fileId = null; remoteVersion = null; document = emptyDocument(); loaded = false; documentSizeBytes = 0; lastValidatedAt = null; entryDeltaFiles.clear(); entryDeltaIndexLoaded = false; entryDeltaIndexFresh = false; loadPromise = null; writeChain = Promise.resolve(); activeControllers.forEach((controller) => controller.abort()); activeControllers.clear(); requestsCancelled = false; },
+      reset() { sessionGeneration++; mutationChain = Promise.resolve(); fileId = null; remoteVersion = null; document = emptyDocument(); loaded = false; documentSizeBytes = 0; lastValidatedAt = null; entryDeltaFiles.clear(); entryDeltaIndexLoaded = false; entryDeltaIndexFresh = false; loadPromise = null; writeChain = Promise.resolve(); activeControllers.forEach((controller) => controller.abort()); activeControllers.clear(); requestsCancelled = false; },
       async fetchEntries() { await ensureLoaded(); return structuredClone(document.entries); },
       async fetchLegacyEntries() { await ensureLoaded(); return structuredClone(legacyEntries); },
       async fetchEntryVersion(id) { await ensureLoaded(); return document.entries.find((item) => item.id === id) || null; },
@@ -431,20 +510,19 @@
       },
       upsertEntries,
       applyEntryOperations,
+      applySyncBatch,
       createDriveBackup,
       listDriveBackups,
       fetchDriveBackup,
       async fetchRecurrenceSeries() { await ensureLoaded(); return structuredClone(document.recurrenceSeries); },
-      async replaceRecurrenceSeries(series) { await ensureLoaded(); document.recurrenceSeries = structuredClone(series || []); await persist(); },
-      async upsertRecurrenceSeries(series) { return (await upsertCollection("recurrenceSeries", [series]))[0]; },
-      async deleteRecurrenceSeries(id) { await deleteWhere("recurrenceSeries", (item) => item.id === id); },
+      async replaceRecurrenceSeries(series) { await applySyncBatch({ recurrenceSeries: series || [] }); },
+      async upsertRecurrenceSeries(series) { return mutate(async () => (await upsertCollection("recurrenceSeries", [series]))[0]); },
+      async deleteRecurrenceSeries(id) { return mutate(() => deleteWhere("recurrenceSeries", (item) => item.id === id)); },
       async deleteGeneratedEntries(seriesId, _userId, fromDate = null) { await deleteWhere("entries", (item) => item.series_id === seriesId && !item.detached_from_series && (!fromDate || item.scheduled_date >= fromDate)); },
       async deleteSeriesEntries(seriesId, _userId, fromDate = null) { await deleteWhere("entries", (item) => item.series_id === seriesId && (!fromDate || item.scheduled_date >= fromDate)); },
       async fetchSettings() { await ensureLoaded(); return structuredClone(document.settings); },
       async upsertSettings(_userId, settings, types, descriptions, customDescriptionOptionsByType = {}, hiddenTypes = [], hiddenDescriptionsByType = {}) {
-        await ensureLoaded();
-        document.settings = { ...settings, types, descriptions, customDescriptionOptionsByType, hiddenTypes, hiddenDescriptionsByType, updated_at: new Date().toISOString() };
-        await persist();
+        await applySyncBatch({ settings: { ...settings, types, descriptions, customDescriptionOptionsByType, hiddenTypes, hiddenDescriptionsByType } }, _userId);
       },
     };
   }

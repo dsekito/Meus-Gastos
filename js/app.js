@@ -138,21 +138,23 @@ const descriptionOptionsByType = {
       const SYNC_DEBOUNCE_MS = 900;
       let scheduledSyncTimer = null;
       let activeSyncPromise = null;
+      let automaticRetryTimer = null;
+      let automaticRetryAttempt = 0;
       let syncRequestedWhileActive = false;
 
-      const money = (n) =>
-        new Intl.NumberFormat("pt-BR", {
+      const moneyFormatter = new Intl.NumberFormat("pt-BR", {
           style: "currency",
           currency: "BRL",
-        }).format(n);
+        });
+      const money = n => moneyFormatter.format(n);
 
-      const calendarMoney = (n) =>
-        new Intl.NumberFormat("pt-BR", {
+      const calendarFormatter = new Intl.NumberFormat("pt-BR", {
           style: "currency",
           currency: "BRL",
           minimumFractionDigits: 0,
           maximumFractionDigits: 0,
-        }).format(n);
+        });
+      const calendarMoney = n => calendarFormatter.format(n);
 
       const esc = (s) =>
         String(s).replace(
@@ -339,6 +341,25 @@ const descriptionOptionsByType = {
 
       function recordSyncFailure(error) {
         refreshSyncDiagnostics({ lastErrorCode: error?.message || "SYNC_UNKNOWN_ERROR" });
+        scheduleSyncRetry(error);
+      }
+
+      function scheduleSyncRetry(error) {
+        const transient = error instanceof TypeError || /^GOOGLE_DRIVE_(TIMEOUT|408|429|500|502|503|504)$/.test(error?.message || "");
+        if (!transient || automaticRetryTimer || automaticRetryAttempt >= 3
+          || !state.user || !navigator.onLine || !googleAuth.hasAccessToken()) return;
+        const delay = Math.min(5000 * (2 ** automaticRetryAttempt++), 30000);
+        const userId = state.user.id;
+        const timer = setTimeout(async () => {
+          const active = activeRefreshPromise || activeSyncPromise;
+          if (active) await active.catch(() => {});
+          if (automaticRetryTimer !== timer) return;
+          automaticRetryTimer = null;
+          if (state.user?.id !== userId || !state.syncDiagnostics.lastErrorCode
+            || !navigator.onLine || !googleAuth.hasAccessToken()) return;
+          retrySynchronization().catch(error => console.error(error));
+        }, delay);
+        automaticRetryTimer = timer;
       }
 
       function syncErrorLabel(code) {
@@ -379,7 +400,7 @@ const descriptionOptionsByType = {
           ? "Conflito de sincronização"
           : pending > 0
             ? pendingLabel
-            : "Dados protegidos";
+            : state.lastSyncedAt ? "Cópia do Drive atualizada" : "Salvo neste aparelho";
         const titleElement = document.createElement("strong");
         titleElement.textContent = title;
         const detail = document.createElement("span");
@@ -620,6 +641,9 @@ const descriptionOptionsByType = {
       }
 
       function clearSessionState() {
+        if (automaticRetryTimer) clearTimeout(automaticRetryTimer);
+        automaticRetryTimer = null;
+        automaticRetryAttempt = 0;
         if (scheduledSyncTimer) {
           clearTimeout(scheduledSyncTimer);
           scheduledSyncTimer = null;
@@ -670,7 +694,16 @@ const descriptionOptionsByType = {
       }
 
       async function markSynchronizationComplete() {
+        if (hasPendingChanges()) {
+          state.syncProgress = null;
+          await saveLocal();
+          setSyncStatus("queued", "Alterações salvas neste aparelho. Aguardando envio ao Google Drive.");
+          return;
+        }
         state.syncProgress = null;
+        if (automaticRetryTimer) clearTimeout(automaticRetryTimer);
+        automaticRetryTimer = null;
+        automaticRetryAttempt = 0;
         state.lastSyncedAt = new Date().toISOString();
         state.syncConflict = null;
         refreshSyncDiagnostics({
@@ -683,21 +716,46 @@ const descriptionOptionsByType = {
       }
 
       async function performSynchronization() {
+        const userId = state.user?.id;
         recordSyncAttempt();
         setSyncStatus("syncing", "Sincronizando alterações...");
+        const settingsSnapshot = state.settingsDirty ? structuredClone({
+          ...state.settings, types: state.types, descriptions: state.descriptions,
+          customDescriptionOptionsByType: state.customDescriptionOptionsByType,
+          hiddenTypes: state.hiddenTypes, hiddenDescriptionsByType: state.hiddenDescriptionsByType,
+        }) : null;
+        const recurrenceSnapshot = state.recurrenceDirty ? structuredClone(state.recurrenceSeries) : null;
         try {
-          await syncEntries();
-          if (state.recurrenceDirty) {
+          repository.beginSync?.();
+          await repository.load();
+          if (state.user?.id !== userId) return false;
+          if (repository.applySyncBatch) {
+            await syncEntries({ ...(settingsSnapshot ? { settings: settingsSnapshot } : {}),
+              ...(recurrenceSnapshot ? { recurrenceSeries: recurrenceSnapshot } : {}) });
+            if (state.user?.id !== userId) return false;
+            const currentSettings = { ...state.settings, types: state.types, descriptions: state.descriptions,
+              customDescriptionOptionsByType: state.customDescriptionOptionsByType,
+              hiddenTypes: state.hiddenTypes, hiddenDescriptionsByType: state.hiddenDescriptionsByType };
+            if (settingsSnapshot && JSON.stringify(settingsSnapshot) === JSON.stringify(currentSettings)) state.settingsDirty = false;
+            if (recurrenceSnapshot && JSON.stringify(recurrenceSnapshot) === JSON.stringify(state.recurrenceSeries)) state.recurrenceDirty = false;
+          } else {
+            await syncEntries();
+          }
+          if (!repository.applySyncBatch && state.recurrenceDirty) {
             await repository.replaceRecurrenceSeries(state.recurrenceSeries);
             state.recurrenceDirty = false;
           }
-          if (state.settingsDirty) {
+          if (!repository.applySyncBatch && state.settingsDirty) {
             await syncSettings();
             state.settingsDirty = false;
           }
-          await markSynchronizationComplete();
+          if (hasPendingChanges()) {
+            await saveLocal();
+            setSyncStatus("queued", "Alterações salvas neste aparelho. Aguardando envio ao Google Drive.");
+          } else await markSynchronizationComplete();
           return true;
         } catch (error) {
+          if (state.user?.id !== userId) return false;
           state.syncProgress = null;
           recordSyncFailure(error);
           console.error(error);
@@ -828,16 +886,17 @@ const descriptionOptionsByType = {
         authArea.innerHTML = `<span class="signed-user" title="${esc(state.user.email || "")}">${esc(name || "Usuário")}</span>${reconnectButton}<button class="auth-button" id="signOut" type="button" aria-label="Sair da conta" title="Sair da conta"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M10 17l5-5-5-5m5 5H3"/><path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"/></svg><span class="button-label">Sair</span></button>`;
       }
 
-      async function syncEntries() {
+      async function syncEntries(collections = {}) {
         if (!state.user) {
           setSyncStatus("idle", "Entre para sincronizar");
           return;
         }
-        repository.beginSync?.();
-        await synchronization.syncEntries(state.user.id);
+        await synchronization.syncEntries(state.user.id, collections);
       }
 
       function cancelSynchronization() {
+        if (automaticRetryTimer) clearTimeout(automaticRetryTimer);
+        automaticRetryTimer = null;
         if (syncStatus.dataset.state !== "syncing") return;
         syncNoticeAction.disabled = true;
         syncNoticeAction.textContent = "Cancelando...";
@@ -848,8 +907,10 @@ const descriptionOptionsByType = {
         return repository.fetchEntries();
       }
       async function loadCloudEntries() {
+        const userId = state.user?.id;
         setSyncStatus("syncing", "Carregando seus lançamentos...");
         const data = await fetchAllCloudEntries();
+        if (state.user?.id !== userId) throw new Error("GOOGLE_DRIVE_CANCELLED");
         const entriesById = new Map(data.map((entry) => [entry.id, entry]));
 
         for (const operation of state.syncQueue) {
@@ -870,7 +931,6 @@ const descriptionOptionsByType = {
             ...state.entries.map((entry) => entry.description),
           ]),
         ].sort();
-        render();
       }
 
       function materializationHorizon(series) {
@@ -921,8 +981,12 @@ const descriptionOptionsByType = {
       }
 
       async function loadCloudRecurrenceSeries({ preserveLocalDirty = false } = {}) {
-        if (preserveLocalDirty && state.recurrenceDirty) return;
-        state.recurrenceSeries = await repository.fetchRecurrenceSeries();
+        const userId = state.user?.id;
+        if (state.recurrenceDirty) return;
+        const series = await repository.fetchRecurrenceSeries();
+        if (state.user?.id !== userId) throw new Error("GOOGLE_DRIVE_CANCELLED");
+        if (state.recurrenceDirty) return;
+        state.recurrenceSeries = series;
         state.recurrenceDirty = false;
         let generatedEntries = 0;
         for (const series of state.recurrenceSeries) {
@@ -945,8 +1009,11 @@ const descriptionOptionsByType = {
         );
       }
       async function loadCloudSettings({ preserveLocalDirty = false } = {}) {
-        if (preserveLocalDirty && state.settingsDirty) return;
+        const userId = state.user?.id;
+        if (state.settingsDirty) return;
         const data = await repository.fetchSettings();
+        if (state.user?.id !== userId) throw new Error("GOOGLE_DRIVE_CANCELLED");
+        if (state.settingsDirty) return;
         if (data) {
           state.settings = normalizeSettings(data);
           state.types = profileOptions(data.types, defaultTypes);
@@ -960,7 +1027,6 @@ const descriptionOptionsByType = {
           state.settingsDirty = false;
         }
         await saveLocal();
-        render();
       }
       async function setCurrentUser(user) {
         const isSameUser = state.user?.id === user?.id;
@@ -978,26 +1044,13 @@ const descriptionOptionsByType = {
             render();
             return;
           }
-          let hasPendingSync = false;
           try {
-            recordSyncAttempt();
-            normalizeEntryIds();
-            if (hasPendingChanges()) {
-              // Envie todas as coleções locais antes de ler a nuvem. Se o envio
-              // falhar, os loaders abaixo preservam cada coleção ainda marcada
-              // como dirty para não descartar uma edição feita offline.
-              hasPendingSync = !(await performSynchronization());
-            }
-            await loadCloudEntries();
-            await loadCloudSettings({ preserveLocalDirty: hasPendingSync });
-            await loadCloudRecurrenceSeries({ preserveLocalDirty: hasPendingSync });
+            await retrySynchronization();
             if (new URLSearchParams(window.location.search).get("restore-financiamento") === "1") {
               const restored = await restoreTodayFinancingTypes();
               window.history.replaceState({}, "", window.location.pathname);
               show(restored ? `${restored} tipo${restored === 1 ? "" : "s"} restaurado${restored === 1 ? "" : "s"} com segurança.` : "Nenhum tipo alterado hoje precisou ser restaurado.");
             }
-            if (!hasPendingSync) await markSynchronizationComplete();
-            else await saveLocal();
           } catch (error) {
             recordSyncFailure(error);
             console.error(error);
@@ -1057,6 +1110,7 @@ const descriptionOptionsByType = {
       }
 
       async function signOut() {
+        repository.cancelPendingRequests?.();
         await googleAuth.signOut();
         repository.reset();
         clearSessionState();
@@ -1109,8 +1163,25 @@ const descriptionOptionsByType = {
         }
       }
 
-      async function retrySynchronization(trigger = null) {
+      let activeRefreshPromise = null;
+      let activeRefreshUserId = null;
+      let lastCloudRefreshAt = 0;
+      function retrySynchronization(trigger = null) {
+        if (activeRefreshPromise) {
+          if (activeRefreshUserId !== state.user?.id) return activeRefreshPromise.then(() => retrySynchronization(trigger));
+          return activeRefreshPromise;
+        }
+        if (automaticRetryTimer) clearTimeout(automaticRetryTimer);
+        automaticRetryTimer = null;
+        if (trigger) automaticRetryAttempt = 0;
+        activeRefreshUserId = state.user?.id;
+        activeRefreshPromise = refreshSynchronization(trigger).finally(() => { activeRefreshPromise = null; activeRefreshUserId = null; });
+        return activeRefreshPromise;
+      }
+
+      async function refreshSynchronization(trigger = null) {
         if (!state.user) return;
+        const userId = state.user.id;
         if (!navigator.onLine) {
           setSyncStatus("pending", "Sem conexão");
           return;
@@ -1132,8 +1203,9 @@ const descriptionOptionsByType = {
 
         try {
           repository.beginSync?.();
-          await repository.load();
+          const hadPendingChanges = hasPendingChanges();
           const synced = await retryPendingSynchronization();
+          if (!hadPendingChanges) await repository.load();
           await loadCloudEntries();
           await loadCloudSettings({ preserveLocalDirty: !synced });
           await loadCloudRecurrenceSeries({ preserveLocalDirty: !synced });
@@ -1143,10 +1215,12 @@ const descriptionOptionsByType = {
             return false;
           }
           await markSynchronizationComplete();
+          lastCloudRefreshAt = Date.now();
           render();
           show("Dados sincronizados com o Google Drive.", null, { announce: false });
           return true;
         } catch (error) {
+          if (state.user?.id !== userId) return false;
           recordSyncFailure(error);
           console.error(error);
           if (["GOOGLE_AUTH_EXPIRED", "GOOGLE_AUTH_REQUIRED"].includes(error.message)) {
@@ -1254,23 +1328,13 @@ const descriptionOptionsByType = {
 
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState !== "visible" || !state.user || !googleAuth.hasAccessToken()) return;
-        retryPendingSynchronization()
-          .then(async (synced) => {
-            await repository.load();
-            await loadCloudEntries();
-            await loadCloudSettings({ preserveLocalDirty: !synced });
-            await loadCloudRecurrenceSeries({ preserveLocalDirty: !synced });
-            render();
-          })
-          .catch((error) => {
-            recordSyncFailure(error);
-            setSyncStatus("pending", "Sincronização pendente");
-            saveLocal().catch((saveError) => console.error("Não foi possível registrar a falha de sincronização.", saveError));
-            console.error(error);
-          });
+        if (activeRefreshPromise || activeSyncPromise) return;
+        if (!hasPendingChanges() && Date.now() - lastCloudRefreshAt < 30000) return;
+        retrySynchronization().catch(error => console.error(error));
       });
 
       window.addEventListener("online", () => {
+        automaticRetryAttempt = 0;
         retrySynchronization().catch((error) => console.error(error));
       });
 
@@ -1349,7 +1413,8 @@ const descriptionOptionsByType = {
 
       async function removeTypeOption() {
         const option = deleteTypeOption.value;
-        if (!option || !confirm(`Excluir a opção de tipo “${option}”? Os lançamentos atuais não serão alterados.`)) return;
+        const linkedCount = state.entries.filter((entry) => entry.type === option && !entry.excluded_from_series).length;
+        if (!option || !confirm(`Excluir a opção de tipo “${option}”? ${linkedCount} lançamento(s) usam este tipo. Os lançamentos atuais serão preservados; a opção será removida da lista para novos registros.`)) return;
         state.types = state.types.filter((item) => item !== option);
         state.hiddenTypes = sortedOptions([...state.hiddenTypes, option]);
         state.settingsDirty = true;
@@ -1362,7 +1427,8 @@ const descriptionOptionsByType = {
       async function removeDescriptionOption() {
         const selectedType = deleteDescriptionType.value;
         const option = deleteDescriptionOption.value;
-        if (!selectedType || !option || !confirm(`Excluir a descrição “${option}” de “${selectedType}”? Os lançamentos atuais não serão alterados.`)) return;
+        const linkedCount = state.entries.filter((entry) => entry.type === selectedType && entry.description === option && !entry.excluded_from_series).length;
+        if (!selectedType || !option || !confirm(`Excluir a descrição “${option}” de “${selectedType}”? ${linkedCount} lançamento(s) usam esta descrição. Os lançamentos atuais serão preservados; a opção será removida da lista para novos registros.`)) return;
         state.customDescriptionOptionsByType[selectedType] = (state.customDescriptionOptionsByType[selectedType] || []).filter((item) => item !== option);
         state.hiddenDescriptionsByType = {
           ...state.hiddenDescriptionsByType,
@@ -1413,7 +1479,7 @@ const descriptionOptionsByType = {
         recordsManagerList.innerHTML = entries.length
           ? entries.map((entry) => `<article class="managed-record">
               <input type="checkbox" data-manager-select="${entry.id}" ${managerSelectedEntries.has(entry.id) ? "checked" : ""} aria-label="Selecionar ${esc(entry.description)}" />
-              <div><strong>${esc(entry.description)}</strong><small>${new Date(`${entry.date}T12:00`).toLocaleDateString("pt-BR")} · ${esc(entry.type)} · ${entry.paid ? "Pago" : "Em aberto"} · ${money(entry.value)}</small></div>
+              <div><strong>${esc(entry.description)}</strong><small>${new Date(`${entry.date}T12:00`).toLocaleDateString("pt-BR")} · ${esc(entry.type)} · ${domain.entryStatusLabel(entry)} · ${money(entry.value)}</small></div>
               <button class="secondary" type="button" data-manager-edit="${entry.id}" aria-label="Editar ${esc(entry.description)}"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
             </article>`).join("")
           : '<div class="recent-records-empty">Nenhum registro encontrado com estes filtros.</div>';
@@ -1442,6 +1508,8 @@ const descriptionOptionsByType = {
         }
         const nextType = includeFields ? managerBulkType.value : "";
         const nextDescription = includeFields ? managerBulkDescription.value : "";
+        const changes = [paid === null ? null : paid ? "marcar como pago/recebido" : "marcar em aberto", nextType ? `tipo: ${nextType}` : null, nextDescription ? `descrição: ${nextDescription}` : null].filter(Boolean);
+        if (changes.length && !confirm(`Aplicar ${changes.join("; ")} a ${managerSelectedEntries.size} registro(s) selecionado(s)? Outros registros não serão alterados.`)) return;
         let changed = 0;
         state.entries.forEach((entry) => {
           if (!managerSelectedEntries.has(entry.id)) return;
@@ -1487,7 +1555,7 @@ const descriptionOptionsByType = {
         const selected = state.selectedEntries.has(e.id);
         const statusPending = state.pendingStatusEntries.has(e.id);
         const statusChanged = state.recentlyChangedEntry === e.id;
-        const isIncome = (e.flow_type || "expense") === "income";
+        const isIncome = domain.entryFlowType(e) === "income";
         const typeColor = typeColors.get(e.type) || "#475569";
         const statusLabel = e.paid
           ? (isIncome ? "Recebido" : "Pago")
@@ -1527,20 +1595,24 @@ const descriptionOptionsByType = {
         const upcomingEntries = state.entries.filter((entry) =>
           !entry.excluded_from_series
           && !entry.paid
-          && (entry.flow_type || "expense") === "expense"
+          && domain.entryFlowType(entry) === "expense"
           && entry.date >= todayISO()
           && entry.date <= nextSevenDaysEnd
         );
         const upcomingTotal = upcomingEntries.reduce((total, entry) => total + Number(entry.value), 0);
-        const upcomingIncomeTotal = state.entries
+        const upcomingIncomeEntries = state.entries
           .filter((entry) =>
             !entry.excluded_from_series
             && !entry.paid
-            && entry.flow_type === "income"
+            && domain.entryFlowType(entry) === "income"
             && entry.date >= todayISO()
             && entry.date <= nextSevenDaysEnd
-          )
-          .reduce((total, entry) => total + Number(entry.value), 0);
+          );
+        const upcomingIncomeTotal = upcomingIncomeEntries.reduce((total, entry) => total + Number(entry.value), 0);
+        document.querySelector("#nextSevenDaysIncomeTotal").textContent = money(upcomingIncomeTotal);
+        document.querySelector("#nextSevenDaysIncomeSummary").textContent = upcomingIncomeEntries.length
+          ? `${upcomingIncomeEntries.length} entrada${upcomingIncomeEntries.length === 1 ? "" : "s"} a receber`
+          : "Nenhuma entrada a receber";
         const sevenDayMinimum = domain.minimumProjectedBalance(
           todayISO(),
           nextSevenDaysEnd,
@@ -1641,6 +1713,98 @@ const descriptionOptionsByType = {
         return domain.projectedBalance(date, state.settings, entryNet);
       }
 
+      const appViews = {
+        home: ["inicio", "Seu mês em resumo", "Seu saldo e os próximos compromissos."],
+        records: ["registros", "Seus registros", "Consulte, filtre e organize seus lançamentos."],
+        projection: ["projecao", "Projeção de saldo", "Selecione um dia para entender os valores previstos."],
+        monthly: ["mensal", "Consolidado mensal", "Compare suas entradas e saídas, mês a mês."],
+        settings: ["ajustes", "Ajustes", "Seu controle, do seu jeito."],
+      };
+      let activeAppView = "home";
+      let cashFlowYear = null;
+
+      function navigateApp(view, { history = true, focus = true } = {}) {
+        if (!appViews[view]) view = "home";
+        if (activeAppView !== view && state.selectionMode) {
+          state.selectedEntries.clear();
+          state.selectionMode = false;
+          render();
+        }
+        activeAppView = view;
+        closeContextMenu();
+        document.querySelector("#appShell").dataset.view = view;
+        document.querySelectorAll("[data-app-panel]").forEach((panel) => {
+          panel.hidden = panel.dataset.appPanel !== view;
+        });
+        document.querySelectorAll(".app-navigation [data-app-destination]").forEach((button) => {
+          if (button.dataset.appDestination === view) button.setAttribute("aria-current", "page");
+          else button.removeAttribute("aria-current");
+        });
+        document.querySelector("#appViewTitle").textContent = appViews[view][1];
+        document.querySelector("#appViewDescription").textContent = appViews[view][2];
+        document.querySelector("#periodToolbar").hidden = view === "settings" || view === "monthly";
+        if (view === "monthly") renderMonthlyCashFlow();
+        if (view === "projection") {
+          state.calendarExpanded = true;
+          renderCalendar();
+        }
+        const hash = `#${appViews[view][0]}`;
+        if (history && location.hash !== hash) window.history.pushState(null, "", hash);
+        if (focus) {
+          document.querySelector("#appViewTitle").focus({ preventScroll: true });
+          window.scrollTo({ top: 0, behavior: "instant" });
+        }
+      }
+
+      function viewFromLocation() {
+        return Object.keys(appViews).find((key) => `#${appViews[key][0]}` === location.hash) || "home";
+      }
+
+      function renderUpcomingAccounts() {
+        const end = domain.addDays(todayISO(), 6);
+        const upcoming = state.entries.filter((entry) => !entry.excluded_from_series
+          && !entry.paid
+          && entry.date >= todayISO() && entry.date <= end)
+          .sort((a, b) => a.date.localeCompare(b.date));
+        document.querySelector("#upcomingList").innerHTML = upcoming.length
+          ? upcoming.slice(0, 6).map((entry) => `<button type="button" class="upcoming-item" data-upcoming-date="${esc(entry.date)}" aria-label="Ver ${esc(entry.description)}, ${esc(money(entry.value))}, ${domain.entryStatusLabel(entry)}, data ${esc(entry.date)}"><span>${esc(entry.description)}<small>${domain.entryStatusLabel(entry)} · ${new Date(`${entry.date}T12:00`).toLocaleDateString("pt-BR")}</small></span><strong>${domain.entryFlowType(entry) === "income" ? "+" : "−"} ${money(entry.value)}</strong></button>`).join("")
+          : '<p class="empty">Nenhuma movimentação em aberto nos próximos 7 dias.</p>';
+      }
+
+      function renderMonthlyCashFlow() {
+        if (cashFlowYear === null) cashFlowYear = Number(filterMonth.value?.slice(0, 4)) || new Date().getFullYear();
+        const currentYear = new Date().getFullYear();
+        const years = new Set([cashFlowYear, ...Array.from({ length: 7 }, (_, index) => currentYear - 3 + index)]);
+        state.entries.forEach(entry => {
+          const year = Number(entry.date?.slice(0, 4));
+          if (year >= 1900 && year <= 9999) years.add(year);
+        });
+        document.querySelector("#monthlyYear").innerHTML = [...years].sort((a, b) => b - a)
+          .map(year => `<option value="${year}" ${year === cashFlowYear ? "selected" : ""}>${year}</option>`).join("");
+        document.querySelector("#previousCashFlowYear").disabled = cashFlowYear <= 1900;
+        document.querySelector("#nextCashFlowYear").disabled = cashFlowYear >= 9999;
+        const status = document.querySelector("#monthlyStatus").value;
+        const summary = domain.monthlyCashFlow(state.entries, cashFlowYear, { status });
+        const mode = { "": "realizados e previstos", paid: "realizados", pending: "em aberto" }[status];
+        const annualSummary = document.querySelector("#monthlyAnnualSummary");
+        annualSummary.innerHTML = [["Entradas no ano", summary.totals.income, "income"], ["Saídas no ano", summary.totals.expense, "expense"], ["Saldo do ano", summary.totals.balance, "balance"]]
+          .map(([label, value, kind]) => `<article class="monthly-total ${kind}"><span>${label}</span><strong data-negative="${value < 0}">${money(value)}</strong></article>`).join("");
+        document.querySelector("#monthlySummaryStatus").textContent = `${cashFlowYear} · ${summary.totals.count} lançamento${summary.totals.count === 1 ? "" : "s"} ${mode}.${summary.totals.count ? "" : " Nenhum lançamento neste ano com a situação selecionada."}`;
+        document.querySelector("#monthlyCashFlowList").innerHTML = summary.months.map(month => {
+          const name = new Date(`${month.month}-01T12:00`).toLocaleDateString("pt-BR", { month: "long" });
+          const titleId = `cashFlowMonth-${month.month}`;
+          return `<article class="panel monthly-cash-flow-card" aria-labelledby="${titleId}" data-cash-flow-month="${month.month}">
+            <div class="monthly-card-heading"><h3 id="${titleId}">${name}</h3><span>${month.count ? `${month.count} lançamento${month.count === 1 ? "" : "s"}` : "Sem lançamentos"}</span></div>
+            <dl><div><dt>Entradas</dt><dd class="monthly-income">${money(month.income)}</dd></div>
+              <div><dt>Saídas</dt><dd>${money(month.expense)}</dd></div>
+              <div class="monthly-net"><dt>Saldo do mês</dt><dd data-negative="${month.balance < 0}">${money(month.balance)}</dd></div>
+              <div><dt>Acumulado no ano</dt><dd data-negative="${month.accumulated < 0}">${money(month.accumulated)}</dd></div></dl>
+            <p>${month.balance < 0 ? "Saídas acima das entradas." : month.balance > 0 ? "Entradas acima das saídas." : ""}</p>
+            <button class="secondary" type="button" data-open-cash-flow-month="${month.month}" aria-label="Ver lançamentos de ${name} de ${cashFlowYear}, ${mode}" ${month.count ? "" : "disabled"}>Ver lançamentos</button>
+          </article>`;
+        }).join("");
+      }
+
       function renderCalendar() {
         const month = filterMonth.value;
         if (!month) return;
@@ -1651,11 +1815,19 @@ const descriptionOptionsByType = {
         const entryTotals = buildDailyEntryTotals();
         const entryNet = buildDailyEntryNet();
         const entryIncomeTotals = domain.dailyIncomeTotals(state.entries);
+        const monthlyEntries = state.entries.filter(entry => !entry.excluded_from_series && entry.date.startsWith(`${month}-`));
+        const sumCents = entries => entries.reduce((total, entry) => total + Math.round(Number(entry.value) * 100), 0) / 100;
+        const monthlyIncome = monthlyEntries.filter(entry => domain.entryFlowType(entry) === "income");
+        const monthlyExpenses = monthlyEntries.filter(entry => domain.entryFlowType(entry) === "expense");
+        document.querySelector("#projectionMonthIncome").textContent = money(sumCents(monthlyIncome));
+        document.querySelector("#projectionMonthExpense").textContent = money(sumCents(monthlyExpenses));
+        document.querySelector("#projectionMonthReceivable").textContent = `${money(sumCents(monthlyIncome.filter(entry => !entry.paid)))} ainda a receber`;
+        document.querySelector("#projectionMonthPayable").textContent = `${money(sumCents(monthlyExpenses.filter(entry => !entry.paid)))} ainda a pagar`;
         let minimumBalance = Infinity;
         let minimumBalanceDate = `${month}-01`;
 
         if (!state.selectedCalendarDate?.startsWith(month)) {
-          state.selectedCalendarDate = `${month}-01`;
+          state.selectedCalendarDate = todayISO().startsWith(month) ? todayISO() : `${month}-01`;
         }
 
         calendarCaption.textContent = firstDay.toLocaleDateString("pt-BR", {
@@ -1676,7 +1848,7 @@ const descriptionOptionsByType = {
             minimumBalanceDate = date;
           }
           cells.push(`
-            <button class="calendar-day ${date === state.selectedCalendarDate ? "selected" : ""} ${income ? "has-income" : ""} ${costs ? "has-cost" : ""} ${projected < 0 ? "balance-negative" : "balance-positive"}" data-calendar-date="${date}" type="button" aria-label="Dia ${day}: saldo ${calendarMoney(projected)}, entrada ${calendarMoney(income)}, saída ${calendarMoney(costs)}">
+            <button class="calendar-day ${date === state.selectedCalendarDate ? "selected" : ""} ${income ? "has-income" : ""} ${costs ? "has-cost" : ""} ${projected < 0 ? "balance-negative" : "balance-positive"}" data-calendar-date="${date}" type="button" aria-pressed="${date === state.selectedCalendarDate}" aria-label="Dia ${day}: saldo ${calendarMoney(projected)}, entrada ${calendarMoney(income)}, saída ${calendarMoney(costs)}${projected < 0 ? ", saldo negativo previsto" : ""}">
               <span class="calendar-date">${day}</span>
               <span class="calendar-metric calendar-projection"><span class="calendar-metric-label">Saldo</span><span class="calendar-metric-value">${calendarMoney(projected)}</span></span>
               <span class="calendar-metric calendar-income"><span class="calendar-metric-label">Entrada</span><span class="calendar-metric-value">${calendarMoney(income)}</span></span>
@@ -1685,6 +1857,24 @@ const descriptionOptionsByType = {
           `);
         }
         calendarGrid.innerHTML = cells.join("");
+
+        const selectedDate = state.selectedCalendarDate;
+        const balance = getProjectedBalance(selectedDate, entryNet);
+        const selectedEntries = state.entries.filter((entry) => !entry.excluded_from_series && entry.date === selectedDate);
+        document.querySelector("#calendarDayTitle").textContent = new Date(`${selectedDate}T12:00`).toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" });
+        document.querySelector("#calendarDayMetrics").innerHTML = [
+          ["Saldo previsto neste dia", balance], ["Entradas neste dia", entryIncomeTotals.get(selectedDate) || 0], ["Saídas neste dia", entryTotals.get(selectedDate) || 0],
+        ].map(([label, value]) => `<div><dt>${label}</dt><dd data-negative="${value < 0}">${money(value)}</dd></div>`).join("");
+        const nextIncomeDate = [...entryIncomeTotals.keys()].filter(date => date.startsWith(`${month}-`) && date > selectedDate && entryIncomeTotals.get(date) > 0).sort()[0];
+        document.querySelector("#calendarDayIncomeNote").textContent = entryIncomeTotals.get(selectedDate)
+          ? "Valores de entradas e saídas somente da data selecionada."
+          : nextIncomeDate
+            ? `Nenhuma entrada neste dia. Próxima entrada do mês em ${new Date(`${nextIncomeDate}T12:00`).toLocaleDateString("pt-BR")}: ${money(entryIncomeTotals.get(nextIncomeDate))}.`
+            : "Nenhuma entrada nesta data. Consulte o total do mês acima ou selecione outro dia.";
+        document.querySelector("#calendarDayCount").textContent = `${selectedEntries.length} lançamento${selectedEntries.length === 1 ? "" : "s"} neste dia.${balance < 0 ? " Atenção: saldo negativo previsto." : ""}`;
+        const risk = document.querySelector("#projectionRisk");
+        risk.dataset.negative = String(minimumBalance < 0);
+        risk.textContent = `Menor saldo do mês: ${money(minimumBalance)}, em ${new Date(`${minimumBalanceDate}T12:00`).toLocaleDateString("pt-BR")}.${minimumBalance < 0 ? " Confira as receitas e despesas antes dessa data." : ""}`;
 
         monthlyMinimumLabel.textContent = `Previsto em ${new Date(`${minimumBalanceDate}T12:00`).toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}`;
         monthlyMinimumBalance.textContent = money(minimumBalance);
@@ -1708,7 +1898,7 @@ const descriptionOptionsByType = {
         ]);
         rows.innerHTML = entries.length
           ? entries.map((entry) => renderDenseEntry(entry, typeColors)).join("")
-          : '<div class="empty">Nenhum lançamento encontrado.</div>';
+          : `<div class="empty"><strong>${state.entries.length ? "Nenhum lançamento com estes filtros." : "Seu mês começa aqui."}</strong><p>${state.entries.length ? "Limpe os filtros ou escolha outro período." : "Adicione uma despesa ou receita para acompanhar seus próximos dias."}</p><button class="secondary" type="button" data-empty-action="${state.entries.length ? "filters" : "new"}" aria-label="${state.entries.length ? "Limpar filtros dos lançamentos" : "Adicionar primeiro lançamento"}">${state.entries.length ? "Limpar filtros" : "Adicionar primeiro lançamento"}</button></div>`;
       }
 
       function render() {
@@ -1744,13 +1934,15 @@ const descriptionOptionsByType = {
         updateCount(list);
         filteredSubtotal.textContent = money(
           list.reduce(
-            (total, entry) => total + ((entry.flow_type || "expense") === "income" ? Number(entry.value) : -Number(entry.value)),
+            (total, entry) => total + (domain.entryFlowType(entry) === "income" ? Number(entry.value) : -Number(entry.value)),
             0,
           ),
         );
 
         renderEntries(list);
         renderCalendar();
+        renderUpcomingAccounts();
+        if (activeAppView === "monthly") renderMonthlyCashFlow();
 
         panelTitle.textContent = state.selectionMode
           ? `${state.selectedEntries.size} selecionado${state.selectedEntries.size > 1 ? "s" : ""}`
@@ -1961,6 +2153,11 @@ const descriptionOptionsByType = {
         const invalidValue = valueInput.value !== ""
           && (totalValue === 0 || ((isRecurringValue() || flowType.value === "income") && totalValue < 0));
         valueInput.setCustomValidity(invalidValue ? "Informe um valor maior que zero." : "");
+        const valueError = document.querySelector("#entryValueError");
+        valueError.hidden = !invalidValue;
+        valueError.textContent = invalidValue ? valueInput.validationMessage : "";
+        if (invalidValue) valueInput.setAttribute("aria-invalid", "true");
+        else valueInput.removeAttribute("aria-invalid");
 
         const invalidEndDate = isRecurringValue()
           && endMode.value === "on_date"
@@ -2033,6 +2230,7 @@ const descriptionOptionsByType = {
       }
 
       function updateEntryFormVisibility() {
+        if (domain.entryFlowType({ type: type.value }) === "income") flowType.value = "income";
         const recurring = isRecurringValue();
         const installmentOption = recurrence.querySelector('option[value="installments"]');
         installmentOption.disabled = flowType.value === "income";
@@ -2050,6 +2248,26 @@ const descriptionOptionsByType = {
         paidField.hidden = recurring;
         updateEntryFormValidity();
         updateRecurrenceSummary();
+        updateInstallmentPreview();
+      }
+
+      function updateInstallmentPreview() {
+        const isInstallment = recurrence.value === "installments";
+        document.querySelector("#entryValueLabel").textContent = isInstallment ? "Valor total da compra" : "Valor";
+        const quantity = Number(installments.value);
+        const amount = Number(valueInput.value);
+        const preview = document.querySelector("#installmentPreview");
+        if (isInstallment && quantity >= 2 && quantity <= 5000 && Number.isInteger(quantity) && Number.isFinite(amount) && valueInput.value !== "") {
+          const cents = Math.round(amount * 100);
+          const regular = Math.trunc(cents / quantity);
+          const last = cents - regular * (quantity - 1);
+          preview.textContent = last === regular
+            ? `${quantity} parcelas de ${money(regular / 100)} · Total da compra: ${money(amount)}.`
+            : `${quantity - 1} parcelas de ${money(regular / 100)} e a última de ${money(last / 100)} · Total da compra: ${money(amount)}.`;
+        } else {
+          preview.textContent = "Informe o valor total da compra e a quantidade para conferir as parcelas.";
+        }
+        installments.required = isInstallment;
       }
 
       function openNew() {
@@ -2060,6 +2278,7 @@ const descriptionOptionsByType = {
         entryFormStatus.hidden = true;
         entryFormStatus.textContent = "";
         form.reset();
+        document.querySelector("#entryAdvanced").open = false;
         flowType.value = "expense";
         recurrence.value = "single";
         installments.value = 2;
@@ -2074,11 +2293,25 @@ const descriptionOptionsByType = {
         dialog.showModal();
       }
 
-      function openSettingsDialog() {
+      function openSettingsDialog(topic = "projection") {
+        if (typeof topic !== "string") topic = "projection";
         currentBalanceInput.value = state.settings.current_balance;
         balanceReferenceDateInput.value = state.settings.balance_reference_date || todayISO();
         updateSettingsSyncSummary(syncStatus.dataset.state);
+        setSettingsTopic(topic);
         settingsDialog.showModal();
+      }
+
+      function setSettingsTopic(topic) {
+        const names = { projection: "Projeção financeira", options: "Tipos e descrições", data: "Sincronização e backups" };
+        if (!names[topic]) topic = "projection";
+        document.querySelector("#settingsTitle").textContent = names[topic];
+        const groupIds = { projection: "projectionSettingsTitle", options: "optionsSettingsTitle", data: "dataSettingsTitle" };
+        Object.entries(groupIds).forEach(([key, id]) => {
+          document.getElementById(id).closest(".settings-group").hidden = key !== topic;
+        });
+        document.querySelectorAll("[data-settings-switch]").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.settingsSwitch === topic)));
+        saveSettings.hidden = topic !== "projection";
       }
 
       function onboardingCategoryLabel(value) {
@@ -2122,6 +2355,7 @@ const descriptionOptionsByType = {
           .map((input) => input.value);
         if (!skipped && selectedCategories.length === 0) {
           onboardingCategoryError.hidden = false;
+          document.querySelector(".onboarding-category-disclosure").open = true;
           onboardingCategoryOptions.querySelector("input")?.focus();
           return;
         }
@@ -2165,7 +2399,8 @@ const descriptionOptionsByType = {
       }
 
       async function openBackupRecovery() {
-        if (!settingsDialog.open) openSettingsDialog();
+        if (!settingsDialog.open) openSettingsDialog("data");
+        else setSettingsTopic("data");
         const backups = await loadGoogleDriveBackups();
         const target = backups.length ? driveBackupSelect : loadDriveBackups;
         target.scrollIntoView({ block: "center", behavior: "smooth" });
@@ -2204,7 +2439,7 @@ const descriptionOptionsByType = {
         recentRecordsList.innerHTML = visibleGroups.length
           ? visibleGroups.map((group) => {
               const entry = group.primary;
-              const isIncome = (entry.flow_type || "expense") === "income";
+              const isIncome = domain.entryFlowType(entry) === "income";
               const status = entry.paid
                 ? (isIncome ? "Recebido" : "Pago")
                 : (isIncome ? "A receber" : "Em aberto");
@@ -2369,7 +2604,7 @@ const descriptionOptionsByType = {
       async function restoreGoogleDriveBackup() {
         const id = driveBackupSelect.value;
         if (!id) return;
-        if (!confirm("Restaurar este backup substituirá os lançamentos, opções e recorrências atuais. Deseja continuar?")) return;
+        if (!confirm(`Restaurar “${driveBackupSelect.selectedOptions[0]?.textContent}”? Os lançamentos, opções e recorrências atuais serão substituídos. Antes de restaurar, uma cópia automática do estado atual será criada no Google Drive. Deseja continuar?`)) return;
         const resetButton = setButtonBusy(restoreDriveBackup, true, "Restaurando...");
         try {
           const backup = await repository.fetchDriveBackup(id);
@@ -2578,6 +2813,7 @@ const descriptionOptionsByType = {
         entryFormStatus.textContent = "";
         modalTitle.textContent = entry.installment ? "Editar compra parcelada" : "Editar lançamento";
         fillForm(entry);
+        document.querySelector("#entryAdvanced").open = recurrence.value !== "single" || Boolean(detailInput.value);
         dialog.showModal();
       }
 
@@ -2649,7 +2885,7 @@ const descriptionOptionsByType = {
       function recurrenceSeriesFromForm(id, startDate) {
         return {
           id,
-          flow_type: flowType.value,
+          flow_type: domain.entryFlowType({ flow_type: flowType.value, type: type.value }),
           frequency: recurrence.value,
           interval_value: Math.max(1, Number(recurrenceInterval.value) || 1),
           custom_unit: recurrence.value === "custom" ? customUnit.value : null,
@@ -2725,7 +2961,7 @@ const descriptionOptionsByType = {
           const updated = updateEntry({
             date: dateInput.value,
             value: Number(valueInput.value),
-            flow_type: flowType.value,
+            flow_type: domain.entryFlowType({ flow_type: flowType.value, type: type.value }),
             type: type.value,
             description: desc.value,
             detail: detailInput.value.trim(),
@@ -2876,7 +3112,7 @@ const descriptionOptionsByType = {
             id: generateId(),
             created_at: createdAt,
             ...entry,
-            flow_type: entry.flow_type || "expense",
+            flow_type: domain.entryFlowType(entry),
             series_id: null,
             scheduled_date: null,
             detached_from_series: false,
@@ -2924,7 +3160,7 @@ const descriptionOptionsByType = {
         const synced = await save();
         state.pendingStatusEntries.delete(entry.id);
         render();
-        const isIncome = (entry.flow_type || "expense") === "income";
+        const isIncome = domain.entryFlowType(entry) === "income";
         const successMessage = synced ? (entry.paid
             ? (isIncome ? "Receita marcada como recebida." : "Lançamento marcado como pago.")
             : (isIncome ? "Receita marcada como a receber." : "Lançamento marcado como pendente."))
@@ -3144,7 +3380,7 @@ const descriptionOptionsByType = {
         valueInput.value = entry.installment
           ? Number(entry.installment.original ?? installmentGroup.reduce((total, item) => total + Number(item.value), 0))
           : formValues.value;
-        flowType.value = formValues.flow_type || "expense";
+        flowType.value = domain.entryFlowType(formValues);
         renderEntryOptions(formValues.type, formValues.description);
         detailInput.value = formValues.detail || "";
         paidInput.checked = entry.paid;
@@ -3163,7 +3399,109 @@ const descriptionOptionsByType = {
 
       openModal.onclick = openNew;
       openModalMobile.onclick = openNew;
-      openSettings.onclick = openSettingsDialog;
+      openSettings.onclick = () => navigateApp("settings");
+      document.querySelector("#reloadInterface").onclick = async (event) => {
+        if (document.querySelector("dialog[open]")) {
+          show("Salve ou feche o formulário aberto antes de atualizar a interface.");
+          return;
+        }
+        const reset = setButtonBusy(event.currentTarget, true, "Atualizando…");
+        try {
+          await saveLocal();
+          appReloadRequested = true;
+          window.location.reload();
+        } catch (error) {
+          show("Não foi possível preservar os dados locais. A interface não foi recarregada.");
+          reset();
+        }
+      };
+      document.querySelector("#monthlyYear").addEventListener("change", (event) => {
+        cashFlowYear = Number(event.target.value);
+        renderMonthlyCashFlow();
+      });
+      document.querySelector("#monthlyStatus").addEventListener("change", renderMonthlyCashFlow);
+      document.querySelector("#previousCashFlowYear").onclick = () => {
+        cashFlowYear = Math.max(1900, cashFlowYear - 1);
+        renderMonthlyCashFlow();
+      };
+      document.querySelector("#nextCashFlowYear").onclick = () => {
+        cashFlowYear = Math.min(9999, cashFlowYear + 1);
+        renderMonthlyCashFlow();
+      };
+      document.querySelector("#monthlyCashFlowList").addEventListener("click", event => {
+        const button = event.target.closest("[data-open-cash-flow-month]");
+        if (!button || button.disabled) return;
+        filterMonth.value = button.dataset.openCashFlowMonth;
+        filterType.value = "";
+        filterDescription.value = "";
+        filterStatus.value = document.querySelector("#monthlyStatus").value;
+        state.filterDate = null;
+        state.selectedEntries.clear();
+        state.selectionMode = false;
+        render();
+        navigateApp("records");
+      });
+      document.querySelectorAll("[data-app-destination]").forEach((button) => {
+        button.addEventListener("click", () => navigateApp(button.dataset.appDestination));
+      });
+      window.addEventListener("popstate", () => navigateApp(viewFromLocation(), { history: false }));
+      document.querySelectorAll("[data-settings-topic]").forEach((button) => {
+        button.addEventListener("click", () => openSettingsDialog(button.dataset.settingsTopic));
+      });
+      document.querySelectorAll("[data-settings-switch]").forEach((button) => {
+        button.addEventListener("click", () => setSettingsTopic(button.dataset.settingsSwitch));
+      });
+      document.querySelectorAll("[data-add-option]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const selectedType = deleteDescriptionType.value || deleteTypeOption.value;
+          if (button.dataset.addOption === "descriptions" && !selectedType) {
+            show("Selecione o tipo antes de adicionar uma descrição.");
+            deleteDescriptionType.focus();
+            return;
+          }
+          const reset = setButtonBusy(button, true, "Adicionando…");
+          try { await addOption(button.dataset.addOption, selectedType); render(); }
+          finally { reset(); }
+        });
+      });
+      document.querySelector("#upcomingList").addEventListener("click", (event) => {
+        const target = event.target.closest("[data-upcoming-date]");
+        if (!target) return;
+        filterMonth.value = target.dataset.upcomingDate.slice(0, 7);
+        state.filterDate = target.dataset.upcomingDate;
+        filterType.value = "";
+        filterDescription.value = "";
+        filterStatus.value = "pending";
+        render();
+        navigateApp("records");
+      });
+      function clearEntryFilters() {
+        filterType.value = "";
+        filterDescription.value = "";
+        filterStatus.value = "";
+        state.filterDate = null;
+        state.selectedEntries.clear();
+        state.selectionMode = false;
+        render();
+      }
+      document.querySelector("#clearEntryFilters").onclick = clearEntryFilters;
+      rows.addEventListener("click", (event) => {
+        const action = event.target.closest("[data-empty-action]")?.dataset.emptyAction;
+        if (action === "filters") clearEntryFilters();
+        if (action === "new") openNew();
+      });
+      form.addEventListener("invalid", (event) => {
+        const advanced = event.target.closest("#entryAdvanced");
+        if (advanced) advanced.open = true;
+        event.target.setAttribute("aria-invalid", "true");
+      }, true);
+      form.addEventListener("input", (event) => {
+        if (event.target.validity?.valid) event.target.removeAttribute("aria-invalid");
+      });
+      [valueInput, installments, recurrence].forEach((control) => {
+        control.addEventListener("input", updateInstallmentPreview);
+        control.addEventListener("change", updateInstallmentPreview);
+      });
       onboardingForm.onsubmit = async (event) => {
         event.preventDefault();
         if (!onboardingForm.reportValidity()) return;
@@ -3337,6 +3675,11 @@ const descriptionOptionsByType = {
       seriesScopeDialog.onclick = async (event) => {
         const button = event.target.closest("[data-series-delete-scope]");
         if (!button) return;
+        const entry = getActiveEntry();
+        if (!entry) return;
+        const scope = button.dataset.seriesDeleteScope;
+        const scopeLabel = { this: "somente esta ocorrência", future: "esta e as próximas ocorrências", all: "toda a série, incluindo ocorrências anteriores" }[scope];
+        if (!confirm(`Excluir ${scopeLabel} de “${entry.description}” (${money(entry.value)})? Confira o alcance antes de continuar.`)) return;
         const buttons = [...seriesScopeDialog.querySelectorAll("button")];
         buttons.forEach((item) => { item.disabled = true; });
         button.setAttribute("aria-busy", "true");
@@ -3360,6 +3703,7 @@ const descriptionOptionsByType = {
         }
         desc.value = "";
         renderEntryOptions();
+        updateEntryFormVisibility();
       };
       desc.onchange = async () => {
         if (desc.value !== "__new__") return;
@@ -3392,6 +3736,7 @@ const descriptionOptionsByType = {
         const [year, month] = filterMonth.value.split("-").map(Number);
         const next = new Date(year, month - 1 + offset, 1, 12);
         filterMonth.value = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
+        state.filterDate = null;
         state.selectedEntries.clear();
         state.selectionMode = false;
         render();
@@ -3446,10 +3791,19 @@ const descriptionOptionsByType = {
         const day = event.target.closest("[data-calendar-date]");
         if (!day) return;
         state.selectedCalendarDate = day.dataset.calendarDate;
-        state.filterDate = day.dataset.calendarDate;
+        renderCalendar();
+        calendarGrid.querySelector(`[data-calendar-date="${state.selectedCalendarDate}"]`)?.focus({ preventScroll: true });
+      };
+
+      document.querySelector("#viewCalendarEntries").onclick = () => {
+        state.filterDate = state.selectedCalendarDate;
         state.selectedEntries.clear();
         state.selectionMode = false;
+        filterType.value = "";
+        filterDescription.value = "";
+        filterStatus.value = "";
         render();
+        navigateApp("records");
       };
 
       clearDateFilter.onclick = () => {
@@ -3464,6 +3818,7 @@ const descriptionOptionsByType = {
 
       settingsForm.onsubmit = async (event) => {
         event.preventDefault();
+        if (saveSettings.hidden) return;
         if (!settingsForm.reportValidity()) return;
         saveSettings.disabled = true;
         saveSettings.setAttribute("aria-busy", "true");
@@ -3622,7 +3977,7 @@ const descriptionOptionsByType = {
         const entry = {
           date,
           value: totalValue,
-          flow_type: flowType.value,
+          flow_type: domain.entryFlowType({ flow_type: flowType.value, type: type.value }),
           type: type.value,
           description: desc.value,
           detail,
@@ -3725,15 +4080,21 @@ const descriptionOptionsByType = {
       };
 
       async function startApp() {
+        document.querySelector("#periodToolbar").appendChild(document.querySelector(".calendar-controls"));
+        navigateApp(viewFromLocation(), { history: false, focus: false });
         localStore.clearLegacyCache();
         filterStatus.value = "pending";
         render();
-        await initializeAuth();
         if ("serviceWorker" in navigator && window.isSecureContext) {
-          navigator.serviceWorker.register("./sw.js").catch((error) => {
+          const alreadyControlled = Boolean(navigator.serviceWorker.controller);
+          navigator.serviceWorker.addEventListener("controllerchange", () => {
+            if (alreadyControlled) document.querySelector("#interfaceUpdateNotice").hidden = false;
+          });
+          navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).then(registration => registration.update()).catch((error) => {
             console.warn("Não foi possível ativar o modo instalável/offline.", error);
           });
         }
+        await initializeAuth();
       }
 
       startApp();

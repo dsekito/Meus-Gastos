@@ -3,6 +3,8 @@
     let queueIndexReference = null;
     let queueIndexLength = -1;
     let queuedByEntryId = new Map();
+    let activeSync = null;
+    let activeUserId = null;
 
     function createMutationId() {
       return global.crypto?.randomUUID?.()
@@ -86,17 +88,21 @@
       }
     }
 
-    async function syncEntries(userId) {
+    async function sendEntries(userId, collections = {}) {
       normalizeEntryIds();
       ensureMutationIds();
-      if (state.syncQueue.length && repository.applyEntryOperations) {
+      if ((state.syncQueue.length || collections.settings || collections.recurrenceSeries)
+          && (repository.applySyncBatch || repository.applyEntryOperations)) {
         const operations = state.syncQueue.map((operation) =>
           operation.type === "delete"
             ? { ...operation }
             : { ...operation, entry: { ...operation.entry } },
         );
         onProgress({ completed: 0, total: operations.length });
-        const saved = await repository.applyEntryOperations(operations, userId, onProgress);
+        const saved = repository.applySyncBatch
+          ? await repository.applySyncBatch({ ...collections, operations }, userId, onProgress)
+          : await repository.applyEntryOperations(operations, userId, onProgress);
+        if (state.user !== undefined && state.user?.id !== userId) throw new Error("GOOGLE_DRIVE_CANCELLED");
         const versions = new Map(saved.map((entry) => [entry.id, entry.updated_at]));
         const entriesById = new Map(state.entries.map((entry) => [entry.id, entry]));
         const pendingById = new Map();
@@ -153,6 +159,19 @@
         state.syncQueue = state.syncQueue.filter((pending) => pending.mutationId !== operation.mutationId);
         await persist();
       }
+    }
+
+    function syncEntries(userId, collections = {}) {
+      if (activeSync) {
+        if (activeUserId !== userId || Object.keys(collections).length) {
+          return activeSync.then(() => syncEntries(userId, collections));
+        }
+        return activeSync;
+      }
+      const snapshot = structuredClone(collections);
+      activeUserId = userId;
+      activeSync = sendEntries(userId, snapshot).finally(() => { activeSync = null; activeUserId = null; });
+      return activeSync;
     }
 
     return { queueUpsert, queueDelete, syncEntries };

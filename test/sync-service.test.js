@@ -118,6 +118,39 @@ require("../js/sync-service.js");
     false,
     "criar e excluir antes do envio não deve gerar uma operação remota",
   );
+  const combinedState = { entries: [{ id: 'combined', value: 5 }], syncQueue: [], deletedEntryIds: new Set() };
+  let combinedCalls = 0, releaseCombined, combinedStarted;
+  const combinedGate = new Promise(resolve => { releaseCombined = resolve; });
+  const combinedStart = new Promise(resolve => { combinedStarted = resolve; });
+  const combined = MGSyncService.create({ state: combinedState, persist: async () => {}, normalizeEntryIds: () => {}, repository: {
+    async applySyncBatch(batch) {
+      combinedCalls++;
+      assert.equal(batch.settings.current_balance, 100);
+      assert.deepEqual(batch.recurrenceSeries, []);
+      combinedStarted(); await combinedGate;
+      return batch.operations.map(op => ({ ...op.entry, updated_at: 'combined-v1' }));
+    },
+  } });
+  combined.queueUpsert(combinedState.entries[0]);
+  const collections = { settings: { current_balance: 100 }, recurrenceSeries: [] };
+  const combinedUpload = combined.syncEntries('user', collections);
+  await combinedStart;
+  const duplicate = combined.syncEntries('user');
+  collections.settings.current_balance = 999;
+  combinedState.entries[0].value = 6;
+  combined.queueUpsert(combinedState.entries[0]);
+  releaseCombined();
+  await Promise.all([combinedUpload, duplicate]);
+  assert.equal(combinedCalls, 1, 'concurrent entry sync calls must share the active upload');
+  assert.equal(combinedState.syncQueue[0].entry.value, 6);
+  assert.equal(combinedState.syncQueue[0].baseUpdatedAt, 'combined-v1');
+
+  let settingsOnlyCalls = 0;
+  const settingsOnly = MGSyncService.create({ state: { entries: [], syncQueue: [], deletedEntryIds: new Set() }, persist: async () => {}, normalizeEntryIds: () => {}, repository: {
+    async applySyncBatch(batch) { settingsOnlyCalls++; assert.equal(batch.operations.length, 0); return []; },
+  } });
+  await settingsOnly.syncEntries('user', { settings: { current_balance: 10 } });
+  assert.equal(settingsOnlyCalls, 1, 'settings must upload even with an empty entry queue');
   console.log("sync service tests: ok");
 })().catch((error) => {
   console.error(error);

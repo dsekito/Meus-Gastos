@@ -31,8 +31,11 @@ test("evita estouro nas ações dos lançamentos e usa ícones vetoriais", () =>
 });
 
 test("invalida o cache anterior para distribuir a revisão mobile", () => {
-  assert.match(serviceWorker, /const CACHE_NAME = "meus-gastos-v22";/);
-  assert.match(html, /\.\/js\/app\.js\?v=2026092301/);
-  assert.match(serviceWorker, /\.\/js\/app\.js\?v=2026092301/);
+  assert.ok(Number(serviceWorker.match(/const CACHE_NAME = "meus-gastos-v(\d+)";/)[1]) >= 23);
+  for (const asset of ["js/app.js", "mobile.css"]) {
+    const versionedPath = html.match(new RegExp(`\\./${asset.replaceAll(".", "\\.")}\\?v=\\d+`))?.[0];
+    assert.ok(versionedPath, `${asset} precisa de uma versão`);
+    assert.ok(serviceWorker.includes(`"${versionedPath}"`), `${asset} deve estar disponível offline na mesma versão`);
+  }
   assert.match(serviceWorker, /const cacheKey = new Request\(url\.href\);/);
 });
