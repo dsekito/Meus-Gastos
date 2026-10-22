@@ -1070,7 +1070,6 @@
           font-size: 0;
         }
 
-        .settings-button,
         #reconnectGoogle,
         #signOut {
           display: inline-flex;
@@ -1079,7 +1078,6 @@
           font-size: 19px;
         }
 
-        .settings-button .button-label,
         #reconnectGoogle .button-label,
         #signOut .button-label { display: none; }
 
@@ -1991,7 +1989,6 @@
         #authArea { gap: 8px; }
 
         .auth-button,
-        .settings-button,
         #reconnectGoogle,
         #signOut {
           width: 48px;
@@ -2326,7 +2323,7 @@
         dialog .modal-foot { position: static; }
       }
     </style>
-    <link rel="stylesheet" href="./mobile.css?v=2026102106" />
+    <link rel="stylesheet" href="./mobile.css?v=2026102201" />
   </head>
   <body aria-busy="true">
     <section class="bootstrap-screen" id="bootstrapScreen" role="status" aria-live="polite">
@@ -2358,7 +2355,6 @@
         <div class="header-actions">
           <span class="sync-status" id="syncStatus" data-state="idle" role="status" aria-live="polite" aria-atomic="true">Aguardando sincronização</span>
           <div id="authArea"></div>
-          <button class="auth-button settings-button" id="openSettings" type="button" aria-label="Configurações financeiras" title="Configurações financeiras"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.08a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3v-4h.08A1.7 1.7 0 0 0 4.64 9 1.7 1.7 0 0 0 4.3 7.1l-.06-.06L7.07 4.2l.06.06A1.7 1.7 0 0 0 9 4.6h.01A1.7 1.7 0 0 0 10 3.08V3h4v.08A1.7 1.7 0 0 0 15.03 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9v.01A1.7 1.7 0 0 0 20.92 10H21v4h-.08A1.7 1.7 0 0 0 19.4 15Z"/></svg><span class="button-label">Configurações</span></button>
           <button class="primary" id="openModal" type="button"><span aria-hidden="true">＋</span> Novo lançamento</button>
         </div>
       </header>

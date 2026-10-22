@@ -240,7 +240,6 @@ const descriptionOptionsByType = {
         toggleCalendar = document.querySelector("#toggleCalendar"),
         settingsDialog = document.querySelector("#settingsDialog"),
         settingsForm = document.querySelector("#settingsForm"),
-        openSettings = document.querySelector("#openSettings"),
         onboardingDialog = document.querySelector("#onboardingDialog"),
         onboardingForm = document.querySelector("#onboardingForm"),
         onboardingBalance = document.querySelector("#onboardingBalance"),
@@ -3399,7 +3398,6 @@ const descriptionOptionsByType = {
 
       openModal.onclick = openNew;
       openModalMobile.onclick = openNew;
-      openSettings.onclick = () => navigateApp("settings");
       document.querySelector("#reloadInterface").onclick = async (event) => {
         if (document.querySelector("dialog[open]")) {
           show("Salve ou feche o formulário aberto antes de atualizar a interface.");

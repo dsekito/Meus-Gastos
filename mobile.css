@@ -172,3 +172,27 @@ details[open] > summary::after { content: "−"; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; }
 }
+
+/* Home forecast indicators share the same layout at every screen size. */
+.decision-cards .decision-card {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 20px;
+}
+.decision-cards .decision-card .label { min-height: 0; font-size: 16px; line-height: 1.5; }
+.decision-cards .decision-card .amount {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+.decision-cards .decision-card .card-note { font-size: 16px; line-height: 1.5; }
+@media (min-width: 760px) {
+  .decision-cards .minimum-card { grid-column: 1 / -1; }
+  .decision-cards .decision-card { grid-column: auto; }
+  .decision-cards .decision-card .label { min-height: 3em; }
+}
