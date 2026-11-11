@@ -102,5 +102,58 @@
     return value;
   }
 
-  global.MGDocumentValidator = { validateDocument, validateBackup, validateEntryDelta };
+  // Imports cross a trust boundary. Do not reuse permissive legacy coercions.
+  function parseImport(input) {
+    try {
+      if (typeof input === "string" && input.length > 5 * 1024 * 1024) invalid("IMPORT_INVALID");
+      const value = typeof input === "string" ? JSON.parse(input) : structuredClone(input);
+      const forbidden = new Set(["__proto__", "prototype", "constructor"]);
+      function checkTree(node, depth = 0) {
+        if (depth > 30) invalid("IMPORT_INVALID");
+        if (!node || typeof node !== "object") return;
+        for (const key of Object.keys(node)) {
+          if (forbidden.has(key)) invalid("IMPORT_INVALID");
+          checkTree(node[key], depth + 1);
+        }
+      }
+      checkTree(value);
+      const snapshot = Array.isArray(value)
+        ? { schemaVersion: 1, entries: value, recurrenceSeries: [], settings: {} }
+        : value;
+      validateBackup(snapshot);
+      if (!snapshot.entries.length || snapshot.entries.length > 50000) invalid("IMPORT_INVALID");
+      function strictRecord(record) {
+        if (record.value != null && (typeof record.value !== "number" || !Number.isFinite(record.value))) invalid("IMPORT_INVALID");
+        for (const key of ["paid", "active", "detached_from_series", "excluded_from_series", "import_local_only"]) {
+          if (record[key] != null && typeof record[key] !== "boolean") invalid("IMPORT_INVALID");
+        }
+        if (record.flow_type != null && !["income", "expense"].includes(record.flow_type)) invalid("IMPORT_INVALID");
+        if (record.installment != null && (!isObject(record.installment)
+            || !Number.isInteger(record.installment.current) || record.installment.current < 1
+            || !Number.isInteger(record.installment.total) || record.installment.total < record.installment.current)) invalid("IMPORT_INVALID");
+        if (record.installments != null && (!Number.isInteger(record.installments) || record.installments < 1)) invalid("IMPORT_INVALID");
+      }
+      strictRecord(snapshot.settings);
+      if (snapshot.settings.current_balance != null && typeof snapshot.settings.current_balance !== "number") invalid("IMPORT_INVALID");
+      for (const key of ["types", "descriptions", "hiddenTypes"]) {
+        const options = snapshot.settings[key];
+        if (options != null && (!Array.isArray(options) || options.some(option => typeof option !== "string"))) invalid("IMPORT_INVALID");
+      }
+      (snapshot.recurrenceSeries || []).forEach(strictRecord);
+      snapshot.entries.forEach((entry) => {
+        strictRecord(entry);
+        if (forbidden.has(entry.id) || entry.id.length > 200
+            || typeof entry.value !== "number" || !Number.isFinite(entry.value)
+            || !isDateOnly(entry.date)) invalid("IMPORT_INVALID");
+        for (const key of ["type", "description", "notes", "flow_type", "status", "series_id", "scheduled_date"]) {
+          if (entry[key] != null && typeof entry[key] !== "string") invalid("IMPORT_INVALID");
+        }
+      });
+      return snapshot;
+    } catch (error) {
+      invalid("IMPORT_INVALID");
+    }
+  }
+
+  global.MGDocumentValidator = { validateDocument, validateBackup, validateEntryDelta, parseImport };
 })(window);

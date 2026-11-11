@@ -141,6 +141,25 @@ const descriptionOptionsByType = {
       let automaticRetryTimer = null;
       let automaticRetryAttempt = 0;
       let syncRequestedWhileActive = false;
+      let recoveryBusy = false;
+      const backupRecovery = window.MGBackupRecovery.create({
+        store: localStore,
+        getUserId: () => state.user?.id,
+      });
+
+      function hasLocalOnlyRecovery() {
+        return state.entries.some((entry) => entry.import_local_only)
+          || state.syncQueue.some((operation) => operation.localOnly || operation.entry?.import_local_only);
+      }
+
+      // Capture before existing handlers while a recovery snapshot is prepared.
+      ["click", "submit", "change", "input", "keydown"].forEach((eventName) => {
+        document.addEventListener(eventName, (event) => {
+          if (!recoveryBusy || !event.target.closest?.("#appShell, dialog")) return;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }, true);
+      });
 
       const moneyFormatter = new Intl.NumberFormat("pt-BR", {
           style: "currency",
@@ -393,6 +412,14 @@ const descriptionOptionsByType = {
 
       function updateSettingsSyncSummary(stateName) {
         if (!settingsSyncSummary) return;
+        if (hasLocalOnlyRecovery()) {
+          const title = document.createElement("strong");
+          title.textContent = "Recuperação local · envio pausado";
+          const detail = document.createElement("span");
+          detail.textContent = "Os lançamentos recuperados estão apenas neste aparelho. Todo envio ao Drive, inclusive alterações futuras, está pausado por segurança. Guarde uma cópia local e não limpe os dados do navegador.";
+          settingsSyncSummary.replaceChildren(title, detail);
+          return;
+        }
         const pending = pendingSyncCount();
         const pendingLabel = pending === 1 ? "1 alteração pendente de envio" : `${pending} alterações pendentes de envio`;
         const title = stateName === "conflict"
@@ -424,17 +451,32 @@ const descriptionOptionsByType = {
       }
 
       function setSyncStatus(stateName, message) {
+        if (hasLocalOnlyRecovery()) {
+          syncStatus.dataset.state = "local-only";
+          syncNotice.dataset.state = "local-only";
+          syncStatus.textContent = "Recuperação local · envio pausado";
+          syncStatus.setAttribute("aria-label", "Recuperação salva apenas neste aparelho. Todo envio ao Google Drive está pausado por segurança.");
+          syncNotice.hidden = false;
+          syncNoticeTitle.textContent = "Recuperação salva apenas neste aparelho";
+          syncNoticeDetail.textContent = "Todo envio ao Google Drive está pausado por segurança, inclusive alterações futuras. Não limpe os dados deste aparelho: a recuperação ainda não tem cópia sincronizada.";
+          syncNoticeAction.hidden = true;
+          syncNoticeAction.dataset.action = "";
+          syncNoticeAction.removeAttribute("aria-label");
+          updateSettingsSyncSummary("local-only");
+          return;
+        }
         const pending = pendingSyncCount();
         const pendingLabel = pending === 1 ? "1 alteração pendente de envio" : `${pending} alterações pendentes de envio`;
         syncStatus.dataset.state = stateName;
         syncNotice.dataset.state = stateName;
         updateSettingsSyncSummary(stateName);
         syncNoticeAction.dataset.action = "";
+        syncNoticeAction.removeAttribute("aria-label");
 
         if (stateName === "synced") {
           syncStatus.textContent = "Tudo sincronizado";
           syncStatus.setAttribute("aria-label", `${formatLastSync()}; tudo sincronizado`);
-          syncNotice.hidden = false;
+          syncNotice.hidden = !isRemoteDocumentLarge();
           syncNoticeAction.hidden = true;
           syncNoticeTitle.textContent = "Tudo sincronizado";
           syncNoticeDetail.textContent = isRemoteDocumentLarge()
@@ -794,6 +836,10 @@ const descriptionOptionsByType = {
       }
 
       async function flushSynchronization() {
+        if (recoveryBusy || hasLocalOnlyRecovery()) {
+          setSyncStatus("pending", "Envio pausado por segurança");
+          return false;
+        }
         if (scheduledSyncTimer) {
           clearTimeout(scheduledSyncTimer);
           scheduledSyncTimer = null;
@@ -830,6 +876,10 @@ const descriptionOptionsByType = {
       }
 
       function scheduleSynchronization() {
+        if (recoveryBusy || hasLocalOnlyRecovery()) {
+          setSyncStatus("pending", "Envio pausado por segurança");
+          return;
+        }
         if (!state.user || !navigator.onLine || !googleAuth.hasAccessToken()) {
           setSyncStatus("pending", navigator.onLine ? "Reconecte o Google para sincronizar" : "Sem conexão");
           return;
@@ -1028,6 +1078,7 @@ const descriptionOptionsByType = {
         await saveLocal();
       }
       async function setCurrentUser(user) {
+        if (recoveryBusy) return;
         const isSameUser = state.user?.id === user?.id;
         state.user = user || null;
         if (state.user && !isSameUser) {
@@ -1166,6 +1217,10 @@ const descriptionOptionsByType = {
       let activeRefreshUserId = null;
       let lastCloudRefreshAt = 0;
       function retrySynchronization(trigger = null) {
+        if (recoveryBusy || hasLocalOnlyRecovery()) {
+          setSyncStatus("pending", "Envio pausado por segurança");
+          return Promise.resolve(false);
+        }
         if (activeRefreshPromise) {
           if (activeRefreshUserId !== state.user?.id) return activeRefreshPromise.then(() => retrySynchronization(trigger));
           return activeRefreshPromise;
@@ -1179,6 +1234,10 @@ const descriptionOptionsByType = {
       }
 
       async function refreshSynchronization(trigger = null) {
+        if (recoveryBusy || hasLocalOnlyRecovery()) {
+          setSyncStatus("pending", "Envio pausado por segurança");
+          return false;
+        }
         if (!state.user) return;
         const userId = state.user.id;
         if (!navigator.onLine) {
@@ -1690,7 +1749,8 @@ const descriptionOptionsByType = {
               (!type || e.type === type) &&
               (!description || e.description === description) &&
               (!status || (status === "paid") === e.paid) &&
-              (!date || e.date === date),
+              (!date || e.date === date) &&
+              domain.matchesEntrySearch(e, document.querySelector("#filterSearch").value),
           )
           .sort(
             (a, b) =>
@@ -1791,6 +1851,9 @@ const descriptionOptionsByType = {
         document.querySelector("#monthlySummaryStatus").textContent = `${cashFlowYear} · ${summary.totals.count} lançamento${summary.totals.count === 1 ? "" : "s"} ${mode}.${summary.totals.count ? "" : " Nenhum lançamento neste ano com a situação selecionada."}`;
         document.querySelector("#monthlyCashFlowList").innerHTML = summary.months.map(month => {
           const name = new Date(`${month.month}-01T12:00`).toLocaleDateString("pt-BR", { month: "long" });
+          const comparison = cashFlowYear > 1900 || month.month !== "1900-01" ? domain.comparePreviousMonth(state.entries, month.month, { status }) : null;
+          const previousName = comparison ? new Date(`${comparison.previous.month}-01T12:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" }) : "";
+          const delta = value => `${value > 0 ? "+" : value < 0 ? "−" : ""}${money(Math.abs(value))}`;
           const titleId = `cashFlowMonth-${month.month}`;
           return `<article class="panel monthly-cash-flow-card" aria-labelledby="${titleId}" data-cash-flow-month="${month.month}">
             <div class="monthly-card-heading"><h3 id="${titleId}">${name}</h3><span>${month.count ? `${month.count} lançamento${month.count === 1 ? "" : "s"}` : "Sem lançamentos"}</span></div>
@@ -1798,6 +1861,7 @@ const descriptionOptionsByType = {
               <div><dt>Saídas</dt><dd>${money(month.expense)}</dd></div>
               <div class="monthly-net"><dt>Saldo do mês</dt><dd data-negative="${month.balance < 0}">${money(month.balance)}</dd></div>
               <div><dt>Acumulado no ano</dt><dd data-negative="${month.accumulated < 0}">${money(month.accumulated)}</dd></div></dl>
+              ${comparison ? `<p>Comparação com ${previousName} (${comparison.previous.count ? `${comparison.previous.count} lançamentos` : "sem lançamentos"}): entradas ${delta(comparison.difference.income)}, saídas ${delta(comparison.difference.expense)}, saldo ${delta(comparison.difference.balance)}.</p>` : ""}
             <p>${month.balance < 0 ? "Saídas acima das entradas." : month.balance > 0 ? "Entradas acima das saídas." : ""}</p>
             <button class="secondary" type="button" data-open-cash-flow-month="${month.month}" aria-label="Ver lançamentos de ${name} de ${cashFlowYear}, ${mode}" ${month.count ? "" : "disabled"}>Ver lançamentos</button>
           </article>`;
@@ -1922,6 +1986,7 @@ const descriptionOptionsByType = {
           filterStatus.selectedOptions[0]?.textContent || "Todos os status",
           filterType.selectedOptions[0]?.textContent || "Todos os tipos",
           fd ? filterDescription.selectedOptions[0]?.textContent : null,
+          document.querySelector("#filterSearch").value ? "Busca ativa" : null,
         ].filter(Boolean).join(" · ");
 
         updateDecisionOverview(month);
@@ -2600,38 +2665,63 @@ const descriptionOptionsByType = {
         }
       }
 
+      async function recoverBackupAdditively(readInput, button) {
+        if (recoveryBusy || !state.user) return;
+        const userId = state.user.id;
+        let previewId;
+        recoveryBusy = true;
+        const resetButton = setButtonBusy(button, true, "Conferindo...");
+        const surfaces = [...document.querySelectorAll("#appShell, dialog[open]")];
+        const previousInert = surfaces.map((surface) => surface.inert);
+        surfaces.forEach((surface) => { surface.inert = true; surface.setAttribute("aria-busy", "true"); });
+        if (scheduledSyncTimer) clearTimeout(scheduledSyncTimer);
+        scheduledSyncTimer = null;
+        if (automaticRetryTimer) clearTimeout(automaticRetryTimer);
+        automaticRetryTimer = null;
+        syncRequestedWhileActive = false;
+        try {
+          if (activeRefreshPromise) await activeRefreshPromise;
+          if (activeSyncPromise) await activeSyncPromise;
+          if (state.user?.id !== userId) throw new Error("IMPORT_USER_CHANGED");
+          await saveLocal();
+          const preview = await backupRecovery.preview(userId, await readInput());
+          previewId = preview.previewId;
+          if (!preview.added) {
+            show(`Nenhum lançamento novo. ${preview.duplicateIds.length} duplicado(s), ${preview.conflictIds.length} conflito(s) e ${preview.deletedIds.length} excluído(s) foram preservados sem alterações.`);
+            return;
+          }
+          const accepted = confirm(`Prévia da recuperação:\n${preview.added} lançamento(s) novo(s).\n${preview.duplicateIds.length} duplicado(s), ${preview.conflictIds.length} conflito(s) e ${preview.deletedIds.length} excluído(s) ignorados.\n${preview.detached} ocorrência(s) serão avulsas. ${preview.ignoredRecurrenceSeries} recorrência(s) do backup não serão ativadas.\nSaldo, configurações e dados atuais serão preservados.\n\nATENÇÃO: recuperação LOCAL APENAS. Todo envio ao Google Drive ficará PAUSADO por segurança, inclusive alterações futuras, até uma atualização com suporte seguro. Não limpe os dados deste aparelho.\n\nAdicionar esses lançamentos neste aparelho?`);
+          if (!accepted) return;
+          await backupRecovery.commit(userId, previewId, { confirmed: true });
+          await loadLocal(userId);
+          render();
+          setSyncStatus("pending", "Recuperação salva apenas neste aparelho");
+          show(`${preview.added} lançamento(s) recuperado(s) neste aparelho. Envio ao Drive pausado por segurança.`);
+        } catch (error) {
+          const messages = {
+            IMPORT_INVALID: "Arquivo inválido. Nenhum lançamento foi importado.",
+            BACKUP_INVALID: "Este arquivo não é um backup válido. Nenhum lançamento foi importado.",
+            LOCAL_STORE_CONFLICT: "Outra aba alterou os dados. A recuperação não foi aplicada. Recarregue o app e gere uma nova prévia.",
+            IMPORT_USER_CHANGED: "A conta mudou. A recuperação foi interrompida.",
+            IMPORT_PREVIEW_EXPIRED: "A prévia expirou. Selecione o arquivo novamente.",
+            GOOGLE_AUTH_EXPIRED: "Reconecte o Google para ler o backup do Drive.",
+            GOOGLE_AUTH_REQUIRED: "Reconecte o Google para ler o backup do Drive.",
+          };
+          show(messages[error.message] || "Não foi possível gravar a recuperação. Os dados anteriores foram preservados. Tente novamente.");
+        } finally {
+          if (previewId) backupRecovery.discard(previewId);
+          surfaces.forEach((surface, index) => { surface.inert = previousInert[index]; surface.removeAttribute("aria-busy"); });
+          recoveryBusy = false;
+          resetButton();
+          if (hasLocalOnlyRecovery()) setSyncStatus("pending", "Envio pausado por segurança");
+          else if (hasPendingChanges()) scheduleSynchronization();
+        }
+      }
+
       async function restoreGoogleDriveBackup() {
         const id = driveBackupSelect.value;
         if (!id) return;
-        if (!confirm(`Restaurar “${driveBackupSelect.selectedOptions[0]?.textContent}”? Os lançamentos, opções e recorrências atuais serão substituídos. Antes de restaurar, uma cópia automática do estado atual será criada no Google Drive. Deseja continuar?`)) return;
-        const resetButton = setButtonBusy(restoreDriveBackup, true, "Restaurando...");
-        try {
-          const backup = await repository.fetchDriveBackup(id);
-          await repository.createDriveBackup(createBackupSnapshot());
-          const settings = backup.settings;
-          const previousEntries = state.entries;
-          state.entries = structuredClone(backup.entries);
-          state.recurrenceSeries = structuredClone(backup.recurrenceSeries || []);
-          state.settings = normalizeSettings(settings);
-          state.types = profileOptions(settings.types, defaultTypes);
-          state.descriptions = profileOptions(settings.descriptions, defaultDescriptions);
-          state.customDescriptionOptionsByType = settings.customDescriptionOptionsByType || {};
-          state.hiddenTypes = settings.hiddenTypes || [];
-          state.hiddenDescriptionsByType = settings.hiddenDescriptionsByType || {};
-          state.settingsDirty = true;
-          state.recurrenceDirty = true;
-          const restoredIds = new Set(state.entries.map((entry) => entry.id));
-          previousEntries.filter((entry) => !restoredIds.has(entry.id)).forEach((entry) => queueDelete(entry.id, entry.updated_at));
-          state.entries.forEach((entry) => queueUpsert(entry));
-          await save();
-          render();
-          show("Backup restaurado. Uma cópia dos dados anteriores foi criada no Drive e a sincronização foi iniciada.");
-        } catch (error) {
-          console.error(error);
-          show(error.message === "BACKUP_INVALID" ? "Este arquivo não é um backup válido do Meus Gastos." : "Não foi possível restaurar o backup agora.");
-        } finally {
-          resetButton();
-        }
+        return recoverBackupAdditively(() => repository.fetchDriveBackup(id), restoreDriveBackup);
       }
 
       async function addOption(key, descriptionType = type.value, onCreated = null) {
@@ -3145,45 +3235,71 @@ const descriptionOptionsByType = {
         });
       }
 
+      async function persistEntryStatus(id, paid, { undo = false } = {}) {
+        const entry = state.entries.find((item) => item.id === id);
+        if (!entry || state.pendingStatusEntries.has(id)) return;
+        const userId = state.user?.id;
+        const previousPaid = entry.paid;
+        const previousQueue = structuredClone(state.syncQueue);
+        state.pendingStatusEntries.add(id);
+        closeContextMenu();
+        // Keep the displayed financial status unchanged until local commit succeeds.
+        render();
+        try {
+          entry.paid = paid;
+          queueUpsert(entry);
+          const synced = await save();
+          if (state.user?.id !== userId) return;
+          state.recentlyChangedEntry = id;
+          const isIncome = domain.entryFlowType(entry) === "income";
+          const successMessage = undo ? "Alteração desfeita."
+            : synced ? (entry.paid
+              ? (isIncome ? "Receita marcada como recebida." : "Lançamento marcado como pago.")
+              : (isIncome ? "Receita marcada como a receber." : "Lançamento marcado como pendente."))
+            : "Status salvo neste dispositivo. Sincronização pendente.";
+          show(successMessage, undo ? null : {
+            label: "Desfazer",
+            onClick: () => persistEntryStatus(id, previousPaid, { undo: true }),
+          });
+          if (navigator.vibrate) navigator.vibrate(20);
+          setTimeout(() => {
+            if (state.recentlyChangedEntry !== id) return;
+            state.recentlyChangedEntry = null;
+            render();
+          }, 700);
+        } catch (error) {
+          if (state.user?.id !== userId) return;
+          entry.paid = previousPaid;
+          // Restore only this entry's queue operation, preserving other pending edits.
+          const operationId = (operation) => operation.id || operation.entry?.id;
+          state.syncQueue = state.syncQueue.filter((operation) => operationId(operation) !== id);
+          previousQueue.forEach((operation, index) => {
+            if (operationId(operation) === id) state.syncQueue.splice(index, 0, operation);
+          });
+          let warning = "Alteração de status não salva. Tente novamente.";
+          if (error.message === "LOCAL_STORE_CONFLICT") {
+            try {
+              // Reload the entire snapshot together with its CAS baseline; never
+              // authorize an old in-memory snapshot or automatically replay it.
+              await loadLocal(userId);
+              warning = "Alteração de status não salva: os dados mudaram em outra aba. Dados atualizados; confira antes de tentar novamente.";
+            } catch (loadError) {
+              console.error("Não foi possível atualizar os dados locais.", loadError);
+              warning = "Alteração de status não salva. Recarregue a página antes de tentar novamente.";
+            }
+          }
+          refreshSyncDiagnostics();
+          show(warning);
+        } finally {
+          state.pendingStatusEntries.delete(id);
+          if (state.user?.id === userId) render();
+        }
+      }
+
       async function toggleEntryStatus() {
         const entry = getActiveEntry();
-        if (!entry || state.pendingStatusEntries.has(entry.id)) return;
-        const previousPaid = entry.paid;
-        entry.paid = !entry.paid;
-        state.pendingStatusEntries.add(entry.id);
-        state.recentlyChangedEntry = entry.id;
-        queueUpsert(entry);
-        closeContextMenu();
-        render();
-        if (navigator.vibrate) navigator.vibrate(20);
-        const synced = await save();
-        state.pendingStatusEntries.delete(entry.id);
-        render();
-        const isIncome = domain.entryFlowType(entry) === "income";
-        const successMessage = synced ? (entry.paid
-            ? (isIncome ? "Receita marcada como recebida." : "Lançamento marcado como pago.")
-            : (isIncome ? "Receita marcada como a receber." : "Lançamento marcado como pendente."))
-          : "Status salvo neste dispositivo. Sincronização pendente.";
-        show(successMessage, {
-          label: "Desfazer",
-          onClick: async () => {
-            if (state.pendingStatusEntries.has(entry.id)) return;
-            entry.paid = previousPaid;
-            state.pendingStatusEntries.add(entry.id);
-            state.recentlyChangedEntry = entry.id;
-            queueUpsert(entry);
-            render();
-            await save();
-            state.pendingStatusEntries.delete(entry.id);
-            render();
-            show("Alteração desfeita.");
-          },
-        });
-        setTimeout(() => {
-          if (state.recentlyChangedEntry !== entry.id) return;
-          state.recentlyChangedEntry = null;
-          render();
-        }, 700);
+        if (!entry) return;
+        await persistEntryStatus(entry.id, !entry.paid);
       }
 
       function closeDeleteConfirmation() {
@@ -3429,6 +3545,7 @@ const descriptionOptionsByType = {
       document.querySelector("#monthlyCashFlowList").addEventListener("click", event => {
         const button = event.target.closest("[data-open-cash-flow-month]");
         if (!button || button.disabled) return;
+        document.querySelector("#filterSearch").value = "";
         filterMonth.value = button.dataset.openCashFlowMonth;
         filterType.value = "";
         filterDescription.value = "";
@@ -3465,6 +3582,7 @@ const descriptionOptionsByType = {
       document.querySelector("#upcomingList").addEventListener("click", (event) => {
         const target = event.target.closest("[data-upcoming-date]");
         if (!target) return;
+        document.querySelector("#filterSearch").value = "";
         filterMonth.value = target.dataset.upcomingDate.slice(0, 7);
         state.filterDate = target.dataset.upcomingDate;
         filterType.value = "";
@@ -3474,6 +3592,7 @@ const descriptionOptionsByType = {
         navigateApp("records");
       });
       function clearEntryFilters() {
+        document.querySelector("#filterSearch").value = "";
         filterType.value = "";
         filterDescription.value = "";
         filterStatus.value = "";
@@ -3515,6 +3634,19 @@ const descriptionOptionsByType = {
       loadDriveBackups.onclick = loadGoogleDriveBackups;
       driveBackupSelect.onchange = () => { restoreDriveBackup.disabled = !driveBackupSelect.value; };
       restoreDriveBackup.onclick = restoreGoogleDriveBackup;
+      const importLocalBackup = document.querySelector("#importLocalBackup");
+      const importBackupFile = document.querySelector("#importBackupFile");
+      importLocalBackup.onclick = () => importBackupFile.click();
+      importBackupFile.onchange = async () => {
+        const file = importBackupFile.files[0];
+        importBackupFile.value = "";
+        if (!file) return;
+        if (file.size > 5 * 1024 * 1024) {
+          show("Arquivo muito grande. O limite para importação é 5 MB.");
+          return;
+        }
+        await recoverBackupAdditively(() => file.text(), importLocalBackup);
+      };
       deleteTypeOptionButton.onclick = removeTypeOption;
       deleteDescriptionOptionButton.onclick = removeDescriptionOption;
       deleteTypeOption.onchange = async () => {
@@ -3721,6 +3853,11 @@ const descriptionOptionsByType = {
         control.oninput = updateEntryFormValidity;
       });
 
+      document.querySelector("#filterSearch").addEventListener("input", () => {
+        state.selectedEntries.clear();
+        state.selectionMode = false;
+        render();
+      });
       [filterMonth, filterType, filterDescription, filterStatus].forEach((control) => {
         control.onchange = () => {
           if (control === filterMonth) state.filterDate = null;
@@ -3794,6 +3931,7 @@ const descriptionOptionsByType = {
       };
 
       document.querySelector("#viewCalendarEntries").onclick = () => {
+        document.querySelector("#filterSearch").value = "";
         state.filterDate = state.selectedCalendarDate;
         state.selectedEntries.clear();
         state.selectionMode = false;

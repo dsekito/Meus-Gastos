@@ -1,2 +1,14 @@
 .superdesign/tmp/
 .migration/
+node_modules/
+outputs/
+test/artifacts/
+.agents/
+.codex-remote-attachments/
+.superdesign/
+audit-ux/
+tmp-niveis-docx/
+skills-lock.json
+*.log
+.env
+.env.*

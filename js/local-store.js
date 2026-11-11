@@ -4,6 +4,7 @@
   const DATABASE_VERSION = 1;
   let databasePromise = null;
   let writeChain = Promise.resolve();
+  const observed = new Map();
 
   function openDatabase() {
     if (databasePromise) return databasePromise;
@@ -58,13 +59,50 @@
     return writeChain;
   }
 
-  function load(userId) {
-    return run("readonly", (store) => store.get(userId));
+  async function load(userId, { observe = true } = {}) {
+    const value = await run("readonly", (store) => store.get(userId));
+    if (observe) observed.set(userId, structuredClone(value));
+    return value;
   }
 
   function save(userId, data) {
-    const snapshot = structuredClone(data);
-    return runWrite((store) => store.put(snapshot, userId));
+    return writeConditional(userId, undefined, data, true);
+  }
+
+  // The read and conditional put share ONE IndexedDB transaction. A separate
+  // load()+save() is not a compare-and-swap, even with a per-tab promise chain.
+  function writeConditional(userId, expected, replacement, useObserved = false) {
+    const baseline = structuredClone(expected);
+    const snapshot = structuredClone(replacement);
+    const pendingWrite = async () => {
+      const database = await openDatabase();
+      return new Promise((resolve, reject) => {
+        const transaction = database.transaction(STORE_NAME, "readwrite");
+        const store = transaction.objectStore(STORE_NAME);
+        let failure = null;
+        const request = store.get(userId);
+        request.onsuccess = () => {
+          if (JSON.stringify(request.result) !== JSON.stringify(useObserved ? observed.get(userId) : baseline)) {
+            failure = new Error("LOCAL_STORE_CONFLICT");
+            transaction.abort();
+            return;
+          }
+          store.put(snapshot, userId);
+        };
+        transaction.oncomplete = () => {
+          observed.set(userId, structuredClone(snapshot));
+          resolve(structuredClone(snapshot));
+        };
+        transaction.onerror = () => reject(failure || transaction.error || new Error("INDEXED_DB_TRANSACTION_ABORTED"));
+        transaction.onabort = () => reject(failure || transaction.error || new Error("INDEXED_DB_TRANSACTION_ABORTED"));
+      });
+    };
+    writeChain = writeChain.then(pendingWrite, pendingWrite);
+    return writeChain;
+  }
+
+  function compareAndSwap(userId, expected, replacement) {
+    return writeConditional(userId, expected, replacement);
   }
 
   function remove(userId) {
@@ -88,5 +126,5 @@
     }
   }
 
-  global.MGLocalStore = { load, save, remove, clearLegacyCache, requestPersistence };
+  global.MGLocalStore = { load, save, compareAndSwap, remove, clearLegacyCache, requestPersistence };
 })(window);

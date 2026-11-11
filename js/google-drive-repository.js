@@ -405,6 +405,9 @@
     }
 
     async function applyEntryOperationsNow(operations, _userId, onProgress = () => {}, collections = {}) {
+      if (operations.some(operation => operation.localOnly || operation.entry?.import_local_only)) {
+        throw new Error("SAFE_IMPORT_REMOTE_DISABLED");
+      }
       const generation = sessionGeneration;
       await ensureLoaded();
       onProgress({ completed: 0, total: operations.length, phase: "checking" });

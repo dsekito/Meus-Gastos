@@ -18,7 +18,7 @@ button[aria-busy="true"] { cursor: progress; }
 .top .brand p { display: none; }
 .top .header-actions { flex: 0 1 auto; max-width: 100%; }
 .view-heading { margin: 24px 0 16px; }
-.view-heading h2 { margin: 0; font-size: 28px; line-height: 1.3; text-wrap: balance; }
+.view-heading h2 { margin: 0; font-size: 22px; line-height: 1.3; letter-spacing: -.015em; text-wrap: balance; }
 .view-heading p { margin: 8px 0 0; color: var(--muted); }
 .decision-overview-head { display: none; }
 .period-toolbar { margin-bottom: 24px; }
@@ -30,7 +30,8 @@ button[aria-busy="true"] { cursor: progress; }
 .decision-cards .minimum-card { grid-column: 1 / -1; }
 .decision-cards .card { border-radius: 16px; padding: 20px; }
 .card .label, .card small, .card-note { font-size: 16px; }
-.balance-card .amount { font-size: clamp(28px, 7vw, 40px); }
+.decision-cards .card.balance-card .amount { font-size: 28px; line-height: 1.25; letter-spacing: -.02em; }
+.decision-cards .card.minimum-card .amount { font-size: 20px; line-height: 1.3; }
 .card .amount { overflow-wrap: anywhere; }
 .card .amount, .card .label { font-family: inherit; }
 .panel { margin: 0 0 24px; border-radius: 16px; }
@@ -39,14 +40,15 @@ button[aria-busy="true"] { cursor: progress; }
 .home-upcoming .panel-head h2 { flex: 1 1 180px; min-width: 0; }
 .home-upcoming > p { color: var(--muted); margin: 8px 0 16px; }
 .home-upcoming > .secondary { width: 100%; margin-top: 16px; }
-.upcoming-item { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; text-align: left; padding: 16px; margin-top: 12px; background: var(--paper); border: 1px solid var(--line); border-radius: 16px; }
-.upcoming-item span { min-width: 0; overflow-wrap: anywhere; }
+.upcoming-item { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; width: 100%; text-align: left; padding: 16px; margin-top: 12px; background: var(--paper); border: 1px solid var(--line); border-radius: 16px; }
+.upcoming-item span { flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; }
 .upcoming-item small { display: block; font-size: 16px; color: var(--muted); }
-.upcoming-item strong { white-space: nowrap; }
+.upcoming-item strong { margin-inline-start: auto; max-width: 100%; white-space: normal; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .app-navigation { position: fixed; z-index: 15; bottom: 0; left: 0; right: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; padding: 12px max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); background: var(--paper); border-top: 1px solid var(--line); }
-.app-navigation button { background: transparent; border: 0; padding: 8px 2px; min-height: 56px; border-radius: 16px; color: var(--muted); font-size: 14px; }
+.app-navigation button { background: transparent; border: 0; padding: 8px 2px; min-height: 56px; border-radius: 16px; color: var(--muted); font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
 .app-navigation button[aria-current="page"] { background: var(--soft); color: var(--brand); font-weight: 700; }
 @media (max-width: 359px) {
+  .app-navigation { gap: 0; }
   .app-navigation button { font-size: 13px; padding-inline: 0; }
 }
 .mobile-new-entry { display: block; position: fixed; bottom: calc(96px + env(safe-area-inset-bottom)); left: auto; right: max(16px, calc((100vw - 912px) / 2)); width: auto; min-height: 56px; max-width: calc(100vw - 32px); z-index: 14; border-radius: 16px; }
@@ -82,9 +84,11 @@ details[open] > summary::after { content: "−"; }
 .projection-risk[data-negative="true"] { background: #fff4d8; color: #805414; }
 .projection-month-summary { display: grid; gap: 12px; margin-block: 16px; }
 .projection-month-summary .monthly-total { min-width: 0; }
-.projection-month-summary strong { font-size: 28px; overflow-wrap: anywhere; }
+.projection-month-summary strong { font-size: 20px; line-height: 1.3; overflow-wrap: anywhere; }
 .projection-calendar-help, #calendarDayIncomeNote { color: var(--muted); font-size: 16px; }
 .calendar-panel .calendar-day.has-income::after { content: "+"; color: var(--brand); font-size: 16px; line-height: 16px; font-weight: 700; }
+/* Keep both indicators when a day has income and expenses. */
+.calendar-panel .calendar-day.has-income.has-cost::after { content: "+ •"; }
 @media (min-width: 760px) {
   .projection-month-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -107,7 +111,7 @@ details[open] > summary::after { content: "−"; }
 .monthly-scope-note { margin-bottom: 24px; }
 .monthly-annual-summary { display: grid; gap: 12px; margin-bottom: 16px; }
 .monthly-total { display: grid; gap: 8px; padding: 20px; background: var(--paper); border: 1px solid var(--line); border-radius: 16px; }
-.monthly-total strong { font-size: 28px; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.monthly-total strong { font-size: 20px; line-height: 1.3; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .monthly-total.balance { background: var(--soft); }
 .monthly-total [data-negative="true"], .monthly-cash-flow-card [data-negative="true"] { color: var(--danger); }
 .monthly-cash-flow-list { display: grid; gap: 16px; }
@@ -160,12 +164,13 @@ details[open] > summary::after { content: "−"; }
   .entries-panel { padding: 0; }
   .decision-cards { gap: 12px; }
   .decision-cards .card { padding: 16px; }
-  .decision-cards .decision-card .amount { font-size: 24px; }
+  .decision-cards .decision-card .amount { font-size: 20px; }
   #entryDialog .modal { display: flex; flex-direction: column; max-height: inherit; padding: 16px; gap: 16px; }
   #entryDialog .modal-head { position: static; margin-bottom: 0; padding: 0; }
   #entryForm > .form-grid { flex: 1 1 auto; overflow-y: auto; padding: 4px; min-height: 0; }
-  #entryForm > .modal-foot { position: static; flex: 0 0 auto; padding: 12px 0 max(0px, env(safe-area-inset-bottom)); margin: 0; display: grid; grid-template-columns: 1fr; gap: 8px; }
-  #entryForm > .modal-foot #saveEntry { grid-row: 1; }
+  #entryForm > .modal-foot { position: static; flex: 0 0 auto; padding: 12px 0 max(0px, env(safe-area-inset-bottom)); margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  #entryForm > .modal-foot .repeat-entry { grid-column: 1 / -1; }
+  .mobile-new-entry { left: auto; right: max(16px, env(safe-area-inset-right)); width: auto; }
   #entryForm > .modal-foot button { min-height: 48px; width: 100%; }
   .calendar-panel .calendar-head h2 { font-size: 20px; }
 }
@@ -186,13 +191,17 @@ details[open] > summary::after { content: "−"; }
 .decision-cards .decision-card .label { min-height: 0; font-size: 16px; line-height: 1.5; }
 .decision-cards .decision-card .amount {
   margin: 0;
-  font-size: 28px;
+  font-size: 20px;
   line-height: 1.25;
   font-variant-numeric: tabular-nums;
 }
-.decision-cards .decision-card .card-note { font-size: 16px; line-height: 1.5; }
+.decision-cards .decision-card .card-note { font-size: 14px; line-height: 1.5; }
 @media (min-width: 760px) {
   .decision-cards .minimum-card { grid-column: 1 / -1; }
   .decision-cards .decision-card { grid-column: auto; }
   .decision-cards .decision-card .label { min-height: 3em; }
 }
+
+/* Metadata may wrap; financial labels must not disappear behind ellipses. */
+.dense-entry .entry-meta-line { flex-wrap: wrap; white-space: normal; }
+.dense-entry .entry-type { overflow: visible; overflow-wrap: anywhere; }

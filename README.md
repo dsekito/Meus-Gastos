@@ -64,8 +64,29 @@ incremental de registros.
 
 Antes de substituir a cópia local, o documento remoto é validado quanto ao schema,
 IDs duplicados, datas, coleções e configurações. O resumo de sincronização registra a
-última tentativa, o último sucesso e o tamanho do documento. A restauração de um
-backup cria primeiro uma cópia automática do estado atual no Google Drive.
+última tentativa, o último sucesso e o tamanho do documento.
+
+### Recuperação de backups: limite desta versão
+
+A importação JSON e a recuperação de backups do Drive são **aditivas e locais**.
+Antes da confirmação, o aplicativo apresenta uma prévia. Lançamentos existentes,
+IDs conflitantes, exclusões pendentes, saldo, configurações e recorrências atuais
+são preservados. Ocorrências recuperadas ficam avulsas; o backup não reativa séries.
+O commit local usa uma única transação IndexedDB com comparação do snapshot.
+Uma prévia obsoleta é rejeitada, sem sobrescrever mudanças de outra aba.
+
+**Ao confirmar uma recuperação com novos lançamentos, todo envio ao Drive fica
+pausado por segurança, inclusive alterações futuras.** O aplicativo mostra um aviso
+persistente. Os dados recuperados ficam somente neste aparelho; guarde uma cópia
+local e não limpe o armazenamento do navegador. Recuperar um backup do Drive apenas
+lê esse arquivo: não substitui o documento remoto nem cria uma restauração destrutiva.
+
+O escritor remoto existente consulta uma versão e depois envia um PATCH sem
+precondição atômica. Isso não impede toda corrida entre dispositivos. A recuperação
+sincronizada permanece indisponível até existir um protocolo remoto comprovadamente
+seguro. A sincronização normal de perfis sem recuperação mantém seu fluxo anterior.
+O teste com a conta Google real não foi executado nesta entrega; os testes de
+integração usam perfis isolados, IndexedDB real e serviços Google simulados.
 
 Versões antigas criavam um arquivo de diferença por lançamento. Esses arquivos são
 lidos uma vez durante a migração e suas versões são registradas no documento

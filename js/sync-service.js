@@ -50,9 +50,11 @@
     function queueUpsert(entry) {
       ensureQueueIndex();
       const previous = queuedByEntryId.get(entry.id)?.operation;
+      const localOnly = !!(entry.import_local_only || previous?.localOnly || previous?.entry?.import_local_only);
       setQueueOperation(entry.id, {
         type: "upsert",
-        entry: { ...entry },
+        ...(localOnly ? { localOnly: true } : {}),
+        entry: { ...entry, ...(localOnly ? { import_local_only: true } : {}) },
         baseUpdatedAt: previous?.type === "upsert"
           ? previous.baseUpdatedAt ?? entry.updated_at ?? null
           : entry.updated_at ?? null,
@@ -88,7 +90,25 @@
       }
     }
 
+    async function persistAcknowledgement(operations, userId) {
+      try {
+        await persist();
+      } catch (error) {
+        if (state.user === undefined || state.user?.id === userId) {
+          const pendingIds = new Set(state.syncQueue.map(op => op.id || op.entry?.id));
+          const restored = operations.filter(op => !pendingIds.has(op.id || op.entry?.id));
+          state.syncQueue = [...restored, ...state.syncQueue];
+          restored.filter(op => op.type === "delete").forEach(op => state.deletedEntryIds.add(op.id));
+          queueIndexReference = null;
+        }
+        throw error;
+      }
+    }
+
     async function sendEntries(userId, collections = {}) {
+      if (state.syncQueue.some(operation => operation.localOnly || operation.entry?.import_local_only)) {
+        throw new Error("SAFE_IMPORT_REMOTE_DISABLED");
+      }
       normalizeEntryIds();
       ensureMutationIds();
       if ((state.syncQueue.length || collections.settings || collections.recurrenceSeries)
@@ -130,7 +150,7 @@
         }
         const confirmed = new Set(operations.map((operation) => operation.mutationId));
         state.syncQueue = state.syncQueue.filter((operation) => !confirmed.has(operation.mutationId));
-        await persist();
+        await persistAcknowledgement(operations, userId);
         onProgress({ completed: operations.length, total: operations.length });
         return;
       }
@@ -157,7 +177,7 @@
           });
         }
         state.syncQueue = state.syncQueue.filter((pending) => pending.mutationId !== operation.mutationId);
-        await persist();
+        await persistAcknowledgement([operation], userId);
       }
     }
 

@@ -4,6 +4,7 @@ global.window = global;
 
 const pendingCompletions = [];
 const writes = [];
+const records = new Map();
 let abortNextWrite = false;
 const database = {
   objectStoreNames: { contains: () => true },
@@ -13,7 +14,11 @@ const database = {
     const transaction = {
       objectStore() {
         return {
-          get() { throw new Error("get não esperado neste teste"); },
+          get(key) {
+            const request = {};
+            queueMicrotask(() => { request.result = records.get(key); request.onsuccess?.(); });
+            return request;
+          },
           put(value, key) {
             writes.push({ value, key });
             const request = {};
@@ -26,6 +31,7 @@ const database = {
                   transaction.error = new Error("quota exceeded");
                   transaction.onabort?.();
                 } else {
+                  records.set(key, structuredClone(value));
                   transaction.oncomplete?.();
                 }
               });

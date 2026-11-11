@@ -2323,7 +2323,7 @@
         dialog .modal-foot { position: static; }
       }
     </style>
-    <link rel="stylesheet" href="./mobile.css?v=2026102201" />
+    <link rel="stylesheet" href="./mobile.css?v=2026111102" />
   </head>
   <body aria-busy="true">
     <section class="bootstrap-screen" id="bootstrapScreen" role="status" aria-live="polite">
@@ -2447,6 +2447,7 @@
         <details class="filter-disclosure">
           <summary aria-label="Filtrar lançamentos"><span id="activeFiltersSummary">Em aberto · Todos os tipos</span><strong>Filtrar</strong></summary>
         <div class="filters" aria-label="Filtros dos lançamentos">
+          <div class="filter-field"><label for="filterSearch">Buscar lançamentos</label><input id="filterSearch" type="search" placeholder="Tipo, descrição ou observação" /></div>
           <div class="filter-field">
             <label for="filterType">Tipo</label>
             <select id="filterType">
@@ -2597,11 +2598,12 @@
           </div>
           <div class="field">
             <label for="type">Tipo</label>
-            <select id="type" required></select>
+            <select id="type" aria-describedby="descriptionHelp" required></select>
+            <p id="descriptionHelp">Escolha um tipo primeiro: as opções de descrição dependem dele.</p>
           </div>
           <div class="field">
             <label for="description">Descrição</label>
-            <select id="description" required></select>
+            <select id="description" aria-describedby="descriptionHelp" required></select>
           </div>
           <div class="field">
             <label for="date">Data</label>
@@ -2797,6 +2799,14 @@
                 </div>
                 <button class="secondary" id="downloadBackup" type="button" aria-label="Baixar backup completo dos dados">Baixar backup</button>
               </section>
+              <section class="backup-actions" aria-labelledby="importBackupTitle">
+                <div class="backup-copy">
+                  <strong id="importBackupTitle">Importar lançamentos</strong>
+                  <p id="importBackupHelp">Adicione lançamentos de um backup JSON, sem apagar os atuais. Uma prévia será exibida; configurações e recorrências não serão substituídas. A recuperação é local apenas e pausa todo envio ao Drive, inclusive alterações futuras, por segurança.</p>
+                  <input type="file" id="importBackupFile" accept=".json,application/json" hidden aria-label="Selecionar backup JSON" aria-describedby="importBackupHelp" />
+                </div>
+                <button class="secondary" id="importLocalBackup" type="button" aria-label="Selecionar JSON para prévia de importação">Selecionar JSON</button>
+              </section>
               <section class="backup-actions" aria-labelledby="driveBackupTitle">
                 <div class="backup-copy">
                   <strong id="driveBackupTitle">Criar ponto de restauração</strong>
@@ -2806,14 +2816,14 @@
               </section>
               <section class="backup-actions" aria-labelledby="restoreDriveBackupTitle">
                 <div class="backup-copy">
-                  <strong id="restoreDriveBackupTitle">Restaurar uma cópia</strong>
-                  <p>Escolha um backup do Drive. Os dados atuais só serão substituídos após sua confirmação.</p>
+                  <strong id="restoreDriveBackupTitle">Recuperar lançamentos de uma cópia</strong>
+                  <p>Leia um backup do Drive e confira a prévia. A recuperação não apaga nem substitui dados atuais. Os novos lançamentos ficam apenas neste aparelho e todo envio ao Drive será pausado por segurança.</p>
                   <label for="driveBackupSelect">Backup disponível</label>
                   <select id="driveBackupSelect" aria-label="Selecionar backup do Google Drive"><option value="">Carregue os backups do Drive</option></select>
                 </div>
                 <div class="backup-restore-buttons">
                   <button class="secondary" id="loadDriveBackups" type="button" aria-label="Carregar backups do Google Drive">Ver backups</button>
-                  <button class="secondary danger" id="restoreDriveBackup" type="button" disabled aria-label="Restaurar backup selecionado">Restaurar</button>
+                  <button class="secondary" id="restoreDriveBackup" type="button" disabled aria-label="Conferir prévia de recuperação do backup selecionado">Conferir prévia</button>
                 </div>
               </section>
             </div>
@@ -2925,12 +2935,13 @@
     <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="./js/config.js?v=2026081001"></script>
-    <script src="./js/domain.js?v=2026102105"></script>
-    <script src="./js/document-validator.js?v=2026082602"></script>
-    <script src="./js/local-store.js?v=2026082601"></script>
+    <script src="./js/domain.js?v=2026111001"></script>
+    <script src="./js/document-validator.js?v=2026111102"></script>
+    <script src="./js/local-store.js?v=2026111102"></script>
+    <script src="./js/backup-recovery.js?v=2026111102"></script>
     <script src="./js/google-auth.js?v=2026081003"></script>
-    <script src="./js/google-drive-repository.js?v=2026102105"></script>
-    <script src="./js/sync-service.js?v=2026102105"></script>
-    <script src="./js/app.js?v=2026102105"></script>
+    <script src="./js/google-drive-repository.js?v=2026111102"></script>
+    <script src="./js/sync-service.js?v=2026111102"></script>
+    <script src="./js/app.js?v=2026111102"></script>
   </body>
 </html>

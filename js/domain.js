@@ -379,7 +379,23 @@
       totals: { income: income / 100, expense: expense / 100, balance: (income - expense) / 100, count } };
   }
 
+  function matchesEntrySearch(entry, query) {
+    const normalize = value => String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+    const text = normalize([entry.type, entry.description, entry.detail, entry.notes, entry.note, entry.observation].filter(Boolean).join(" "));
+    return normalize(query).trim().split(/\s+/).every(term => text.includes(term));
+  }
+
+  function comparePreviousMonth(entries, month, options = {}) {
+    const [year, number] = month.split("-").map(Number);
+    const current = monthlyCashFlow(entries, year, options).months[number - 1];
+    const previous = number === 1 ? monthlyCashFlow(entries, year - 1, options).months[11] : monthlyCashFlow(entries, year, options).months[number - 2];
+    const difference = Object.fromEntries(["income", "expense", "balance"].map(key => [key, (Math.round(current[key] * 100) - Math.round(previous[key] * 100)) / 100]));
+    return { current, previous, difference };
+  }
+
   global.MGDomain = {
+    comparePreviousMonth,
+    matchesEntrySearch,
     entryFlowType,
     entryStatusLabel,
     monthlyCashFlow,
