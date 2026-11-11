@@ -205,3 +205,153 @@ details[open] > summary::after { content: "−"; }
 /* Metadata may wrap; financial labels must not disappear behind ellipses. */
 .dense-entry .entry-meta-line { flex-wrap: wrap; white-space: normal; }
 .dense-entry .entry-type { overflow: visible; overflow-wrap: anywhere; }
+
+/* Professional monitor: one account panel, not a stack of hero cards.
+   Keep layout contracts here; IDs and financial rendering belong to app.js. */
+:root {
+  --ink: #202522;
+  --muted: #59635e;
+  --bg: #f3f5f4;
+  --paper: #fff;
+  --line: #dce2de;
+  --brand: #176348;
+  --brand-dark: #104b36;
+  --soft: #edf4ef;
+  --shadow: 0 8px 24px #2025220a;
+}
+body { font-family: "Segoe UI", Arial, sans-serif; }
+html, body { overflow-x: visible; }
+.shell, .shell[data-view] { max-width: 1080px; padding: 20px 24px calc(112px + env(safe-area-inset-bottom)); }
+.shell > .top { position: static; margin: 0 0 20px; padding: 0 0 16px; border-bottom: 1px solid var(--line); background: transparent; box-shadow: none; backdrop-filter: none; }
+.top .brand { gap: 10px; }
+.top .brand h1 { display: block; font-size: 18px; font-weight: 650; white-space: normal; }
+.mark { width: 32px; height: 32px; border-radius: 8px; background: var(--ink); font-size: 20px; }
+.top .sync-status { width: auto; height: auto; min-width: 0; font-size: 14px; overflow: visible; }
+.top .header-actions { flex-wrap: wrap; }
+:is(.primary,.secondary,.auth-button,.google-button,input,select,textarea) { border-radius: 8px; box-shadow: none; }
+.primary { font-weight: 650; }
+.view-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 16px; }
+.view-heading > div { flex: 1 1 220px; min-width: 0; }
+.view-heading h2 { font-size: 22px; text-align: left; text-wrap: pretty; }
+.view-heading p { font-size: 16px; line-height: 1.45; margin: 4px 0 0; }
+#openModalMobile.mobile-new-entry { display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 0 1 auto; position: static; inset: auto; width: auto; min-height: 48px; max-width: 100%; padding: 10px 14px; border-radius: 8px; box-shadow: none; z-index: auto; }
+.period-toolbar { margin: 0 0 16px; }
+.period-toolbar .calendar-controls { max-width: 100%; grid-template-columns: 48px minmax(0,1fr) 48px; gap: 8px; }
+.period-toolbar .current-month { grid-column: 1 / -1; justify-self: start; padding: 8px 12px; }
+.period-toolbar input { background: var(--paper); border-color: #b6c2ba; font-weight: 600; }
+.decision-overview { margin-bottom: 16px; }
+.decision-cards { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0; background: var(--paper); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.decision-cards > .card { grid-column: auto; min-width: 0; min-height: 0; padding: 14px 16px; border: 0; border-radius: 0; background: transparent; box-shadow: none; display: block; }
+.decision-cards > .card.balance-card { grid-column: 1 / -1; padding: 16px; color: var(--ink); background: #fff; border-bottom: 1px solid var(--line); }
+.decision-cards > .card:nth-child(even) { border-right: 1px solid var(--line); }
+.decision-cards > .card:nth-child(n+4) { border-top: 1px solid var(--line); background: #f8faf9; }
+.decision-cards > .card .label { font-size: 16px; line-height: 1.35; min-height: 0; color: var(--muted); }
+.decision-cards > .card .amount { margin: 6px 0 0; font-size: 20px; line-height: 1.25; letter-spacing: -.025em; color: var(--ink); font-variant-numeric: tabular-nums; white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+.decision-cards > .card.balance-card .amount { color: var(--ink); font-size: 30px; font-weight: 650; }
+.decision-cards > .card .card-note { display: block; font-size: 14px; line-height: 1.4; margin-top: 6px; color: var(--muted); white-space: normal; overflow: visible; }
+.decision-cards > .minimum-card[data-negative="true"] { background: #fff3f1; }
+.decision-cards > .card .amount[data-negative="true"], .decision-cards > .minimum-card[data-negative="true"] .amount { color: var(--danger); }
+.minimum-warning { font-size: 16px; line-height: 1.4; }
+.financial-guidance { margin-top: 8px; min-height: 0; padding: 12px 16px; border-radius: 8px; gap: 12px; }
+.financial-guidance-icon { width: 8px; height: 8px; flex-basis: 8px; box-shadow: none; }
+.financial-guidance p { font-size: 16px; }
+.panel { border-radius: 12px; box-shadow: none; margin-bottom: 16px; }
+.home-upcoming { padding: 16px; }
+.home-upcoming .panel-head h2 { font-size: 18px; }
+.home-upcoming > p { margin: 8px 0; }
+.upcoming-item { border: 0; border-radius: 0; border-bottom: 1px solid var(--line); padding: 12px 0; margin-top: 0; gap: 8px 16px; }
+.upcoming-item:last-child { border-bottom: 0; }
+.upcoming-item small { font-size: 16px; }
+.home-upcoming > .secondary { border-color: var(--line); background: #f8faf9; margin-top: 10px; }
+.app-navigation { gap: 4px; padding: 8px 16px max(8px,env(safe-area-inset-bottom)); background: #fff; border-color: var(--line); border-radius: 0; max-width: none; }
+.app-navigation button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 6px 0; border-radius: 8px; font-size: 14px; line-height: 1.35; min-height: 64px; min-width: 48px; }
+.app-navigation button svg { width: 20px; height: 20px; flex: 0 0 20px; stroke-width: 1.7; }
+.app-navigation button[aria-current="page"] { color: var(--brand-dark); background: var(--soft); }
+.app-navigation button span { max-width: 100%; overflow-wrap: anywhere; }
+.entries-panel .panel-head { padding: 16px; gap: 8px; }
+.entries-panel .panel-head h2 { font-size: 18px; }
+.entry.dense-entry { border-left: 0; padding: 12px 8px 12px 16px; }
+.entry.selected { border-left: 0; }
+.dense-entry .entry-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.dense-entry .entry-title { flex: 1 1 150px; }
+.dense-entry .entry-value { margin-left: auto; white-space: normal; overflow-wrap: anywhere; }
+.dense-entry .entry-meta-line { font-size: 14px; }
+.filter-disclosure > summary { border-radius: 8px; }
+.settings-shortcut { border: 0; border-bottom: 1px solid var(--line); background: transparent; border-radius: 0; padding: 16px 0; }
+.settings-shortcut:last-of-type { border-bottom: 0; }
+.settings-home { gap: 0; }
+.settings-home > p { margin-top: 0; }
+:is(.settings-group,.settings-history-action,.backup-actions,.option-manager-card,.settings-sync-summary,.monthly-total,.monthly-cash-flow-card) { border-radius: 10px; }
+.monthly-controls, .monthly-total, .monthly-cash-flow-card { padding: 16px; }
+.monthly-total { gap: 4px; }
+.projection-month-summary { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.projection-month-summary .monthly-total { padding: 12px; }
+.monthly-cash-flow-card dl > div, .calendar-day-detail dl > div { flex-wrap: wrap; }
+.monthly-cash-flow-card dd, .calendar-day-detail dd { margin-left: auto; }
+.toast { bottom: calc(96px + env(safe-area-inset-bottom)); }
+.sync-notice { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 8px 12px; margin: 0 0 16px; border-radius: 8px; }
+.sync-notice-copy { min-width: 0; flex: 1 1 180px; display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; }
+.sync-notice-copy > strong { flex: 1 1 110px; }
+.sync-details { min-width: 0; }
+.sync-details > summary { display: flex; align-items: center; min-height: 48px; padding: 8px 0; color: var(--brand-dark); font-size: 16px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.sync-details > summary::after { content: "+"; margin-left: 8px; text-decoration: none; }
+.sync-details[open] { flex: 1 1 100%; }
+.sync-details[open] > summary::after { content: "−"; }
+.sync-details[open] p { padding-bottom: 8px; }
+.sync-details > summary::-webkit-details-marker { display: none; }
+.sync-notice button { width: auto; min-width: 48px; padding: 8px 12px; font-size: 16px; }
+.sync-notice strong { font-size: 16px; }
+.sync-notice p { font-size: 16px; }
+#entryDialog { border-radius: 12px; }
+#entryForm :is(input,select,textarea) { border-radius: 8px; }
+#entryForm .modal-head { border: 0; }
+#entryForm .modal-head h2 { font-size: 20px; }
+#entryForm .entry-advanced > summary { border-radius: 8px; }
+@media (min-width: 760px) {
+  .period-toolbar .calendar-controls { max-width: 560px; grid-template-columns: 48px minmax(180px,1fr) 48px auto; }
+  .period-toolbar .current-month { grid-column: auto; }
+  .decision-cards { grid-template-columns: 1.15fr 1fr 1fr; }
+  .decision-cards > .card.balance-card { grid-column: 1; grid-row: 1 / 3; display: flex; flex-direction: column; justify-content: center; border-bottom: 0; border-right: 1px solid var(--line); }
+  .decision-cards > .card:nth-child(2), .decision-cards > .card:nth-child(4) { border-right: 1px solid var(--line); }
+  .app-navigation { left: 50%; right: auto; transform: translateX(-50%); width: min(720px,100%); border: 1px solid var(--line); border-bottom: 0; border-radius: 12px 12px 0 0; }
+  .home-upcoming > .secondary { width: auto; margin-right: 8px; }
+  #entryForm > .form-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 599px) {
+  .shell, .shell[data-view] { padding: 16px 16px calc(112px + env(safe-area-inset-bottom)); }
+  .shell > .top { gap: 8px; margin-bottom: 16px; padding-bottom: 12px; }
+  .shell > .top { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 8px; }
+  .top .brand { grid-column: 1; grid-row: 1; }
+  .top .brand h1 { white-space: normal; }
+  .top .header-actions { display: contents; }
+  .top #authArea { grid-column: 2; grid-row: 1; justify-self: end; }
+  .top #syncStatus { grid-column: 1 / -1; grid-row: 2; justify-self: start; }
+  .top .sync-status { font-size: 14px; }
+  .top .brand { flex: 1 1 125px; }
+  .top .header-actions { flex: 0 1 auto; }
+  .view-heading > div { flex-basis: 100%; }
+  .period-toolbar #filterMonth { grid-column: 1 / -1; grid-row: 1; }
+  .period-toolbar #previousMonth { grid-column: 1; grid-row: 2; }
+  .period-toolbar #nextMonth { grid-column: 3; grid-row: 2; }
+  .period-toolbar .current-month { grid-column: 2; grid-row: 2; justify-self: stretch; }
+  #openModalMobile.mobile-new-entry { width: 100%; }
+  .decision-cards > .card { padding: 12px; }
+  .decision-cards > .card.balance-card { padding: 16px; }
+  .decision-cards > .card .label { font-size: 16px; }
+  .decision-cards > .card .amount { font-size: 20px; }
+  .decision-cards > .card.balance-card .amount { font-size: 30px; }
+  .home-upcoming .panel-head { gap: 8px; }
+  .home-upcoming .panel-head h2 { flex: 1 1 140px; }
+  .projection-month-summary { grid-template-columns: minmax(0,1fr); }
+}
+@media (max-height: 520px) {
+  #entryDialog .modal { overflow-y: auto; max-height: 88dvh; }
+  #entryForm > .form-grid { overflow: visible; flex: 0 0 auto; }
+  #entryForm > .modal-foot { position: static; }
+  .app-navigation { position: static; transform: none; width: 100%; margin-top: 16px; }
+  .shell, .shell[data-view] { padding-bottom: 16px; }
+}
+@media (max-width: 359px) {
+  .app-navigation { gap: 0; }
+  .app-navigation button { font-size: 13px; }
+}

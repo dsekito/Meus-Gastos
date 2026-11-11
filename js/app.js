@@ -152,10 +152,16 @@ const descriptionOptionsByType = {
           || state.syncQueue.some((operation) => operation.localOnly || operation.entry?.import_local_only);
       }
 
+      function pendingSyncMessage() {
+        return hasLocalOnlyRecovery()
+          ? "Envio ao Drive pausado por segurança."
+          : "Sincronização pendente.";
+      }
+
       // Capture before existing handlers while a recovery snapshot is prepared.
       ["click", "submit", "change", "input", "keydown"].forEach((eventName) => {
         document.addEventListener(eventName, (event) => {
-          if (!recoveryBusy || !event.target.closest?.("#appShell, dialog")) return;
+          if ((!recoveryBusy && !financialMutationBusy) || !event.target.closest?.("#appShell, dialog")) return;
           event.preventDefault();
           event.stopImmediatePropagation();
         }, true);
@@ -451,6 +457,13 @@ const descriptionOptionsByType = {
       }
 
       function setSyncStatus(stateName, message) {
+        const syncDetails = document.querySelector("#syncDetails");
+        const critical = hasLocalOnlyRecovery() || stateName === "conflict"
+          || ["GOOGLE_DRIVE_INVALID_DOCUMENT", "GOOGLE_DRIVE_UNSUPPORTED_SCHEMA"].includes(state.syncDiagnostics?.lastErrorCode);
+        if (syncDetails) {
+          if (critical) syncDetails.open = true;
+          else if (syncNotice.dataset.state !== stateName) syncDetails.open = false;
+        }
         if (hasLocalOnlyRecovery()) {
           syncStatus.dataset.state = "local-only";
           syncNotice.dataset.state = "local-only";
@@ -552,8 +565,10 @@ const descriptionOptionsByType = {
         }
 
         if (state.user && !googleAuth.hasAccessToken()) {
-          syncStatus.textContent = "Sincronização pausada";
+          syncStatus.textContent = pending > 0 ? "Envio pendente" : "Modo local";
+          syncStatus.dataset.state = pending > 0 ? "pending" : "local";
           syncStatus.setAttribute("aria-label", "Sessão local ativa; autorize o Google Drive para sincronizar");
+          syncNotice.hidden = pending === 0 && !critical;
           syncNoticeTitle.textContent = "Seus dados estão disponíveis neste dispositivo";
           syncNoticeDetail.textContent = pending > 0
             ? `${pendingLabel.charAt(0).toUpperCase() + pendingLabel.slice(1)}. Autorize o Drive para enviar quando desejar.`
@@ -660,8 +675,9 @@ const descriptionOptionsByType = {
       }
 
       async function loadLocal(userId) {
+        const session = state.user;
         const cached = await localStore.load(userId);
-        if (!cached) return;
+        if (!cached || state.user !== session || state.user?.id !== userId) return;
         state.entries = cached.entries || [];
         state.recurrenceSeries = cached.recurrenceSeries || [];
         state.recurrenceDirty = !!cached.recurrenceDirty;
@@ -836,6 +852,7 @@ const descriptionOptionsByType = {
       }
 
       async function flushSynchronization() {
+        if (financialMutationBusy) return false;
         if (recoveryBusy || hasLocalOnlyRecovery()) {
           setSyncStatus("pending", "Envio pausado por segurança");
           return false;
@@ -902,6 +919,100 @@ const descriptionOptionsByType = {
         if (waitForSync) return flushSynchronization();
         scheduleSynchronization();
         return false;
+      }
+
+      let financialMutationBusy = false;
+      const financialMutationKeys = ["entries", "recurrenceSeries", "recurrenceDirty", "settings", "settingsDirty", "syncQueue", "deletedEntryIds"];
+
+      function captureFinancialState() {
+        return structuredClone(Object.fromEntries(financialMutationKeys.map((key) => [key, state[key]])));
+      }
+
+      function rollbackFinancialMutation(before, attempted) {
+        const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+        // Restore only our unchanged writes, never unrelated work that arrived
+        // while IndexedDB was committing (including newer queue operations).
+        for (const key of ["entries", "recurrenceSeries", "syncQueue"]) {
+          const identity = (item) => key === "syncQueue" ? item.id || item.entry?.id : item.id;
+          const old = new Map(before[key].map((item) => [identity(item), item]));
+          const written = new Map(attempted[key].map((item) => [identity(item), item]));
+          for (const id of new Set([...old.keys(), ...written.keys()])) {
+            if (equal(old.get(id), written.get(id))) continue;
+            const index = state[key].findIndex((item) => identity(item) === id);
+            if (!equal(index < 0 ? undefined : state[key][index], written.get(id))) continue;
+            if (index >= 0) state[key].splice(index, 1);
+            if (old.has(id)) {
+              const originalIndex = before[key].findIndex((item) => identity(item) === id);
+              state[key].splice(Math.min(originalIndex, state[key].length), 0, structuredClone(old.get(id)));
+            }
+          }
+        }
+        for (const key of new Set([...Object.keys(before.settings), ...Object.keys(attempted.settings)])) {
+          if (!equal(before.settings[key], attempted.settings[key]) && equal(state.settings[key], attempted.settings[key])) {
+            if (Object.hasOwn(before.settings, key)) state.settings[key] = structuredClone(before.settings[key]);
+            else delete state.settings[key];
+          }
+        }
+        for (const key of ["settingsDirty", "recurrenceDirty"]) {
+          const dataKey = key === "settingsDirty" ? "settings" : "recurrenceSeries";
+          if (equal(state[dataKey], before[dataKey])) state[key] = before[key];
+        }
+        for (const id of new Set([...before.deletedEntryIds, ...attempted.deletedEntryIds])) {
+          if (before.deletedEntryIds.has(id) === attempted.deletedEntryIds.has(id)) continue;
+          if (state.deletedEntryIds.has(id) !== attempted.deletedEntryIds.has(id)) continue;
+          if (before.deletedEntryIds.has(id)) state.deletedEntryIds.add(id);
+          else state.deletedEntryIds.delete(id);
+        }
+      }
+
+      async function financialMutation(mutate) {
+        if (financialMutationBusy || recoveryBusy || !state.user) {
+          show("Alteração não salva. Aguarde a operação em andamento e tente novamente.");
+          return { ok: false };
+        }
+        const session = state.user;
+        financialMutationBusy = true;
+        let before, attempted;
+        try {
+          // An in-flight sync owns its own snapshots. Let it finish before
+          // taking ours; new syncs are held until this local commit settles.
+          if (activeRefreshPromise) await activeRefreshPromise;
+          if (activeSyncPromise) await activeSyncPromise;
+          if (state.user !== session) return { ok: false };
+          before = captureFinancialState();
+          const value = await mutate();
+          attempted = captureFinancialState();
+          if (state.user !== session) return { ok: false };
+          await saveLocal();
+          if (state.user !== session) return { ok: false };
+          return { ok: true, synced: false, value };
+        } catch (error) {
+          if (state.user !== session) return { ok: false };
+          if (before) rollbackFinancialMutation(before, attempted || captureFinancialState());
+          let warning = "Alteração não salva. Seus dados do formulário foram mantidos; tente novamente.";
+          if (error.message === "LOCAL_STORE_CONFLICT") {
+            try {
+              // FULL reload also adopts the CAS baseline. Never replay the old
+              // mutation automatically against a snapshot the user hasn't seen.
+              await loadLocal(session.id);
+              warning = "Alteração não salva: os dados mudaram em outra aba. Dados atualizados; confira antes de tentar novamente.";
+            } catch (loadError) {
+              console.error(loadError);
+              warning = "Alteração não salva. Recarregue a página antes de tentar novamente.";
+            }
+          }
+          if (state.user === session) {
+            refreshSyncDiagnostics();
+            render();
+            show(warning);
+          }
+          return { ok: false, error };
+        } finally {
+          financialMutationBusy = false;
+          // Only previously committed work or this successful commit is now
+          // visible to synchronization. No replay and no success on failure.
+          if (state.user === session && hasPendingChanges()) scheduleSynchronization();
+        }
       }
 
       function hasPendingChanges() {
@@ -1217,6 +1328,7 @@ const descriptionOptionsByType = {
       let activeRefreshUserId = null;
       let lastCloudRefreshAt = 0;
       function retrySynchronization(trigger = null) {
+        if (financialMutationBusy) return Promise.resolve(false);
         if (recoveryBusy || hasLocalOnlyRecovery()) {
           setSyncStatus("pending", "Envio pausado por segurança");
           return Promise.resolve(false);
@@ -1234,6 +1346,7 @@ const descriptionOptionsByType = {
       }
 
       async function refreshSynchronization(trigger = null) {
+        if (financialMutationBusy) return false;
         if (recoveryBusy || hasLocalOnlyRecovery()) {
           setSyncStatus("pending", "Envio pausado por segurança");
           return false;
@@ -1568,28 +1681,31 @@ const descriptionOptionsByType = {
         const nextDescription = includeFields ? managerBulkDescription.value : "";
         const changes = [paid === null ? null : paid ? "marcar como pago/recebido" : "marcar em aberto", nextType ? `tipo: ${nextType}` : null, nextDescription ? `descrição: ${nextDescription}` : null].filter(Boolean);
         if (changes.length && !confirm(`Aplicar ${changes.join("; ")} a ${managerSelectedEntries.size} registro(s) selecionado(s)? Outros registros não serão alterados.`)) return;
-        let changed = 0;
-        state.entries.forEach((entry) => {
-          if (!managerSelectedEntries.has(entry.id)) return;
-          let changedEntry = false;
-          if (paid !== null && entry.paid !== paid) { entry.paid = paid; changedEntry = true; }
-          if (nextType && entry.type !== nextType) { entry.type = nextType; changedEntry = true; }
-          if (nextDescription && entry.description !== nextDescription) { entry.description = nextDescription; changedEntry = true; }
-          if (changedEntry) {
-            if (entry.series_id) entry.detached_from_series = true;
-            queueUpsert(entry);
-            changed++;
-          }
-        });
-        if (!changed) { show("Nenhuma alteração necessária nos registros selecionados."); return; }
+        const selectedIds = new Set(managerSelectedEntries);
         managerApplyChanges.disabled = true;
         managerApplyChanges.setAttribute("aria-busy", "true");
         try {
-          await save();
+          const result = await financialMutation(() => {
+            let changed = 0;
+            state.entries.forEach((entry) => {
+              if (!selectedIds.has(entry.id)) return;
+              let changedEntry = false;
+              if (paid !== null && entry.paid !== paid) { entry.paid = paid; changedEntry = true; }
+              if (nextType && entry.type !== nextType) { entry.type = nextType; changedEntry = true; }
+              if (nextDescription && entry.description !== nextDescription) { entry.description = nextDescription; changedEntry = true; }
+              if (changedEntry) {
+                if (entry.series_id) entry.detached_from_series = true;
+                queueUpsert(entry);
+                changed++;
+              }
+            });
+            return changed;
+          });
+          if (!result.ok) { renderRecordsManager(); return; }
           managerSelectedEntries.clear();
           renderRecordsManager();
           render();
-          show(`${changed} registro${changed === 1 ? "" : "s"} atualizado${changed === 1 ? "" : "s"}.`);
+          show(result.value ? `${result.value} registro(s) atualizado(s). ${pendingSyncMessage()}` : "Nenhuma alteração necessária nos registros selecionados.");
         } finally {
           managerApplyChanges.disabled = false;
           managerApplyChanges.removeAttribute("aria-busy");
@@ -1650,6 +1766,10 @@ const descriptionOptionsByType = {
         const currentBalance = getProjectedBalance(todayISO(), entryNet);
         const monthEndBalance = getProjectedBalance(monthEnd, entryNet);
         const nextSevenDaysEnd = domain.addDays(todayISO(), 6);
+        const formatDate = (date) => new Date(`${date}T12:00`).toLocaleDateString("pt-BR");
+        const sevenDayRange = `${formatDate(todayISO())} a ${formatDate(nextSevenDaysEnd)}`;
+        document.querySelector("#monthEndDateLabel").textContent = `Até ${formatDate(monthEnd)} · inclui pendências`;
+        document.querySelector("#upcomingPeriodDescription").textContent = `Em aberto · ${sevenDayRange}`;
         const upcomingEntries = state.entries.filter((entry) =>
           !entry.excluded_from_series
           && !entry.paid
@@ -1682,8 +1802,10 @@ const descriptionOptionsByType = {
           year: "numeric",
         });
 
-        decisionPeriodLabel.textContent = `Visão de ${monthLabel}`;
+        decisionPeriodLabel.textContent = `Projeções de ${monthLabel}`;
+        document.querySelector("#decisionOverviewTitle").textContent = `Saldo projetado hoje e projeções de ${monthLabel}`;
         currentBalanceTotal.textContent = money(currentBalance);
+        currentBalanceTotal.dataset.negative = String(currentBalance < 0);
         monthEndBalanceTotal.textContent = money(monthEndBalance);
         monthEndBalanceTotal.dataset.negative = String(monthEndBalance < 0);
         nextSevenDaysTotal.textContent = money(upcomingTotal);
@@ -1773,7 +1895,7 @@ const descriptionOptionsByType = {
       }
 
       const appViews = {
-        home: ["inicio", "Seu mês em resumo", "Seu saldo e os próximos compromissos."],
+        home: ["inicio", "Visão geral", "Projeções e próximos compromissos."],
         records: ["registros", "Seus registros", "Consulte, filtre e organize seus lançamentos."],
         projection: ["projecao", "Projeção de saldo", "Selecione um dia para entender os valores previstos."],
         monthly: ["mensal", "Consolidado mensal", "Compare suas entradas e saídas, mês a mês."],
@@ -1939,7 +2061,7 @@ const descriptionOptionsByType = {
         risk.dataset.negative = String(minimumBalance < 0);
         risk.textContent = `Menor saldo do mês: ${money(minimumBalance)}, em ${new Date(`${minimumBalanceDate}T12:00`).toLocaleDateString("pt-BR")}.${minimumBalance < 0 ? " Confira as receitas e despesas antes dessa data." : ""}`;
 
-        monthlyMinimumLabel.textContent = `Previsto em ${new Date(`${minimumBalanceDate}T12:00`).toLocaleDateString("pt-BR", { day: "numeric", month: "short" })}`;
+        monthlyMinimumLabel.textContent = `Em ${new Date(`${minimumBalanceDate}T12:00`).toLocaleDateString("pt-BR")}`;
         monthlyMinimumBalance.textContent = money(minimumBalance);
         document.querySelector("#monthlyMinimumCard").dataset.negative = String(minimumBalance < 0);
         document.querySelector("#monthlyMinimumWarning").hidden = minimumBalance >= 0;
@@ -1959,9 +2081,16 @@ const descriptionOptionsByType = {
           ...state.types,
           ...state.entries.map((entry) => entry.type),
         ]);
-        rows.innerHTML = entries.length
-          ? entries.map((entry) => renderDenseEntry(entry, typeColors)).join("")
-          : `<div class="empty"><strong>${state.entries.length ? "Nenhum lançamento com estes filtros." : "Seu mês começa aqui."}</strong><p>${state.entries.length ? "Limpe os filtros ou escolha outro período." : "Adicione uma despesa ou receita para acompanhar seus próximos dias."}</p><button class="secondary" type="button" data-empty-action="${state.entries.length ? "filters" : "new"}" aria-label="${state.entries.length ? "Limpar filtros dos lançamentos" : "Adicionar primeiro lançamento"}">${state.entries.length ? "Limpar filtros" : "Adicionar primeiro lançamento"}</button></div>`;
+        if (entries.length) {
+          rows.innerHTML = entries.map((entry) => renderDenseEntry(entry, typeColors)).join("");
+          return;
+        }
+        const month = filterMonth.value;
+        const hasMonthlyEntries = getMonthlyEntries(month).length > 0;
+        const monthName = new Date(`${month}-01T12:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+        rows.innerHTML = hasMonthlyEntries
+          ? '<div class="empty"><strong>Nenhum lançamento com estes filtros.</strong><p>Há registros neste mês. Ajuste a busca ou limpe os filtros para vê-los.</p><button class="secondary" type="button" data-empty-action="filters" aria-label="Limpar filtros dos lançamentos">Limpar filtros</button></div>'
+          : `<div class="empty"><strong>Nenhum lançamento em ${esc(monthName)}.</strong><p>Adicione uma despesa ou receita neste período, ou escolha outro mês.</p><button class="secondary" type="button" data-empty-action="new-in-month" aria-label="Adicionar lançamento no mês selecionado">Adicionar neste mês</button>${month !== todayISO().slice(0, 7) ? '<button class="secondary" type="button" data-empty-action="current-month" aria-label="Voltar ao mês atual">Voltar ao mês atual</button>' : ""}</div>`;
       }
 
       function render() {
@@ -1975,9 +2104,11 @@ const descriptionOptionsByType = {
           fd = filterDescription.value,
           fs = filterStatus.value;
 
-        const current = new Date().toISOString().slice(0, 7);
+        const current = todayISO().slice(0, 7);
 
         if (!filterMonth.value) filterMonth.value = current;
+        const currentMonthAction = document.querySelector("#goToCurrentMonth");
+        if (currentMonthAction) currentMonthAction.disabled = filterMonth.value === current;
 
         const month = filterMonth.value;
 
@@ -1986,12 +2117,13 @@ const descriptionOptionsByType = {
           filterStatus.selectedOptions[0]?.textContent || "Todos os status",
           filterType.selectedOptions[0]?.textContent || "Todos os tipos",
           fd ? filterDescription.selectedOptions[0]?.textContent : null,
-          document.querySelector("#filterSearch").value ? "Busca ativa" : null,
+          document.querySelector("#filterSearch").value.trim() ? `Busca: “${document.querySelector("#filterSearch").value.trim()}”` : null,
+          state.filterDate ? new Date(`${state.filterDate}T12:00`).toLocaleDateString("pt-BR") : null,
         ].filter(Boolean).join(" · ");
 
         updateDecisionOverview(month);
         const referenceDate = state.settings.balance_reference_date || todayISO();
-        balanceReferenceSummary.textContent = `Calculado desde ${new Date(`${referenceDate}T12:00`).toLocaleDateString("pt-BR")}`;
+        balanceReferenceSummary.textContent = `${new Date(`${todayISO()}T12:00`).toLocaleDateString("pt-BR")} · inclui pendências. Base: ${new Date(`${referenceDate}T12:00`).toLocaleDateString("pt-BR")}`;
 
         const list = getFilteredEntries(monthly, ft, fd, fs);
 
@@ -2122,61 +2254,27 @@ const descriptionOptionsByType = {
           : "";
       }
 
-      function markSelectedAsPaid() {
-        let changed = 0;
-
-        for (const entry of state.entries) {
-          if (!state.selectedEntries.has(entry.id)) {
-            continue;
-          }
-
-          if (!entry.paid) {
-            entry.paid = true;
+      async function setSelectedPaymentStatus(paid) {
+        const ids = new Set(state.selectedEntries);
+        const result = await financialMutation(() => {
+          let changed = 0;
+          for (const entry of state.entries) {
+            if (!ids.has(entry.id) || entry.paid === paid) continue;
+            entry.paid = paid;
             queueUpsert(entry);
             changed++;
           }
-        }
-
-        if (changed > 0) {
-          save();
-        }
-
+          return changed;
+        });
+        if (!result.ok) return;
         exitSelectionMode();
-
-        show(
-          changed === 0
-            ? "Os lançamentos selecionados já estavam pagos."
-            : `${changed} lançamento${changed !== 1 ? "s" : ""} marcado${changed !== 1 ? "s" : ""} como pago.`,
-        );
+        show(result.value
+          ? `${result.value} lançamento(s) atualizado(s). ${pendingSyncMessage()}`
+          : "Os lançamentos selecionados já estavam nesse status.");
       }
 
-      function markSelectedAsPending() {
-        let changed = 0;
-
-        for (const entry of state.entries) {
-          if (!state.selectedEntries.has(entry.id)) {
-            continue;
-          }
-
-          if (entry.paid) {
-            entry.paid = false;
-            queueUpsert(entry);
-            changed++;
-          }
-        }
-
-        if (changed > 0) {
-          save();
-        }
-
-        exitSelectionMode();
-
-        show(
-          changed === 0
-            ? "Os lançamentos selecionados já estavam pendentes."
-            : `${changed} lançamento${changed !== 1 ? "s" : ""} marcado${changed !== 1 ? "s" : ""} como pendente.`,
-        );
-      }
+      function markSelectedAsPaid() { return setSelectedPaymentStatus(true); }
+      function markSelectedAsPending() { return setSelectedPaymentStatus(false); }
 
       function selectAllFiltered() {
         const list = getFilteredEntries(
@@ -2241,23 +2339,25 @@ const descriptionOptionsByType = {
       }
 
       async function changeSelectedDate(newDate) {
-        let changed = 0;
-
-        for (const entry of state.entries) {
-          if (!state.selectedEntries.has(entry.id) || entry.date === newDate) continue;
-          entry.date = newDate;
-          if (entry.series_id) entry.detached_from_series = true;
-          queueUpsert(entry);
-          changed++;
-        }
-
-        if (changed > 0) await save();
+        const ids = new Set(state.selectedEntries);
+        const result = await financialMutation(() => {
+          let changed = 0;
+          for (const entry of state.entries) {
+            if (!ids.has(entry.id) || entry.date === newDate) continue;
+            entry.date = newDate;
+            if (entry.series_id) entry.detached_from_series = true;
+            queueUpsert(entry);
+            changed++;
+          }
+          return changed;
+        });
+        if (!result.ok) return;
         bulkDateDialog.close();
         exitSelectionMode();
         show(
-          changed === 0
+          result.value === 0
             ? "Os lançamentos selecionados já estavam nessa data."
-            : `Data de ${changed} lançamento${changed !== 1 ? "s" : ""} alterada.`,
+            : `Data de ${result.value} lançamento(s) alterada. ${pendingSyncMessage()}`,
         );
       }
 
@@ -2309,7 +2409,9 @@ const descriptionOptionsByType = {
         endDate.required = recurring && endMode.value === "on_date";
         occurrenceCount.required = recurring && endMode.value === "after_occurrences";
         paidLabel.textContent = flowType.value === "income" ? "Marcar como recebido" : "Marcar como pago";
-        paidField.hidden = recurring;
+        const newInstallments = recurrence.value === "installments" && !state.editingId;
+        paidField.hidden = recurring || newInstallments;
+        paidInput.disabled = recurring || newInstallments;
         updateEntryFormValidity();
         updateRecurrenceSummary();
         updateInstallmentPreview();
@@ -2332,6 +2434,7 @@ const descriptionOptionsByType = {
           preview.textContent = "Informe o valor total da compra e a quantidade para conferir as parcelas.";
         }
         installments.required = isInstallment;
+        if (isInstallment && !state.editingId) preview.textContent += " As parcelas começam em aberto; marque o pagamento de cada uma nos registros.";
       }
 
       function openNew() {
@@ -2666,7 +2769,7 @@ const descriptionOptionsByType = {
       }
 
       async function recoverBackupAdditively(readInput, button) {
-        if (recoveryBusy || !state.user) return;
+        if (recoveryBusy || financialMutationBusy || !state.user) return;
         const userId = state.user.id;
         let previewId;
         recoveryBusy = true;
@@ -3105,7 +3208,7 @@ const descriptionOptionsByType = {
             : "Recorrência atualizada";
         return synced
           ? `${scopeLabel} e sincronizada.`
-          : `${scopeLabel} neste dispositivo. Sincronização pendente.`;
+          : `${scopeLabel} neste dispositivo. ${pendingSyncMessage()}`;
       }
 
       function installmentEntriesFor(entry) {
@@ -3236,63 +3339,39 @@ const descriptionOptionsByType = {
       }
 
       async function persistEntryStatus(id, paid, { undo = false } = {}) {
-        const entry = state.entries.find((item) => item.id === id);
-        if (!entry || state.pendingStatusEntries.has(id)) return;
-        const userId = state.user?.id;
-        const previousPaid = entry.paid;
-        const previousQueue = structuredClone(state.syncQueue);
+        if (state.pendingStatusEntries.has(id)) return;
+        const session = state.user;
         state.pendingStatusEntries.add(id);
         closeContextMenu();
-        // Keep the displayed financial status unchanged until local commit succeeds.
         render();
         try {
-          entry.paid = paid;
-          queueUpsert(entry);
-          const synced = await save();
-          if (state.user?.id !== userId) return;
+          const result = await financialMutation(() => {
+            // Resolve the entry and its previous value only inside the shared
+            // mutation boundary. Never capture another writer's pending snapshot.
+            const entry = state.entries.find(item => item.id === id);
+            if (!entry) return null;
+            const previousPaid = entry.paid;
+            entry.paid = paid;
+            queueUpsert(entry);
+            return { previousPaid };
+          });
+          if (!result.ok || !result.value || state.user !== session) return;
           state.recentlyChangedEntry = id;
-          const isIncome = domain.entryFlowType(entry) === "income";
           const successMessage = undo ? "Alteração desfeita."
-            : synced ? (entry.paid
-              ? (isIncome ? "Receita marcada como recebida." : "Lançamento marcado como pago.")
-              : (isIncome ? "Receita marcada como a receber." : "Lançamento marcado como pendente."))
-            : "Status salvo neste dispositivo. Sincronização pendente.";
+            : `Status salvo neste dispositivo. ${pendingSyncMessage()}`;
           show(successMessage, undo ? null : {
             label: "Desfazer",
-            onClick: () => persistEntryStatus(id, previousPaid, { undo: true }),
+            onClick: () => persistEntryStatus(id, result.value.previousPaid, { undo: true }),
           });
           if (navigator.vibrate) navigator.vibrate(20);
           setTimeout(() => {
-            if (state.recentlyChangedEntry !== id) return;
+            if (state.user !== session || state.recentlyChangedEntry !== id) return;
             state.recentlyChangedEntry = null;
             render();
           }, 700);
-        } catch (error) {
-          if (state.user?.id !== userId) return;
-          entry.paid = previousPaid;
-          // Restore only this entry's queue operation, preserving other pending edits.
-          const operationId = (operation) => operation.id || operation.entry?.id;
-          state.syncQueue = state.syncQueue.filter((operation) => operationId(operation) !== id);
-          previousQueue.forEach((operation, index) => {
-            if (operationId(operation) === id) state.syncQueue.splice(index, 0, operation);
-          });
-          let warning = "Alteração de status não salva. Tente novamente.";
-          if (error.message === "LOCAL_STORE_CONFLICT") {
-            try {
-              // Reload the entire snapshot together with its CAS baseline; never
-              // authorize an old in-memory snapshot or automatically replay it.
-              await loadLocal(userId);
-              warning = "Alteração de status não salva: os dados mudaram em outra aba. Dados atualizados; confira antes de tentar novamente.";
-            } catch (loadError) {
-              console.error("Não foi possível atualizar os dados locais.", loadError);
-              warning = "Alteração de status não salva. Recarregue a página antes de tentar novamente.";
-            }
-          }
-          refreshSyncDiagnostics();
-          show(warning);
         } finally {
           state.pendingStatusEntries.delete(id);
-          if (state.user?.id === userId) render();
+          if (state.user === session) render();
         }
       }
 
@@ -3319,20 +3398,25 @@ const descriptionOptionsByType = {
       async function performDeleteEntry(entry) {
         const originalIndex = state.entries.findIndex((item) => item.id === entry.id);
         const snapshot = structuredClone(entry);
-        state.entries = state.entries.filter((item) => item.id !== entry.id);
-        queueDelete(entry.id, entry.updated_at);
+        const deletionSession = state.user;
+        const result = await financialMutation(() => {
+          state.entries = state.entries.filter((item) => item.id !== entry.id);
+          queueDelete(entry.id, entry.updated_at);
+        });
         closeContextMenu();
+        if (!result.ok) return;
         render();
-        await save();
         show("Lançamento excluído.", {
           label: "Desfazer",
           onClick: async () => {
-            if (state.entries.some((item) => item.id === snapshot.id)) return;
-            state.entries.splice(Math.max(0, Math.min(originalIndex, state.entries.length)), 0, snapshot);
-            state.deletedEntryIds.delete(snapshot.id);
-            queueUpsert(snapshot);
+            if (state.user !== deletionSession || state.entries.some((item) => item.id === snapshot.id)) return;
+            const restored = await financialMutation(() => {
+              state.entries.splice(Math.max(0, Math.min(originalIndex, state.entries.length)), 0, snapshot);
+              state.deletedEntryIds.delete(snapshot.id);
+              queueUpsert(snapshot);
+            });
+            if (!restored.ok) return;
             render();
-            await save();
             show("Lançamento restaurado.");
           },
         });
@@ -3365,11 +3449,12 @@ const descriptionOptionsByType = {
           .filter((item) => item.series_id === entry.series_id)
           .map((item) => structuredClone(item));
         const cutDate = entry.scheduled_date || entry.date;
+        const deletionSession = state.user;
+        const result = await financialMutation(() => {
         if (scope === "this") {
           entry.detached_from_series = true;
           entry.excluded_from_series = true;
           queueUpsert(entry);
-          await save();
         } else if (scope === "future" && series && cutDate > series.start_date) {
           const shortened = {
             ...series,
@@ -3387,9 +3472,11 @@ const descriptionOptionsByType = {
           state.recurrenceSeries = state.recurrenceSeries.filter((item) => item.id !== entry.series_id);
           state.recurrenceDirty = true;
         }
+        });
+        if (!result.ok) return;
+        const deletedState = JSON.stringify({ entries: state.entries.filter((item) => item.series_id === entry.series_id), series: state.recurrenceSeries.find((item) => item.id === entry.series_id) });
         seriesScopeDialog.close();
         render();
-        await save();
         const successMessage = scope === "this"
           ? "Ocorrência excluída."
           : scope === "future"
@@ -3398,6 +3485,12 @@ const descriptionOptionsByType = {
         show(successMessage, {
           label: "Desfazer",
           onClick: async () => {
+            if (state.user !== deletionSession) return;
+            if (JSON.stringify({ entries: state.entries.filter((item) => item.series_id === entry.series_id), series: state.recurrenceSeries.find((item) => item.id === entry.series_id) }) !== deletedState) {
+              show("Exclusão não desfeita: a recorrência mudou. Confira os dados atuais.");
+              return;
+            }
+            const restored = await financialMutation(() => {
             const snapshotIds = new Set(entriesSnapshot.map((item) => item.id));
             state.entries
               .filter((item) => item.series_id === entry.series_id && !snapshotIds.has(item.id))
@@ -3417,8 +3510,9 @@ const descriptionOptionsByType = {
               );
               state.recurrenceDirty = true;
             }
+            });
+            if (!restored.ok) return;
             render();
-            await save();
             show("Exclusão da recorrência desfeita.");
           },
         });
@@ -3428,6 +3522,8 @@ const descriptionOptionsByType = {
         const snapshots = state.entries
           .map((entry, index) => ({ entry: structuredClone(entry), index }))
           .filter(({ entry }) => selectedIds.has(entry.id));
+        const deletionSession = state.user;
+        const result = await financialMutation(() => {
         state.entries = state.entries.filter(
           (entry) => !selectedIds.has(entry.id) || Boolean(entry.series_id),
         );
@@ -3442,14 +3538,22 @@ const descriptionOptionsByType = {
           }
         });
 
+        });
+        if (!result.ok) return;
+        const deletedState = structuredClone(state.entries.filter((item) => selectedIds.has(item.id)));
         exitSelectionMode();
-        await save();
         const total = snapshots.length;
         show(
           `${total} lançamento${total > 1 ? "s" : ""} excluído${total > 1 ? "s" : ""}.`,
           {
             label: "Desfazer",
             onClick: async () => {
+              if (state.user !== deletionSession) return;
+              if (JSON.stringify(state.entries.filter((item) => selectedIds.has(item.id))) !== JSON.stringify(deletedState)) {
+                show("Exclusão não desfeita: os registros mudaram. Confira os dados atuais.");
+                return;
+              }
+              const restored = await financialMutation(() => {
               snapshots.sort((a, b) => a.index - b.index).forEach(({ entry, index }) => {
                 const existing = state.entries.find((item) => item.id === entry.id);
                 if (existing) Object.assign(existing, entry);
@@ -3457,8 +3561,9 @@ const descriptionOptionsByType = {
                 state.deletedEntryIds.delete(entry.id);
                 queueUpsert(entry);
               });
+              });
+              if (!restored.ok) return;
               render();
-              await save();
               show("Exclusão desfeita.");
             },
           },
@@ -3606,6 +3711,12 @@ const descriptionOptionsByType = {
         const action = event.target.closest("[data-empty-action]")?.dataset.emptyAction;
         if (action === "filters") clearEntryFilters();
         if (action === "new") openNew();
+        if (action === "current-month") resetCalendarToCurrentMonth();
+        if (action === "new-in-month") {
+          openNew();
+          dateInput.value = todayISO().startsWith(filterMonth.value) ? todayISO() : `${filterMonth.value}-01`;
+          updateEntryFormValidity();
+        }
       });
       form.addEventListener("invalid", (event) => {
         const advanced = event.target.closest("#entryAdvanced");
@@ -3879,6 +3990,15 @@ const descriptionOptionsByType = {
 
       previousMonth.onclick = () => changeCalendarMonth(-1);
       nextMonth.onclick = () => changeCalendarMonth(1);
+      const goToCurrentMonth = document.querySelector("#goToCurrentMonth");
+      function resetCalendarToCurrentMonth() {
+        filterMonth.value = todayISO().slice(0, 7);
+        state.filterDate = null;
+        state.selectedEntries.clear();
+        state.selectionMode = false;
+        render();
+      }
+      if (goToCurrentMonth) goToCurrentMonth.onclick = resetCalendarToCurrentMonth;
 
       contextMenu.onclick = (e) => {
         const button = e.target.closest("[data-action]");
@@ -3959,19 +4079,22 @@ const descriptionOptionsByType = {
         saveSettings.disabled = true;
         saveSettings.setAttribute("aria-busy", "true");
         saveSettings.textContent = "Salvando...";
-        state.settings = {
-          ...state.settings,
+        const projection = {
           current_balance: Number(currentBalanceInput.value),
           balance_reference_date: balanceReferenceDateInput.value,
         };
-        state.settingsDirty = true;
         try {
-          const synced = await save();
+          const result = await financialMutation(() => {
+            state.settings = { ...state.settings, ...projection };
+            state.settingsDirty = true;
+          });
+          if (!result.ok) return;
+          const synced = result.synced;
           settingsDialog.close();
           render();
           show(synced
             ? "Projeção financeira salva e sincronizada."
-            : "Projeção salva neste dispositivo. A sincronização continuará em segundo plano.");
+            : `Projeção salva neste dispositivo. ${pendingSyncMessage()}`);
         } finally {
           saveSettings.disabled = false;
           saveSettings.removeAttribute("aria-busy");
@@ -4125,9 +4248,16 @@ const descriptionOptionsByType = {
         saveAndAddAnother.disabled = true;
         activeSubmitButton.setAttribute("aria-busy", "true");
         activeSubmitButton.textContent = "Salvando…";
+        const submissionSession = state.user;
+        const submissionEditingId = state.editingId;
         try {
           let recurringEditScope = null;
           let installmentEditQuantity = null;
+          const result = await financialMutation(async () => {
+          const recoveryOrigin = editing && (editingEntry?.import_local_only
+            || state.syncQueue.some(operation => (operation.id || operation.entry?.id) === editingEntry?.id
+              && (operation.localOnly || operation.entry?.import_local_only)));
+          const originalIds = new Set(state.entries.map(item => item.id));
           if (editing && editingEntry?.series_id) {
             recurringEditScope = await editRecurringSeries(editingEntry);
             if (!recurringEditScope) {
@@ -4165,21 +4295,35 @@ const descriptionOptionsByType = {
             createEntry(entry);
           }
 
-          const synced = await save();
+          if (recoveryOrigin) {
+            state.entries.forEach(item => {
+              if (!originalIds.has(item.id) || item.id === editingEntry.id) {
+                item.import_local_only = true;
+                queueUpsert(item);
+              }
+            });
+          }
+          return true;
+          });
+          if (!result.ok || !result.value) {
+            if (state.user === submissionSession && dialog.open && state.editingId === null) state.editingId = submissionEditingId;
+            return;
+          }
+          const synced = result.synced;
           render();
           const successMessage = recurringEditScope
               ? recurringEditSuccessMessage(recurringEditScope, synced)
               : installmentEditQuantity
                 ? synced
                   ? `Compra parcelada atualizada para ${installmentEditQuantity} parcelas e sincronizada.`
-                  : `Compra parcelada atualizada para ${installmentEditQuantity} parcelas neste dispositivo. Sincronização pendente.`
+                  : `Compra parcelada atualizada para ${installmentEditQuantity} parcelas neste dispositivo. ${pendingSyncMessage()}`
               : synced
                 ? editing
                   ? "Lançamento atualizado e sincronizado."
                   : isRecurringValue()
                     ? "Recorrência criada e sincronizada."
                     : "Lançamento salvo e sincronizado."
-                : "Lançamento salvo neste dispositivo e aguardando sincronização.";
+                : `Lançamento salvo neste dispositivo. ${pendingSyncMessage()}`;
 
           if (keepAdding) {
             valueInput.value = "";

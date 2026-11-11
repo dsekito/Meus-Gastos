@@ -120,6 +120,27 @@ que esses dados sejam importados, o arquivo `meus-gastos.json` seja criado no Dr
 e os totais sejam conferidos. A transferência exige acesso ao projeto antigo e deve
 ser executada antes do corte da versão em produção.
 
+## Interface e segurança das alterações
+
+A tela inicial usa um painel compacto de saldo e projeções, com período selecionado
+separado dos próximos sete dias. **Saldo projetado hoje** inclui lançamentos pendentes:
+não é uma afirmação de saldo bancário realizado. Datas de referência e projeção são
+exibidas; o cálculo financeiro existente foi preservado.
+
+O botão de novo lançamento fica no fluxo da página, sem cobrir cartões. A navegação
+mantém cinco destinos. O modo local sem alterações para enviar não exibe um aviso
+bloqueante; a autorização continua acessível no cabeçalho. Alertas críticos abrem os
+detalhes automaticamente e ações de cancelar/resolver continuam visíveis.
+
+Criação, edição, exclusões, ajustes de saldo e operações em lote protegem a memória
+e a fila contra falhas da persistência local. Em conflito entre abas, a aplicação
+recarrega o snapshot completo e exige uma nova ação, sem reaplicar o estado antigo.
+Falhar e repetir uma criação não deve duplicar o lançamento. Ocorrências recorrentes
+personalizadas e exclusões reservam seus slots, inclusive ao encurtar ou dividir séries.
+Na criação de compras parceladas, as parcelas começam em aberto; cada pagamento
+pode ser registrado posteriormente. A limitação de recuperação local descrita acima
+continua válida, inclusive ao converter um registro recuperado em parcelas.
+
 ## Testes
 
 A interface tem cinco destinos: Início, Registros, Projeção, Mensal e Ajustes, com

@@ -337,7 +337,8 @@ assert.deepEqual(
   })),
   [
     { id: "paid", series_id: "new-series", description: "DESCRIÇÃO NOVA", detached: false, excluded: false, paid: true },
-    { id: "detached", series_id: "new-series", description: "DESCRIÇÃO NOVA", detached: false, excluded: false, paid: false },
+    // Detached occurrences are exceptions, not reusable normal-series slots.
+    { id: "detached", series_id: "new-series", description: "EXCEÇÃO ANTIGA", detached: true, excluded: undefined, paid: false },
     { id: "excluded", series_id: "new-series", description: "EXCLUÍDA", detached: true, excluded: true, paid: undefined },
   ],
 );

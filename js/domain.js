@@ -230,13 +230,18 @@
         String(b.scheduled_date || b.date || ""),
       ),
     );
-    const excludedEntries = sortedEntries.filter((entry) => entry.excluded_from_series);
-    const excludedDates = new Set(
-      excludedEntries.map((entry) => entry.scheduled_date || entry.date).filter(Boolean),
+    const protectedEntries = sortedEntries.filter((entry) =>
+      entry.excluded_from_series || entry.detached_from_series,
     );
-    const activeEntries = sortedEntries.filter((entry) => !entry.excluded_from_series);
+    // A moved exception still owns its original scheduled slot.
+    const protectedDates = new Set(
+      protectedEntries.map((entry) => entry.scheduled_date || entry.date).filter(Boolean),
+    );
+    const activeEntries = sortedEntries.filter((entry) =>
+      !entry.excluded_from_series && !entry.detached_from_series,
+    );
     const availableOccurrences = occurrences.filter(
-      (occurrence) => !excludedDates.has(occurrence.scheduled_date),
+      (occurrence) => !protectedDates.has(occurrence.scheduled_date),
     );
     const reusableCount = Math.min(activeEntries.length, availableOccurrences.length);
     const upserts = [];
@@ -259,7 +264,7 @@
       });
     }
 
-    excludedEntries
+    protectedEntries
       .filter((entry) => entry.series_id !== series.id)
       .forEach((entry) => upserts.push({ ...entry, series_id: series.id }));
 
