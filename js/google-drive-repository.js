@@ -39,6 +39,7 @@
     let requestsCancelled = false;
     let documentSizeBytes = 0;
     let lastValidatedAt = null;
+    let duplicateDocumentCount = 0;
 
     if (!validator) throw new Error("DOCUMENT_VALIDATOR_REQUIRED");
 
@@ -128,14 +129,16 @@
       throw new Error("GOOGLE_DRIVE_REQUEST_FAILED");
     }
 
-    function escapedName(name) { return name.replace(/'/g, "\\\\'"); }
+    // Drive query literals escape backslash and single quote with one backslash.
+    function escapedName(name) { return name.replace(/\\/g, "\\\\").replace(/'/g, "\\'"); }
 
-    async function listFiles(query) {
+    async function listFiles(query, { orderBy = null } = {}) {
       const generation = sessionGeneration;
       const files = [];
       let pageToken = null;
       do {
         const params = new URLSearchParams({ spaces: "appDataFolder", q: query, fields: "files(id,name,version),nextPageToken", pageSize: "1000" });
+        if (orderBy) params.set("orderBy", orderBy);
         if (pageToken) params.set("pageToken", pageToken);
         const page = await (await request(`${API}/files?${params.toString()}`)).json();
         if (generation !== sessionGeneration) throw new Error("GOOGLE_DRIVE_CANCELLED");
@@ -218,7 +221,11 @@
 
     async function loadNow() {
       const generation = sessionGeneration;
-      const files = await listFiles(`name = '${escapedName(FILE_NAME)}' and trashed = false`);
+      // Two first-time devices can each create the main file. Every device must
+      // pick the same one (the oldest), and the duplicate is reported.
+      const files = await listFiles(`name = '${escapedName(FILE_NAME)}' and trashed = false`, { orderBy: "createdTime" });
+      duplicateDocumentCount = Math.max(0, files.length - 1);
+      if (duplicateDocumentCount) console.warn("Mais de um documento principal no Drive; usando o mais antigo.");
       let mainDocumentChanged = false;
       if (files.length) {
         const remoteFile = files[0];
@@ -497,11 +504,12 @@
           schemaVersion: document.schemaVersion,
           entryCount: document.entries.length,
           lastValidatedAt,
+          duplicateDocumentCount,
         };
       },
       beginSync() { requestsCancelled = false; },
       cancelPendingRequests() { requestsCancelled = true; activeControllers.forEach((controller) => controller.abort()); },
-      reset() { sessionGeneration++; mutationChain = Promise.resolve(); fileId = null; remoteVersion = null; document = emptyDocument(); loaded = false; documentSizeBytes = 0; lastValidatedAt = null; entryDeltaFiles.clear(); entryDeltaIndexLoaded = false; entryDeltaIndexFresh = false; loadPromise = null; writeChain = Promise.resolve(); activeControllers.forEach((controller) => controller.abort()); activeControllers.clear(); requestsCancelled = false; },
+      reset() { sessionGeneration++; mutationChain = Promise.resolve(); fileId = null; remoteVersion = null; document = emptyDocument(); loaded = false; documentSizeBytes = 0; lastValidatedAt = null; duplicateDocumentCount = 0; entryDeltaFiles.clear(); entryDeltaIndexLoaded = false; entryDeltaIndexFresh = false; loadPromise = null; writeChain = Promise.resolve(); activeControllers.forEach((controller) => controller.abort()); activeControllers.clear(); requestsCancelled = false; },
       async fetchEntries() { await ensureLoaded(); return structuredClone(document.entries); },
       async fetchLegacyEntries() { await ensureLoaded(); return structuredClone(legacyEntries); },
       async fetchEntryVersion(id) { await ensureLoaded(); return document.entries.find((item) => item.id === id) || null; },

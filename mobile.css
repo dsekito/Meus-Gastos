@@ -102,6 +102,9 @@ h1,h2,h3 { font-weight:650; letter-spacing:-.025em; }
 .entries-panel .entry-actions { margin-left:0; }
 .entry-actions summary { display:flex; align-items:center; padding:8px 12px; border:1px solid var(--line); border-radius:6px; }
 .entry-actions-content { gap:8px; }
+/* An open disclosure must take the full row, or its 16px labels overflow 48px targets. */
+.entries-panel .entry-actions[open] { flex:1 1 100%; }
+.entry-actions-content button { flex:1 1 auto; min-width:48px; }
 .filter-disclosure { margin:0 16px; }
 .filter-disclosure > summary { display:flex; align-items:center; gap:8px; padding:8px 12px; border:1px solid var(--line); border-radius:6px; cursor:pointer; }
 .filter-disclosure > summary span { flex:1; }

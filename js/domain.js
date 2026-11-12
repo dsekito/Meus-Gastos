@@ -5,30 +5,42 @@
     return new Date(now.getTime() - timezoneOffset).toISOString().slice(0, 10);
   }
 
+  // Calendar arithmetic is done in UTC so the result never depends on the
+  // device time zone (local noon is the previous UTC day from UTC+12 onwards).
+  // setUTCFullYear keeps years 0-99 literal, unlike Date.UTC.
+  function utcDate(year, monthIndex, day) {
+    const value = new Date(0);
+    value.setUTCFullYear(year, monthIndex, day);
+    return value;
+  }
+
+  function dateParts(date) {
+    return String(date).split("-").map(Number);
+  }
+
   function addDays(date, days) {
-    const value = new Date(`${date}T12:00`);
-    value.setDate(value.getDate() + days);
-    return value.toISOString().slice(0, 10);
+    const [year, month, day] = dateParts(date);
+    return utcDate(year, month - 1, day + days).toISOString().slice(0, 10);
   }
 
   function addMonthsClamped(date, months) {
-    const [year, month, day] = date.split("-").map(Number);
-    const target = new Date(year, month - 1 + months, 1, 12);
-    const lastDay = new Date(
-      target.getFullYear(),
-      target.getMonth() + 1,
-      0,
-      12,
-    ).getDate();
-    target.setDate(Math.min(day, lastDay));
+    const [year, month, day] = dateParts(date);
+    const target = utcDate(year, month - 1 + months, 1);
+    const lastDay = utcDate(target.getUTCFullYear(), target.getUTCMonth() + 1, 0).getUTCDate();
+    target.setUTCDate(Math.min(day, lastDay));
     return target.toISOString().slice(0, 10);
+  }
+
+  function weekday(date) {
+    const [year, month, day] = dateParts(date);
+    return utcDate(year, month - 1, day).getUTCDay();
   }
 
   function adjustBusinessDay(date, adjustment = "none") {
     if (adjustment === "none") return date;
     let cursor = date;
     const direction = adjustment === "previous" ? -1 : 1;
-    while ([0, 6].includes(new Date(`${cursor}T12:00`).getDay())) {
+    while ([0, 6].includes(weekday(cursor))) {
       cursor = addDays(cursor, direction);
     }
     return cursor;
@@ -334,26 +346,34 @@
     };
   }
 
+  const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
+  const toCents = value => Math.round(Number(value) * 100);
+
+  // Balance on `date` = reference balance + net of the days in (reference, date],
+  // or minus the net of (date, reference] for past dates. The cost is
+  // proportional to the dates that have entries, not to the days elapsed since
+  // the reference date, and the sum is done in integer cents.
   function projectedBalance(date, settings, entryTotals) {
     const referenceDate = settings.balance_reference_date || todayISO();
-    let balance = Number(settings.current_balance);
-    const dailyNet = (value) => entryTotals.get(value) || 0;
-    if (date > referenceDate) {
-      for (let cursor = addDays(referenceDate, 1); cursor <= date; cursor = addDays(cursor, 1)) balance += dailyNet(cursor);
-    } else if (date < referenceDate) {
-      for (let cursor = addDays(date, 1); cursor <= referenceDate; cursor = addDays(cursor, 1)) balance -= dailyNet(cursor);
+    let cents = toCents(settings.current_balance);
+    if (date === referenceDate) return cents / 100;
+    const forward = date > referenceDate;
+    const low = forward ? referenceDate : date;
+    const high = forward ? date : referenceDate;
+    for (const [day, net] of entryTotals) {
+      if (!DATE_KEY.test(day) || day <= low || day > high) continue;
+      cents += forward ? toCents(net) : -toCents(net);
     }
-    return balance;
+    return cents / 100;
   }
 
+  // Consecutive days differ exactly by that day's net, in either direction.
   function minimumProjectedBalance(fromDate, toDate, settings, entryTotals) {
-    let minimum = {
-      date: fromDate,
-      balance: projectedBalance(fromDate, settings, entryTotals),
-    };
+    let cents = toCents(projectedBalance(fromDate, settings, entryTotals));
+    let minimum = { date: fromDate, balance: cents / 100 };
     for (let cursor = addDays(fromDate, 1); cursor <= toDate; cursor = addDays(cursor, 1)) {
-      const balance = projectedBalance(cursor, settings, entryTotals);
-      if (balance < minimum.balance) minimum = { date: cursor, balance };
+      cents += toCents(entryTotals.get(cursor) || 0);
+      if (cents / 100 < minimum.balance) minimum = { date: cursor, balance: cents / 100 };
     }
     return minimum;
   }

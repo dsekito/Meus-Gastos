@@ -1,21 +1,21 @@
-const CACHE_NAME = "meus-gastos-v37";
+const CACHE_NAME = "meus-gastos-v38";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./mobile.css?v=2026111105",
+  "./mobile.css?v=2026111201",
   "./manifest.webmanifest",
   "./icons/app-icon.svg",
   "./icons/app-icon-192.png",
   "./icons/app-icon-512.png",
   "./js/config.js?v=2026081001",
-  "./js/domain.js?v=2026111104",
+  "./js/domain.js?v=2026111201",
   "./js/document-validator.js?v=2026111104",
-  "./js/local-store.js?v=2026111102",
+  "./js/local-store.js?v=2026111201",
   "./js/backup-recovery.js?v=2026111102",
-  "./js/google-auth.js?v=2026081003",
-  "./js/google-drive-repository.js?v=2026111102",
+  "./js/google-auth.js?v=2026111201",
+  "./js/google-drive-repository.js?v=2026111201",
   "./js/sync-service.js?v=2026111102",
-  "./js/app.js?v=2026111104",
+  "./js/app.js?v=2026111201",
 ];
 
 self.addEventListener("install", (event) => {
@@ -40,9 +40,17 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put("./index.html", copy));
-          return response;
+          // Only a successful app-shell response may replace the offline copy.
+          // A 404/5xx page must never become the cached application.
+          const scopePath = new URL(self.registration.scope).pathname;
+          const isAppShell = url.pathname === scopePath || url.pathname === `${scopePath}index.html`;
+          if (response.ok && response.type === "basic" && isAppShell) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put("./index.html", copy));
+            return response;
+          }
+          if (response.ok) return response;
+          return caches.match("./index.html").then((cached) => cached || response);
         })
         .catch(() => caches.match("./index.html")),
     );
@@ -59,7 +67,12 @@ self.addEventListener("fetch", (event) => {
         }
         return response;
       });
-      return cached || updated;
+      if (cached) {
+        // Background revalidation may fail offline; the cached copy still answers.
+        event.waitUntil(updated.catch(() => undefined));
+        return cached;
+      }
+      return updated;
     }),
   );
 });

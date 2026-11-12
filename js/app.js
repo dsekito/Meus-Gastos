@@ -1257,8 +1257,12 @@ const descriptionOptionsByType = {
             error.message === "GOOGLE_CLIENT_ID_NOT_CONFIGURED"
               ? "Configure o Client ID do Google antes de entrar."
               : error.message === "GOOGLE_POPUP_TIMEOUT"
-                ? "O Google não abriu neste navegador. Use o Chrome ou Edge para entrar."
-                : "Não foi possível entrar com o Google.",
+                ? "A autorização do Google não foi concluída a tempo. Tente entrar novamente."
+                : ["popup_failed_to_open", "GOOGLE_IDENTITY_UNAVAILABLE"].includes(error.message)
+                  ? "Não foi possível abrir a janela do Google. Permita pop-ups ou verifique a conexão."
+                  : ["popup_closed", "access_denied"].includes(error.message)
+                    ? "A entrada com o Google foi cancelada."
+                    : "Não foi possível entrar com o Google. Verifique a conexão e tente novamente.",
           );
         } finally {
           if (trigger.isConnected) {
@@ -2707,7 +2711,7 @@ const descriptionOptionsByType = {
               return `<article class="recent-record">
                 <div class="recent-record-head">
                   <span class="recent-record-title" title="${esc(entry.description)}">${esc(entry.description)}</span>
-                  <span class="recent-record-value ${isIncome ? "income" : ""}">${isIncome ? "+ " : ""}${money(entry.value)}</span>
+                  <span class="recent-record-value ${isIncome ? "income" : ""}">${isIncome ? "+ " : "− "}${money(entry.value)}</span>
                 </div>
                 ${groupLabel ? `<span class="recent-record-group-count">${groupLabel}</span>` : ""}
                 <div class="recent-record-meta">

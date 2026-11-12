@@ -105,8 +105,11 @@
     return writeConditional(userId, expected, replacement);
   }
 
-  function remove(userId) {
-    return runWrite((store) => store.delete(userId));
+  async function remove(userId) {
+    const result = await runWrite((store) => store.delete(userId));
+    // The record is gone; a stale observed snapshot would fail the next save().
+    observed.delete(userId);
+    return result;
   }
 
   function clearLegacyCache() {

@@ -7,7 +7,9 @@
     "https://www.googleapis.com/auth/drive.appdata",
   ].join(" ");
 
-  function create({ clientId, popupTimeoutMs = 15000 }) {
+  // The popup includes account choice, consent and 2-step verification.
+  // A short limit discards valid tokens from people who are simply slower.
+  function create({ clientId, popupTimeoutMs = 180000, requestTimeoutMs = 15000 }) {
     let accessToken = null;
     let expiresAt = 0;
     let tokenClient = null;
@@ -46,9 +48,19 @@
     }
 
     async function fetchUser() {
-      const response = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
+      let response;
+      try {
+        response = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          signal: controller.signal,
+        });
+      } catch (error) {
+        throw new Error(error?.name === "AbortError" ? "USERINFO_TIMEOUT" : "USERINFO_NETWORK");
+      } finally {
+        clearTimeout(timeout);
+      }
       if (!response.ok) throw new Error(`USERINFO_${response.status}`);
       const profile = await response.json();
       return {

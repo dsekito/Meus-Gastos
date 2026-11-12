@@ -1,10 +1,14 @@
 <!doctype html>
 <html lang="pt-BR">
   <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; connect-src 'self' https://www.googleapis.com https://openidconnect.googleapis.com https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; img-src 'self' data:; font-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"
+    />
     <link rel="icon" href="./icons/app-icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="./icons/app-icon-192.png" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#126b5b" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -2323,7 +2327,7 @@
         dialog .modal-foot { position: static; }
       }
     </style>
-    <link rel="stylesheet" href="./mobile.css?v=2026111105" />
+    <link rel="stylesheet" href="./mobile.css?v=2026111201" />
   </head>
   <body aria-busy="true">
     <section class="bootstrap-screen" id="bootstrapScreen" role="status" aria-live="polite">
@@ -2552,7 +2556,7 @@
         <div class="form-grid">
           <div class="field">
             <label for="onboardingBalance">Qual é o seu saldo hoje?</label>
-            <input id="onboardingBalance" type="number" inputmode="decimal" step="0.01" required />
+            <input id="onboardingBalance" type="number" step="0.01" required />
           </div>
           <div class="field">
             <label for="onboardingReferenceDate">Data desse saldo</label>
@@ -2942,13 +2946,13 @@
     <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="./js/config.js?v=2026081001"></script>
-    <script src="./js/domain.js?v=2026111104"></script>
+    <script src="./js/domain.js?v=2026111201"></script>
     <script src="./js/document-validator.js?v=2026111104"></script>
-    <script src="./js/local-store.js?v=2026111102"></script>
+    <script src="./js/local-store.js?v=2026111201"></script>
     <script src="./js/backup-recovery.js?v=2026111102"></script>
-    <script src="./js/google-auth.js?v=2026081003"></script>
-    <script src="./js/google-drive-repository.js?v=2026111102"></script>
+    <script src="./js/google-auth.js?v=2026111201"></script>
+    <script src="./js/google-drive-repository.js?v=2026111201"></script>
     <script src="./js/sync-service.js?v=2026111102"></script>
-    <script src="./js/app.js?v=2026111104"></script>
+    <script src="./js/app.js?v=2026111201"></script>
   </body>
 </html>
