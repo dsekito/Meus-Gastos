@@ -172,7 +172,9 @@ Há um atalho **Resumo mensal** em Registros, além da aba **Mensal**. Quando um
 nova interface fica disponível, o app oferece atualização preservando os dados
 locais e pede para concluir formulários abertos antes de recarregar.
 
-Os cálculos usam centavos inteiros para evitar diferenças de ponto flutuante.
+O consolidado mensal e o parcelamento usam centavos inteiros. As agregações e
+projeções diárias ainda usam `Number` do JavaScript; esta versão não afirma que
+todo cálculo financeiro foi convertido para centavos inteiros.
 Execute `node test/monthly-cash-flow.test.js` para os casos financeiros e
 `node test/monthly-cash-flow.e2e.cjs` com o servidor local na porta 8000 para
 validar filtros, navegação e layout do consolidado em cinco tamanhos de tela.

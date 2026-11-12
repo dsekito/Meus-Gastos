@@ -2370,7 +2370,7 @@
       </section>
       <div class="view-heading">
         <div><h2 id="appViewTitle" tabindex="-1">Visão geral</h2><p id="appViewDescription">Saldo de hoje e projeções do período selecionado.</p></div>
-        <button class="primary mobile-new-entry" id="openModalMobile" type="button" hidden><span aria-hidden="true">＋</span> Novo lançamento</button>
+        <button class="primary mobile-new-entry" id="openModalMobile" type="button" aria-label="Novo lançamento" hidden><span aria-hidden="true">＋</span><span class="action-label-full">Novo lançamento</span><span class="action-label-compact" aria-hidden="true">Novo</span></button>
       </div>
       <section id="interfaceUpdateNotice" class="panel interface-update-notice" aria-label="Atualização do aplicativo" hidden>
         <p>Uma nova versão da interface está disponível.</p><button class="secondary" type="button" id="reloadInterface" aria-label="Atualizar a interface preservando os dados locais">Atualizar interface</button>
@@ -2503,25 +2503,27 @@
       </section>
       <section class="monthly-view" data-app-panel="monthly" aria-label="Consolidado mensal de entradas e saídas" hidden>
         <div class="panel monthly-controls">
-          <div class="field"><label for="monthlyYear">Ano do consolidado</label>
+          <div class="field"><label for="monthlyYear">Ano</label>
             <div class="monthly-year-controls">
               <button class="secondary" type="button" id="previousCashFlowYear" aria-label="Ano anterior do consolidado">‹</button>
               <select id="monthlyYear" aria-label="Ano do consolidado"></select>
               <button class="secondary" type="button" id="nextCashFlowYear" aria-label="Próximo ano do consolidado">›</button>
             </div>
           </div>
-          <div class="field"><label for="monthlyStatus">Lançamentos considerados</label>
+          <div class="field"><label for="monthlyStatus">Situação</label>
             <select id="monthlyStatus" aria-label="Filtrar consolidado por situação">
               <option value="">Realizados + previstos</option>
               <option value="paid">Somente realizados</option>
               <option value="pending">Somente em aberto</option>
             </select>
           </div>
-          <p id="monthlyBasis">Agrupado pela data de cada lançamento. O saldo é a diferença entre entradas e saídas; não inclui o saldo inicial da conta.</p>
         </div>
         <div id="monthlyAnnualSummary" class="monthly-annual-summary" aria-label="Totais do ano"></div>
         <p id="monthlySummaryStatus" role="status" aria-live="polite" aria-atomic="true"></p>
-        <p class="monthly-scope-note">Parcelas e recorrências entram no mês de cada ocorrência já registrada. Ocorrências ainda não geradas não são estimadas. Despesas negativas reduzem o total de saídas.</p>
+        <details class="monthly-method"><summary aria-label="Consultar critérios do consolidado mensal">Critérios: datas, parcelas e saldo</summary>
+          <p id="monthlyBasis">Agrupado pela data de cada lançamento. O saldo é a diferença entre entradas e saídas; não inclui o saldo inicial da conta.</p>
+          <p class="monthly-scope-note">Parcelas e recorrências entram no mês de cada ocorrência já registrada. Ocorrências ainda não geradas não são estimadas. Despesas negativas reduzem o total de saídas.</p>
+        </details>
         <div id="monthlyCashFlowList" class="monthly-cash-flow-list"></div>
       </section>
       <section class="panel settings-home" data-app-panel="settings" aria-label="Ajustes do aplicativo" hidden>
@@ -2575,7 +2577,7 @@
         <div class="modal-head">
           <div>
             <h2 id="entryDialogTitle">Novo lançamento</h2>
-            <p>Registre uma despesa ou compromisso financeiro.</p>
+            <p>Registre uma despesa ou receita.</p>
           </div>
           <button class="close" type="button" data-close aria-label="Fechar formulário">&times;</button>
         </div>
@@ -2587,7 +2589,7 @@
               <option value="income">Receita</option>
             </select>
           </div>
-          <div class="field">
+          <div class="field entry-value-field">
             <label for="value" id="entryValueLabel">Valor</label>
             <input
               id="value"
@@ -2600,18 +2602,18 @@
             />
             <p id="entryValueError" class="field-error" role="alert" hidden></p>
           </div>
-          <div class="field">
-            <label for="type">Tipo</label>
-            <select id="type" aria-describedby="descriptionHelp" required></select>
-            <p id="descriptionHelp">Escolha um tipo primeiro: as opções de descrição dependem dele.</p>
-          </div>
-          <div class="field">
-            <label for="description">Descrição</label>
-            <select id="description" aria-describedby="descriptionHelp" required></select>
-          </div>
-          <div class="field">
+          <div class="field entry-date-field">
             <label for="date">Data</label>
             <input id="date" type="date" required />
+          </div>
+          <div class="field entry-type-field">
+            <label for="type">Tipo</label>
+            <select id="type" aria-describedby="descriptionHelp" required></select>
+            <p id="descriptionHelp">A descrição depende do tipo.</p>
+          </div>
+          <div class="field entry-description-field">
+            <label for="description">Descrição</label>
+            <select id="description" aria-describedby="descriptionHelp" required></select>
           </div>
           <details id="entryAdvanced" class="entry-advanced field wide">
             <summary aria-label="Repetição e detalhes opcionais">Repetição e detalhes opcionais</summary>
@@ -2707,7 +2709,7 @@
             aria-label="Salvar lançamento e adicionar outro mantendo os demais dados"
           >Salvar e adicionar outro</button
           ><button class="secondary" type="button" data-close>Cancelar</button
-          ><button class="primary" id="saveEntry" type="submit">Salvar lançamento</button>
+          ><button class="primary" id="saveEntry" type="submit" aria-label="Salvar lançamento">Salvar</button>
         </div>
       </form>
     </dialog>
@@ -2800,8 +2802,9 @@
                 <div class="backup-copy">
                   <strong id="backupTitle">Exportar cópia local</strong>
                   <p>Baixe todos os dados em um arquivo JSON para guardar fora do app.</p>
+                  <p id="backupPrivacyHelp">O arquivo é salvo sem criptografia e contém dados financeiros. Guarde em local protegido e não compartilhe com pessoas não autorizadas.</p>
                 </div>
-                <button class="secondary" id="downloadBackup" type="button" aria-label="Baixar backup completo dos dados">Baixar backup</button>
+                <button class="secondary" id="downloadBackup" type="button" aria-label="Baixar backup completo dos dados" aria-describedby="backupPrivacyHelp">Baixar backup</button>
               </section>
               <section class="backup-actions" aria-labelledby="importBackupTitle">
                 <div class="backup-copy">
@@ -2932,20 +2935,20 @@
     </dialog>
 
     <div id="contextMenu" class="context-menu hidden" role="menu" aria-label="Ações do registro">
-      <button type="button" role="menuitem" data-action="edit"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Editar</button>
-      <button type="button" role="menuitem" data-action="delete" class="danger"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2m-9 0 1 15h8l1-15M10 10v7m4-7v7"/></svg>Excluir</button>
+      <button type="button" role="menuitem" tabindex="-1" data-action="edit"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Editar</button>
+      <button type="button" role="menuitem" tabindex="-1" data-action="delete" class="danger"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2m-9 0 1 15h8l1-15M10 10v7m4-7v7"/></svg>Excluir</button>
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="./js/config.js?v=2026081001"></script>
-    <script src="./js/domain.js?v=2026111103"></script>
-    <script src="./js/document-validator.js?v=2026111102"></script>
+    <script src="./js/domain.js?v=2026111104"></script>
+    <script src="./js/document-validator.js?v=2026111104"></script>
     <script src="./js/local-store.js?v=2026111102"></script>
     <script src="./js/backup-recovery.js?v=2026111102"></script>
     <script src="./js/google-auth.js?v=2026081003"></script>
     <script src="./js/google-drive-repository.js?v=2026111102"></script>
     <script src="./js/sync-service.js?v=2026111102"></script>
-    <script src="./js/app.js?v=2026111103"></script>
+    <script src="./js/app.js?v=2026111104"></script>
   </body>
 </html>

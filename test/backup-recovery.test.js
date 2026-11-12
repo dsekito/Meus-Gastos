@@ -8,8 +8,9 @@ const backup = (entries = [entry('new')], extra = {}) => ({ schemaVersion: 1, en
 test('import accepts a backup or legacy entry array but rejects coercible numbers and malformed records', () => {
   const validator = MGDocumentValidator;
   assert.equal(typeof validator.parseImport, 'function', 'strict import parser is missing');
-  assert.deepEqual(validator.parseImport(JSON.stringify(backup())).entries, [entry('new')]);
-  assert.deepEqual(validator.parseImport(JSON.stringify([entry('legacy')])).entries, [entry('legacy')]);
+  // Legacy absence migrates to pending; invalid/null status is still rejected.
+  assert.deepEqual(validator.parseImport(JSON.stringify(backup())).entries, [entry('new', { paid: false })]);
+  assert.deepEqual(validator.parseImport(JSON.stringify([entry('legacy')])).entries, [entry('legacy', { paid: false })]);
   for (const value of [true, '', '12', null, {}, Infinity]) {
     assert.throws(() => validator.parseImport(backup([entry('bad', { value })])), /IMPORT_INVALID/);
   }

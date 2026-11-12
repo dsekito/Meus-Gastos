@@ -55,7 +55,7 @@ const path = require('node:path');
     }
     const seed = { entries: [{ id: 'original', value: 10, date: '2026-11-10' }], settings: { current_balance: 555 }, recurrenceSeries: [{ id: 'keep-series', active: true }], syncQueue: [] };
     await a.evaluate(seed => MGLocalStore.save('recovery-user', seed), seed);
-    const preview = await a.evaluate(() => recovery.preview('recovery-user', [{ id: 'imported', value: 20, date: '2026-11-10', series_id: 'old-series' }]));
+    const preview = await a.evaluate(() => recovery.preview('recovery-user', [{ id: 'imported', value: 20, date: '2026-11-10', type: 'OUTROS', description: 'Importado', paid: false, series_id: 'old-series' }]));
     await b.evaluate(async () => {
       const latest = await MGLocalStore.load('recovery-user');
       latest.entries.push({ id: 'concurrent', value: 30, date: '2026-11-10' });
@@ -68,7 +68,7 @@ const path = require('node:path');
     assert.equal(conflict, 'LOCAL_STORE_CONFLICT');
     const beforeImport = await a.evaluate(() => MGLocalStore.load('recovery-user'));
     assert.deepEqual(beforeImport.entries.map(e => e.id), ['original', 'concurrent']);
-    const nextPreview = await a.evaluate(() => recovery.preview('recovery-user', [{ id: 'imported', value: 20, date: '2026-11-10', series_id: 'old-series' }]));
+    const nextPreview = await a.evaluate(() => recovery.preview('recovery-user', [{ id: 'imported', value: 20, date: '2026-11-10', type: 'OUTROS', description: 'Importado', paid: false, series_id: 'old-series' }]));
     const aborted = await a.evaluate(async id => {
       const put = IDBObjectStore.prototype.put;
       IDBObjectStore.prototype.put = function(value, key) {
@@ -105,7 +105,7 @@ const path = require('node:path');
     });
     const previewMustNotAuthorizeStaleSave = await a.evaluate(async () => {
       const recovery = MGBackupRecovery.create();
-      await recovery.preview('observer-user', [{ id: 'recovery', value: 20, date: '2026-11-10' }]);
+      await recovery.preview('observer-user', [{ id: 'recovery', value: 20, date: '2026-11-10', type: 'OUTROS', description: 'Recuperado', paid: false }]);
       try { await MGLocalStore.save('observer-user', window.staleView); return 'UNSAFE_SUCCESS'; }
       catch (error) { return error.message; }
     });

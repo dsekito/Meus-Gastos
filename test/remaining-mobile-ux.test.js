@@ -9,13 +9,18 @@ const app = fs.readFileSync(path.join(root, 'js/app.js'), 'utf8');
 
 test('explica a dependência junto ao tipo e associa a explicação à descrição', () => {
   assert.match(html, /id="description"[^>]*aria-describedby="descriptionHelp"/);
-  assert.match(html, /id="descriptionHelp"[^>]*>[^<]*[Ee]scolha.*tipo[^<]*descri/);
+  assert.match(html, /id="descriptionHelp"[^>]*>A descrição depende do tipo\./);
 });
 
-test('ações móveis ocupam menos espaço mantendo alvos acessíveis', () => {
-  assert.match(css, /#entryForm > \.modal-foot\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
-  assert.match(css, /\.mobile-new-entry\s*\{[^}]*width:\s*(?:auto|fit-content)/);
-  assert.match(css, /#entryForm > \.modal-foot button\s*\{[^}]*min-height:\s*48px/);
+test('ações móveis preservam botões e contratos da camada visual compartilhada', () => {
+  const form = html.match(/<form\b[^>]*\bid="entryForm"[^>]*>[\s\S]*?<\/form>/)?.[0] || '';
+  assert.match(form, /id="saveEntry"/);
+  assert.match(form, /data-close/);
+  assert.match(css, /\.modal-foot/);
+  assert.match(css, /\.mobile-new-entry/);
+  assert.match(css, /min-height:\s*48px/);
+  // Computed48px targets, compact two-action row and non-floating CTA are
+  // verified in space-efficient-redesign.e2e.cjs, not by CSS-selector spelling.
 });
 
 test('aviso de sucesso não ocupa espaço sem alerta e nome de ação não fica obsoleto', () => {

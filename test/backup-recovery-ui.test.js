@@ -6,6 +6,11 @@ const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const app = fs.readFileSync(path.join(root, 'js/app.js'), 'utf8');
 
+test('exportação explica arquivo sensível sem criptografia junto ao botão', () => {
+  assert.match(html, /<p id="backupPrivacyHelp">[^<]*sem criptografia[^<]*dados financeiros[^<]*<\/p>/i);
+  assert.match(html, /id="downloadBackup"[^>]*aria-describedby="backupPrivacyHelp"/);
+});
+
 test('oferece importação aditiva com arquivo JSON e explicação sem substituição', () => {
   assert.match(html, /id="importBackupFile"[^>]*accept="[^"]*\.json/);
   assert.match(html, /id="importLocalBackup"/);

@@ -1417,7 +1417,9 @@ const descriptionOptionsByType = {
         if (!syncConflictDialog.open) syncConflictDialog.showModal();
       }
 
-      async function runConflictAction(button, loadingLabel, task) {
+      async function runConflictAction(button, loadingLabel, task, { persistFailure = true } = {}) {
+        if (button.disabled || !state.user) return;
+        const session = state.user;
         const buttons = [useCloudVersion, keepLocalVersion];
         const originalContent = button.innerHTML;
         buttons.forEach((item) => { item.disabled = true; });
@@ -1427,10 +1429,20 @@ const descriptionOptionsByType = {
           await task();
         } catch (error) {
           console.error(error);
-          state.syncConflict = state.syncConflict || { message: error.message, occurredAt: new Date().toISOString() };
-          await saveLocal();
+          // A failed choice belongs to its original account. In particular, do
+          // not retry a failed adoption write with partially replaced UI state.
+          if (state.user !== session) return;
+          if (persistFailure) {
+            state.syncConflict = state.syncConflict || { message: error.message, occurredAt: new Date().toISOString() };
+            await saveLocal().catch((saveError) => console.error(saveError));
+          }
           if (["GOOGLE_AUTH_EXPIRED", "GOOGLE_AUTH_REQUIRED"].includes(error.message)) {
-            await expireGoogleSession();
+            if (persistFailure) await expireGoogleSession();
+            else {
+              googleAuth.clearToken();
+              updateAuthArea();
+              setSyncStatus("pending", "Reconecte o Google para sincronizar");
+            }
           } else {
             setSyncStatus("conflict", "Conflito de sincronização");
           }
@@ -1442,22 +1454,86 @@ const descriptionOptionsByType = {
         }
       }
 
+      // Stage a complete validated cloud snapshot without touching pending local
+      // work. Keep the account identity and the store's observed UI baseline:
+      // diagnostic reads must not authorize a stale write.
+      const cloudChoiceKeys = ["entries", "recurrenceSeries", "recurrenceDirty", "settings", "settingsDirty", "types", "descriptions", "customDescriptionOptionsByType", "hiddenTypes", "hiddenDescriptionsByType", "syncQueue", "lastSyncedAt", "syncConflict", "syncDiagnostics"];
+
+      function cloudChoiceFingerprint() {
+        return JSON.stringify([cloudChoiceKeys.map((key) => state[key]), [...state.deletedEntryIds]]);
+      }
+
+      async function stageCloudChoice(unchanged) {
+        unchanged();
+        repository.reset();
+        await repository.load();
+        unchanged();
+        const entries = await repository.fetchEntries();
+        unchanged();
+        const settings = await repository.fetchSettings();
+        unchanged();
+        const recurrenceSeries = await repository.fetchRecurrenceSeries();
+        unchanged();
+        const timestamp = new Date().toISOString();
+        return structuredClone({
+          entries, recurrenceSeries, recurrenceDirty: false,
+          settings: normalizeSettings(settings || {}), settingsDirty: false,
+          types: profileOptions(settings?.types, defaultTypes),
+          descriptions: profileOptions(settings?.descriptions, defaultDescriptions),
+          customDescriptionOptionsByType: settings?.customDescriptionOptionsByType || {},
+          hiddenTypes: settings?.hiddenTypes || [],
+          hiddenDescriptionsByType: settings?.hiddenDescriptionsByType || {},
+          syncQueue: [], syncConflict: null, lastSyncedAt: timestamp,
+          syncDiagnostics: { ...state.syncDiagnostics, pendingCount: 0,
+            lastSuccessAt: timestamp, lastErrorCode: null,
+            documentSizeBytes: repository.getDocumentStats().sizeBytes },
+          savedAt: timestamp,
+        });
+      }
+
       async function useGoogleDriveVersion() {
         await runConflictAction(useCloudVersion, "Carregando dados do Drive...", async () => {
-          state.syncQueue = [];
-          state.deletedEntryIds = new Set();
-          state.settingsDirty = false;
-          state.syncConflict = null;
-          repository.reset();
-          await repository.load();
-          await loadCloudEntries();
-          await loadCloudSettings();
-          await loadCloudRecurrenceSeries();
-          await markSynchronizationComplete();
+          const session = state.user;
+          const fingerprint = cloudChoiceFingerprint();
+          const unchanged = () => {
+            if (state.user !== session) throw new Error("GOOGLE_DRIVE_CANCELLED");
+            if (financialMutationBusy || recoveryBusy || activeSyncPromise || activeRefreshPromise
+              || hasLocalOnlyRecovery() || cloudChoiceFingerprint() !== fingerprint) {
+              throw new Error("LOCAL_STORE_CONFLICT");
+            }
+          };
+          unchanged();
+          const snapshot = await stageCloudChoice(unchanged);
+          unchanged();
+          // Reuse the financial/recovery boundary only for the local commit.
+          // Staging remains cancellable and newer edits invalidate the choice.
+          financialMutationBusy = true;
+          recoveryBusy = true;
+          try {
+            // One read/compare/put transaction. Dirty flags in memory are not
+            // cleared until transaction.oncomplete confirms every field saved.
+            // save uses the baseline observed by loadLocal, not a fresh disk
+            // read that could silently authorize overwriting another tab.
+            await localStore.save(session.id, snapshot);
+            if (state.user !== session) return;
+            cloudChoiceKeys.forEach((key) => { state[key] = snapshot[key]; });
+            state.deletedEntryIds = new Set();
+            state.syncProgress = null;
+            if (scheduledSyncTimer) clearTimeout(scheduledSyncTimer);
+            scheduledSyncTimer = null;
+            if (automaticRetryTimer) clearTimeout(automaticRetryTimer);
+            automaticRetryTimer = null;
+            automaticRetryAttempt = 0;
+            syncRequestedWhileActive = false;
+            setSyncStatus("synced", "Tudo sincronizado");
+          } finally {
+            financialMutationBusy = false;
+            recoveryBusy = false;
+          }
           syncConflictDialog.close();
           render();
           show("Versão do Google Drive carregada.");
-        });
+        }, { persistFailure: false });
       }
 
       async function keepDeviceVersion() {
@@ -1541,14 +1617,21 @@ const descriptionOptionsByType = {
           .filter((option) => option === selectedType || !state.hiddenTypes.includes(option));
       }
 
+      function categoryOptions(optionsByType, selectedType) {
+        return Object.hasOwn(optionsByType || {}, selectedType)
+          && Array.isArray(optionsByType[selectedType])
+          ? optionsByType[selectedType]
+          : [];
+      }
+
       function entryDescriptionOptions(selectedType, selectedDescription = "") {
         return domain.descriptionOptionsForType({
           selectedType,
           selectedDescription,
           entries: state.entries,
-          defaultOptions: descriptionOptionsByType[selectedType] || [],
-          customOptions: state.customDescriptionOptionsByType[selectedType] || [],
-          hiddenOptions: state.hiddenDescriptionsByType[selectedType] || [],
+          defaultOptions: categoryOptions(descriptionOptionsByType, selectedType),
+          customOptions: categoryOptions(state.customDescriptionOptionsByType, selectedType),
+          hiddenOptions: categoryOptions(state.hiddenDescriptionsByType, selectedType),
         });
       }
 
@@ -1600,10 +1683,13 @@ const descriptionOptionsByType = {
         const option = deleteDescriptionOption.value;
         const linkedCount = state.entries.filter((entry) => entry.type === selectedType && entry.description === option && !entry.excluded_from_series).length;
         if (!selectedType || !option || !confirm(`Excluir a descrição “${option}” de “${selectedType}”? ${linkedCount} lançamento(s) usam esta descrição. Os lançamentos atuais serão preservados; a opção será removida da lista para novos registros.`)) return;
-        state.customDescriptionOptionsByType[selectedType] = (state.customDescriptionOptionsByType[selectedType] || []).filter((item) => item !== option);
+        state.customDescriptionOptionsByType = {
+          ...state.customDescriptionOptionsByType,
+          [selectedType]: categoryOptions(state.customDescriptionOptionsByType, selectedType).filter((item) => item !== option),
+        };
         state.hiddenDescriptionsByType = {
           ...state.hiddenDescriptionsByType,
-          [selectedType]: sortedOptions([...(state.hiddenDescriptionsByType[selectedType] || []), option]),
+          [selectedType]: sortedOptions([...categoryOptions(state.hiddenDescriptionsByType, selectedType), option]),
         };
         state.settingsDirty = true;
         await save();
@@ -1649,9 +1735,9 @@ const descriptionOptionsByType = {
         managerBulkEditor.hidden = !managerBulkEditor.classList.contains("visible");
         recordsManagerList.innerHTML = entries.length
           ? entries.map((entry) => `<article class="managed-record">
-              <input type="checkbox" data-manager-select="${entry.id}" ${managerSelectedEntries.has(entry.id) ? "checked" : ""} aria-label="Selecionar ${esc(entry.description)}" />
+              <input type="checkbox" data-manager-select="${esc(entry.id)}" ${managerSelectedEntries.has(entry.id) ? "checked" : ""} aria-label="Selecionar ${esc(entry.description)}" />
               <div><strong>${esc(entry.description)}</strong><small>${new Date(`${entry.date}T12:00`).toLocaleDateString("pt-BR")} · ${esc(entry.type)} · ${domain.entryStatusLabel(entry)} · ${money(entry.value)}</small></div>
-              <button class="secondary" type="button" data-manager-edit="${entry.id}" aria-label="Editar ${esc(entry.description)}"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+              <button class="secondary" type="button" data-manager-edit="${esc(entry.id)}" aria-label="Editar ${esc(entry.description)}"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
             </article>`).join("")
           : '<div class="recent-records-empty">Nenhum registro encontrado com estes filtros.</div>';
       }
@@ -1735,7 +1821,7 @@ const descriptionOptionsByType = {
           ? (isIncome ? "Recebido" : "Pago")
           : (isIncome ? "A receber" : "Em aberto");
         return `
-          <article class="entry dense-entry ${selected ? "selected" : ""} ${statusPending ? "status-pending" : ""} ${statusChanged ? "status-changed" : ""}" data-entry="${e.id}" role="${state.selectionMode ? "button" : "group"}" ${state.selectionMode ? `tabindex="0" aria-pressed="${selected}"` : ""} aria-busy="${statusPending}" aria-label="${state.selectionMode ? `Selecionar ${esc(e.description)}, tipo ${esc(e.type)}, ${isIncome ? "receita" : "despesa"}` : `${esc(e.description)}, tipo ${esc(e.type)}, ${isIncome ? "receita" : "despesa"}, ${money(e.value)}, ${statusLabel}. Toque para editar.`}" style="--type-color:${typeColor}">
+          <article class="entry dense-entry ${selected ? "selected" : ""} ${statusPending ? "status-pending" : ""} ${statusChanged ? "status-changed" : ""}" data-entry="${esc(e.id)}" role="${state.selectionMode ? "button" : "group"}" ${state.selectionMode ? `tabindex="0" aria-pressed="${selected}"` : ""} aria-busy="${statusPending}" aria-label="${state.selectionMode ? `Selecionar ${esc(e.description)}, tipo ${esc(e.type)}, ${isIncome ? "receita" : "despesa"}` : `${esc(e.description)}, tipo ${esc(e.type)}, ${isIncome ? "receita" : "despesa"}, ${money(e.value)}, ${statusLabel}. Toque para editar.`}" style="--type-color:${typeColor}">
             <div class="entry-content">
               <div class="entry-summary">
                 <div class="entry-header">
@@ -1750,12 +1836,12 @@ const descriptionOptionsByType = {
                     <span>${formatDay(e.date)} ${formatMonth(e.date)}</span>
                     <span class="entry-type">${esc(e.type)}</span>
                     ${e.installment ? `<span class="entry-installment">${e.installment.current}/${e.installment.total}</span>` : ""}
-                    ${state.selectionMode ? "" : `<button type="button" class="status-button ${e.paid ? "paid" : "pending"}" data-toggle-status="${e.id}" aria-label="Alterar status de ${esc(e.description)}. Status atual: ${statusLabel}" aria-pressed="${e.paid}" ${statusPending ? "disabled" : ""}><span class="status-button-label">${statusPending ? "Salvando" : statusLabel}</span></button>`}
+                    ${state.selectionMode ? "" : `<button type="button" class="status-button ${e.paid ? "paid" : "pending"}" data-toggle-status="${esc(e.id)}" aria-label="Alterar status de ${esc(e.description)}. Status atual: ${statusLabel}" aria-pressed="${e.paid}" ${statusPending ? "disabled" : ""}><span class="status-button-label">${statusPending ? "Salvando" : statusLabel}</span></button>`}
                   </div>
                 </div>
               </div>
             </div>
-            ${state.selectionMode ? "" : `<button class="entry-menu" data-edit="${e.id}" aria-label="Mais opções para ${esc(e.description)}">⋮</button>`}
+            ${state.selectionMode ? "" : `<button class="entry-menu" data-edit="${esc(e.id)}" aria-label="Mais opções para ${esc(e.description)}" aria-haspopup="menu" aria-controls="contextMenu" aria-expanded="false">⋮</button>`}
           </article>`;
       }
 
@@ -2629,7 +2715,7 @@ const descriptionOptionsByType = {
                   <span>${formatCreatedAt(entry)}</span>
                 </div>
                 <div class="recent-record-actions">
-                  <button class="secondary" type="button" data-edit-recent="${entry.id}" aria-label="Editar ${esc(entry.description)}">Editar</button>
+                  <button class="secondary" type="button" data-edit-recent="${esc(entry.id)}" aria-label="Editar ${esc(entry.description)}">Editar</button>
                 </div>
               </article>`;
             }).join("") + (visibleGroups.length >= groups.length ? '<div class="recent-records-empty">Você chegou ao fim do histórico.</div>' : "")
@@ -2851,13 +2937,13 @@ const descriptionOptionsByType = {
           state.customDescriptionOptionsByType = {
             ...state.customDescriptionOptionsByType,
             [selectedType]: sortedOptions([
-              ...(state.customDescriptionOptionsByType[selectedType] || []),
+              ...categoryOptions(state.customDescriptionOptionsByType, selectedType),
               clean,
             ]),
           };
           state.hiddenDescriptionsByType = {
             ...state.hiddenDescriptionsByType,
-            [selectedType]: (state.hiddenDescriptionsByType[selectedType] || []).filter((item) => item !== clean),
+            [selectedType]: categoryOptions(state.hiddenDescriptionsByType, selectedType).filter((item) => item !== clean),
           };
         }
         state.settingsDirty = true;
@@ -2928,14 +3014,19 @@ const descriptionOptionsByType = {
         render();
       }
 
-      function openContextMenu(button, id) {
+      let contextMenuTrigger = null;
+
+      function openContextMenu(button, id, last = false) {
         const isSameOpenEntry =
           state.activeEntry === id && !contextMenu.classList.contains("hidden");
         if (isSameOpenEntry) {
-          closeContextMenu();
+          closeContextMenu({ restoreFocus: true });
           return;
         }
 
+        closeContextMenu();
+        contextMenuTrigger = button;
+        button.setAttribute("aria-expanded", "true");
         state.activeEntry = id;
         const rect = button.getBoundingClientRect();
         const viewportMargin = 8;
@@ -2971,11 +3062,20 @@ const descriptionOptionsByType = {
         contextMenu.style.left = `${left}px`;
         contextMenu.style.top = `${top}px`;
         contextMenu.style.visibility = "";
+        const items = contextMenu.querySelectorAll('[role="menuitem"]:not(:disabled)');
+        (last ? items[items.length - 1] : items[0])?.focus({ preventScroll: true });
       }
 
-      function closeContextMenu() {
+      function closeContextMenu({ restoreFocus = false } = {}) {
+        const trigger = contextMenuTrigger;
+        const focusInMenu = contextMenu.contains(document.activeElement);
         contextMenu.classList.add("hidden");
         contextMenu.style.visibility = "";
+        trigger?.setAttribute("aria-expanded", "false");
+        contextMenuTrigger = null;
+        if ((restoreFocus || focusInMenu) && trigger?.isConnected) {
+          trigger.focus({ preventScroll: true });
+        }
       }
 
       function handleMenuAction(action) {
@@ -4036,7 +4136,29 @@ const descriptionOptionsByType = {
       });
 
       document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape") closeContextMenu();
+        if (contextMenu.classList.contains("hidden")) return;
+        if (event.key === "Escape") {
+          event.preventDefault();
+          closeContextMenu({ restoreFocus: true });
+        } else if (event.key === "Tab") {
+          // Resume native tab order from the owning row, not the portaled popup.
+          closeContextMenu({ restoreFocus: true });
+        } else if (contextMenu.contains(event.target) &&
+          ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+          event.preventDefault();
+          const items = [...contextMenu.querySelectorAll('[role="menuitem"]:not(:disabled)')];
+          const current = items.indexOf(document.activeElement);
+          const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 :
+            (current + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+          items[next]?.focus({ preventScroll: true });
+        }
+      });
+
+      document.addEventListener("focusin", (event) => {
+        if (!contextMenu.classList.contains("hidden") &&
+          !contextMenu.contains(event.target) && event.target !== contextMenuTrigger) {
+          closeContextMenu();
+        }
       });
 
       window.addEventListener("resize", closeContextMenu);
@@ -4204,6 +4326,12 @@ const descriptionOptionsByType = {
       });
 
       rows.addEventListener("keydown", (e) => {
+        const menu = e.target.closest(".entry-menu[data-edit]");
+        if (menu && ["ArrowDown", "ArrowUp"].includes(e.key)) {
+          e.preventDefault();
+          openContextMenu(menu, menu.dataset.edit, e.key === "ArrowUp");
+          return;
+        }
         if (e.key !== "Enter" && e.key !== " ") return;
         if (e.target !== e.target.closest("[data-entry]")) return;
 

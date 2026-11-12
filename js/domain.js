@@ -57,11 +57,22 @@
 
   function generateRecurringOccurrences(series, fromDate, toDate) {
     const occurrences = [];
-    const maxOccurrences = Math.min(
-      Number(series.occurrence_count) || 5000,
-      5000,
-    );
-    for (let index = 0; index < maxOccurrences; index += 1) {
+    // Seek by the original calendar anchor, not by iterating lifetime slots.
+    // The floor can land just before fromDate (month-end clamps, for example);
+    // the ordinary scheduled-date filter below resolves that boundary.
+    const interval = Math.max(1, Number(series.interval_value) || 1);
+    const unit = series.frequency === "custom" ? series.custom_unit || "day"
+      : { weekly: "week", monthly: "month", annual: "year" }[series.frequency];
+    const monthBased = unit === "month" || unit === "year";
+    const elapsed = monthBased
+      ? (Number(fromDate.slice(0, 4)) - Number(series.start_date.slice(0, 4))) * 12
+        + Number(fromDate.slice(5, 7)) - Number(series.start_date.slice(5, 7))
+      : (Date.parse(`${fromDate}T00:00:00Z`) - Date.parse(`${series.start_date}T00:00:00Z`)) / 86400000;
+    const step = interval * (unit === "year" ? 12 : unit === "week" ? 7 : 1);
+    const firstIndex = Math.max(0, Math.floor(elapsed / step));
+    // Retain explicit legacy count constraints, even when end_mode is never.
+    const maxOccurrences = Number(series.occurrence_count) || Infinity;
+    for (let index = firstIndex; index < maxOccurrences; index += 1) {
       const scheduledDate = recurrenceStepDate(series, index);
       if (series.end_mode === "on_date" && scheduledDate > series.end_date) break;
       if (scheduledDate > toDate) break;
@@ -157,11 +168,13 @@
     customOptions = [],
     hiddenOptions = [],
   } = {}) {
+    defaultOptions = Array.isArray(defaultOptions) ? defaultOptions : [];
+    customOptions = Array.isArray(customOptions) ? customOptions : [];
+    hiddenOptions = Array.isArray(hiddenOptions) ? hiddenOptions : [];
     const descriptionsFromEntries = entries
       .filter((entry) => entry.type === selectedType)
       .map((entry) => entry.description)
       .filter(Boolean);
-    const registeredDescriptions = new Set(descriptionsFromEntries);
 
     return [...new Set([
       ...defaultOptions,
@@ -170,8 +183,7 @@
       selectedDescription,
     ].filter((option) =>
       option && (
-        registeredDescriptions.has(option)
-        || option === selectedDescription
+        option === selectedDescription
         || !hiddenOptions.includes(option)
       ),
     ))];

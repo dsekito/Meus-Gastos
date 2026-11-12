@@ -225,7 +225,8 @@ assert.deepEqual(
     customOptions: ["REFORMA", "OPÇÃO SEM USO"],
     hiddenOptions: ["CONDOMÍNIO ANTIGO", "OPÇÃO SEM USO"],
   }),
-  ["ALUGUEL", "ENERGIA", "REFORMA", "CONDOMÍNIO ANTIGO"],
+  // Historical records stay intact, but hidden options must not return for a new entry.
+  ["ALUGUEL", "ENERGIA", "REFORMA"],
 );
 
 assert.deepEqual(

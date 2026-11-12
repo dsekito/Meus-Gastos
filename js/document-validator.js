@@ -142,7 +142,14 @@
       (snapshot.recurrenceSeries || []).forEach(strictRecord);
       snapshot.entries.forEach((entry) => {
         strictRecord(entry);
-        if (forbidden.has(entry.id) || entry.id.length > 200
+        for (const key of ["type", "description"]) {
+          if (typeof entry[key] !== "string" || !entry[key].trim()) invalid("IMPORT_INVALID");
+        }
+        // Legacy recovery fixtures omit paid. Migrate absence, never null/invalid flags.
+        if (!Object.hasOwn(entry, "paid")) entry.paid = false;
+        if (typeof entry.paid !== "boolean") invalid("IMPORT_INVALID");
+        // Preserve legacy names and UUIDs verbatim; never repair imported identities.
+        if (forbidden.has(entry.id) || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/.test(entry.id)
             || typeof entry.value !== "number" || !Number.isFinite(entry.value)
             || !isDateOnly(entry.date)) invalid("IMPORT_INVALID");
         for (const key of ["type", "description", "notes", "flow_type", "status", "series_id", "scheduled_date"]) {
