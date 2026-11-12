@@ -62,6 +62,10 @@ há alterações locais. O arquivo consolidado ainda é transferido inteiro quan
 há mudanças; esta revisão não transforma o Drive em um banco com sincronização
 incremental de registros.
 
+Se dois aparelhos criarem o documento principal ao mesmo tempo no primeiro uso,
+todos passam a usar o arquivo mais antigo (`orderBy=createdTime`). A quantidade de
+duplicatas aparece em `getDocumentStats().duplicateDocumentCount`.
+
 Antes de substituir a cópia local, o documento remoto é validado quanto ao schema,
 IDs duplicados, datas, coleções e configurações. O resumo de sincronização registra a
 última tentativa, o último sucesso e o tamanho do documento.
@@ -187,19 +191,16 @@ parcelamento, persistência local e acesso aos controles em telas pequenas e em
 paisagem. A integração real com o Google Drive depende de uma conta autorizada.
 
 ```powershell
-node test/domain.test.js
-node test/document-validator.test.js
-node test/sync-service.test.js
-node test/sync-resilience.test.js
-node test/google-drive-repository.test.js
-node test/google-auth.test.js
-node test/local-store.test.js
-node --check js/app.js
-node --check js/document-validator.js
-node --check js/google-auth.js
-node --check js/google-drive-repository.js
-node --check js/local-store.js
+npm run check      # verificação de sintaxe de js/*.js e sw.js
+npm test           # todos os testes unitários (test/*.test.js)
+npm start          # servidor local na porta 8000 (em outro terminal)
+npm run test:e2e   # todos os testes E2E (exigem Playwright e Microsoft Edge)
 ```
+
+O `package.json` não declara dependências: o Playwright precisa estar disponível
+no ambiente (`npm i -D playwright`, se ainda não estiver instalado).
+
+As regras de desenvolvimento do projeto estão em `agents.md`.
 
 `node test/sync-pipeline.e2e.cjs` exercita o app e o repositório reais com serviços
 Google simulados, incluindo edição de configuração durante o upload. Nenhum

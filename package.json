@@ -1,0 +1,13 @@
+{
+  "name": "meus-gastos",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Controle financeiro pessoal local-first (PWA) com sincronização opcional no Google Drive.",
+  "scripts": {
+    "start": "python -m http.server 8000",
+    "check": "node test/run.cjs --check",
+    "test": "node test/run.cjs --unit",
+    "test:e2e": "node test/run.cjs --e2e",
+    "test:all": "node test/run.cjs --check --unit --e2e"
+  }
+}
