@@ -1,8 +1,8 @@
-const CACHE_NAME = "meus-gastos-v35";
+const CACHE_NAME = "meus-gastos-v37";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./mobile.css?v=2026111103",
+  "./mobile.css?v=2026111105",
   "./manifest.webmanifest",
   "./icons/app-icon.svg",
   "./icons/app-icon-192.png",

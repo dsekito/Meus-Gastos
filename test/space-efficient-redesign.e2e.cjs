@@ -41,7 +41,7 @@ async function capture(page, name, width) {
     const small = [...document.querySelectorAll('button,summary,input:not([type="checkbox"]),select,textarea')].filter(visible).filter(e => { const r = e.getBoundingClientRect(); return r.width < 47.9 || r.height < 47.9; }).map(e => ({ id: e.id, text: e.innerText?.slice(0, 50), rect: rect(e) }));
     return { viewport: { width: innerWidth, height: innerHeight }, documentWidth: document.documentElement.scrollWidth, documentHeight: document.documentElement.scrollHeight,
       overflow: document.documentElement.scrollWidth > innerWidth + 1, bodyFont: getComputedStyle(document.body).fontSize,
-      shell: rect(document.querySelector('#appShell')), overview: rect(document.querySelector('.decision-overview')),
+      shell: rect(document.querySelector('#appShell')), overview: rect(document.querySelector('.decision-overview')), decisionCards: rect(document.querySelector('.decision-cards')),
       monthCards: [...document.querySelectorAll('.monthly-cash-flow-card')].filter(visible).slice(0, 2).map(rect),
       rows: [...document.querySelectorAll('#rows .dense-entry')].filter(visible).map(rect), small,
       clippedMoney: money.filter(e => e.scrollWidth > e.clientWidth + 1 || getComputedStyle(e).textOverflow === 'ellipsis').map(e => ({ text: e.textContent, rect: rect(e) })),
@@ -93,7 +93,9 @@ async function contextFor(browser, origin, width, signedIn = true) {
       const nav = async view => { await page.locator(`.app-navigation [data-app-destination="${view}"]`).click(); await page.evaluate(() => scrollTo({ top: 0, behavior: 'instant' })); };
       for (const view of scope.views) {
         await nav(view); const m = await capture(page, view, width);
-        if (view === 'home' && width === 375) expect(m.overview.height <= 335, 'home@375: overview must be compact, <=335px');
+        // A conditional negative-balance warning belongs in the overview, but must
+        // not count against the compactness budget for the cards themselves.
+        if (view === 'home' && width === 375) expect(m.decisionCards.height <= 335, 'home@375: decision cards must be compact, <=335px');
         if (view === 'monthly' && width === 375) expect(m.monthCards.every(c => c.height <= 260), 'monthly@375: month cards must be <=260px');
         if (view === 'monthly' && width === 1366) expect(m.monthCards.length === 2 && Math.abs(m.monthCards[0].y - m.monthCards[1].y) < 2, 'monthly desktop: use multiple aligned columns');
         if (view === 'records' && width === 1366) expect(m.shell.width >= width * .94, 'desktop: workspace must use available width');

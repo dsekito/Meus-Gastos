@@ -76,7 +76,9 @@ fs.mkdirSync(output, { recursive: true });
     for (const r of results) {
       if (r.overflow || r.smallTargets.length || r.clipped.length || r.controlOverflow.length || r.squeezedLabels.length || r.margin < 16) violations.push({ name: r.name, geometry: { overflow: r.overflow, smallTargets: r.smallTargets, clipped: r.clipped, controlOverflow: r.controlOverflow, squeezedLabels:r.squeezedLabels, margin: r.margin } });
       if (r.name.includes('percent')) continue;
-      for (const [group,min,max] of [['headings',20,22],['balance',26,30],['secondary',18,20],['body',16,16],['auxiliary',14,14],['inputs',16,16]]) {
+      // Desktop intentionally uses a larger type hierarchy; keep all legibility floors.
+      const desktop = r.name.endsWith('-1280');
+      for (const [group,min,max] of [['headings',20,desktop ? 30 : 22],['balance',26,desktop ? 32 : 30],['secondary',18,desktop ? 24 : 20],['body',16,16],['auxiliary',14,14],['inputs',16,16]]) {
         for (const f of r[group]) if (f.size < min || f.size > max) violations.push({ name:r.name, group, ...f, expected:`${min}–${max}px` });
       }
     }

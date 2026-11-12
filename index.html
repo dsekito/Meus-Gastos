@@ -2323,7 +2323,7 @@
         dialog .modal-foot { position: static; }
       }
     </style>
-    <link rel="stylesheet" href="./mobile.css?v=2026111103" />
+    <link rel="stylesheet" href="./mobile.css?v=2026111105" />
   </head>
   <body aria-busy="true">
     <section class="bootstrap-screen" id="bootstrapScreen" role="status" aria-live="polite">
@@ -2384,7 +2384,7 @@
           </div>
           <div class="calendar-controls" aria-label="Mês do resumo e dos lançamentos">
             <button class="calendar-nav" id="previousMonth" type="button" aria-label="Mês anterior">‹</button>
-            <input id="filterMonth" type="month" aria-label="Mês do calendário e dos lançamentos" />
+            <div class="month-input-scroll" role="region" aria-label="Seletor de mês" tabindex="0"><input id="filterMonth" type="month" aria-label="Mês do calendário e dos lançamentos" /></div>
             <button class="calendar-nav" id="nextMonth" type="button" aria-label="Próximo mês">›</button>
             <button class="secondary current-month" id="goToCurrentMonth" type="button" aria-label="Voltar ao mês atual">Mês atual</button>
           </div>
