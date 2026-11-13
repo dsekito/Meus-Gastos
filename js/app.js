@@ -4494,7 +4494,6 @@ const descriptionOptionsByType = {
         document.querySelector("#periodToolbar").appendChild(document.querySelector(".calendar-controls"));
         navigateApp(viewFromLocation(), { history: false, focus: false });
         localStore.clearLegacyCache();
-        filterStatus.value = "pending";
         render();
         if ("serviceWorker" in navigator && window.isSecureContext) {
           const alreadyControlled = Boolean(navigator.serviceWorker.controller);

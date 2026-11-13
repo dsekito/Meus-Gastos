@@ -31,6 +31,13 @@ test("mantém filtros e confirmação de exclusão nomeados", () => {
   );
 });
 
+test("registros abrem com todos os status, sem esconder pagos", () => {
+  assert.match(html, /<select id="filterStatus">\s*<option value="" selected>Todos os status<\/option>/);
+  assert.doesNotMatch(html, /<option value="pending" selected>/);
+  const start = app.slice(app.indexOf("async function startApp()"));
+  assert.doesNotMatch(start.slice(0, start.indexOf("render();")), /filterStatus\.value = "pending"/);
+});
+
 test("abre edição pelo card e restringe mudança de status ao botão dedicado", () => {
   assert.match(app, /if \(status\) \{[\s\S]*?toggleEntryStatus\(\);[\s\S]*?return;[\s\S]*?const menu/);
   assert.match(app, /const entry = state\.entries\.find\(\(item\) => item\.id === card\.dataset\.entry\);\s*if \(entry\) editEntry\(entry\);/);
