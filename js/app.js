@@ -3608,7 +3608,8 @@ const profileDefaults = window.MGProfileDefaults;
         if (action === "current-month") resetCalendarToCurrentMonth();
         if (action === "new-in-month") {
           openNew();
-          dateInput.value = todayISO().startsWith(filterMonth.value) ? todayISO() : `${filterMonth.value}-01`;
+          // A card already set the date to its invoice due date.
+          if (!creditCards.selectedCardId()) dateInput.value = todayISO().startsWith(filterMonth.value) ? todayISO() : `${filterMonth.value}-01`;
           updateEntryFormValidity();
         }
       });
@@ -4223,6 +4224,7 @@ const profileDefaults = window.MGProfileDefaults;
                     : "Lançamento salvo e sincronizado."
                 : `Lançamento salvo neste dispositivo. ${pendingSyncMessage()}`;
 
+          if (!editing && entry.flow_type === "expense") creditCards.rememberLastUsed(entry.credit_card_id);
           const outsideMonth = formRules.savedOutsideVisibleMonth(date, filterMonth.value);
           const savedMessage = outsideMonth ? `${successMessage} ${outsideMonth.note}` : successMessage;
 

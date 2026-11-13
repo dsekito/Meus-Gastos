@@ -285,6 +285,11 @@
               <option value="income">Receita</option>
             </select>
           </div>
+          <div class="field wide entry-card-field" id="creditCardField" hidden>
+            <label for="creditCard">Forma de pagamento</label>
+            <select id="creditCard" aria-describedby="creditCardHelp"></select>
+            <p id="creditCardHelp" role="status" aria-live="polite" hidden></p>
+          </div>
           <div class="field entry-value-field">
             <label for="value" id="entryValueLabel">Valor</label>
             <input
@@ -301,11 +306,6 @@
           <div class="field entry-date-field">
             <label for="date">Data</label>
             <input id="date" type="date" required />
-          </div>
-          <div class="field wide entry-card-field" id="creditCardField" hidden>
-            <label for="creditCard">Forma de pagamento</label>
-            <select id="creditCard" aria-describedby="creditCardHelp"></select>
-            <p id="creditCardHelp" role="status" aria-live="polite" hidden></p>
           </div>
           <div class="field entry-type-field">
             <label for="type">Tipo</label>
@@ -698,11 +698,11 @@
     <script src="./js/sync-service.js?v=2026111102"></script>
     <script src="./js/sync-status-view.js?v=2026111306"></script>
     <script src="./js/records-manager.js?v=2026111306"></script>
-    <script src="./js/credit-cards.js?v=2026111308"></script>
+    <script src="./js/credit-cards.js?v=2026111310"></script>
     <script src="./js/confirm-dialog.js?v=2026111301"></script>
     <script src="./js/app-update.js?v=2026111201"></script>
     <script src="./js/projection-view.js?v=2026111303"></script>
     <script src="./js/monthly-view.js?v=2026111306"></script>
-    <script src="./js/app.js?v=2026111309"></script>
+    <script src="./js/app.js?v=2026111310"></script>
   </body>
 </html>

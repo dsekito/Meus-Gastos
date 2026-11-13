@@ -3,7 +3,8 @@
 // new entry, choosing a card also fills the date with the due date of the
 // invoice a purchase made today falls into; the date stays editable. Editing
 // an existing entry never moves its date: that date is already the payment
-// date, and the purchase date is unknown.
+// date, and the purchase date is unknown. A new expense starts with the
+// payment method last used on this device for this profile.
 (function attachCreditCards(global) {
   function create({ state, domain, todayISO, generateId, confirmDialog, financialMutation, show, pendingSyncMessage,
     dateInput, flowType, onDateChange }) {
@@ -25,6 +26,26 @@
     // stays selectable so that saving the entry does not drop it silently.
     let removedCardId = null;
     let busy = false;
+    const LAST_USED_KEY = "meus-gastos-last-payment-method:";
+
+    // Only the card id (or "" for Pix, débito ou dinheiro) is kept, per profile
+    // and on this device; it is a convenience, so storage errors are ignored.
+    function lastUsedCardId() {
+      try {
+        return state.user ? localStorage.getItem(LAST_USED_KEY + state.user.id) || "" : "";
+      } catch {
+        return "";
+      }
+    }
+
+    function rememberLastUsed(cardId) {
+      if (!state.user) return;
+      try {
+        localStorage.setItem(LAST_USED_KEY + state.user.id, cardId || "");
+      } catch {
+        // Not remembering the method never blocks saving the entry.
+      }
+    }
 
     function cards() {
       return Array.isArray(state.settings.credit_cards) ? state.settings.credit_cards : [];
@@ -146,17 +167,26 @@
     // Called when the entry form opens (`reset`, with the edited entry's card
     // in `selectedId`) and whenever its movement changes.
     function updateEntryField({ reset = false, selectedId = "" } = {}) {
+      const opensNewEntry = reset && !state.editingId;
+      if (opensNewEntry) selectedId = lastUsedCardId();
       if (reset) {
         removedCardId = selectedId && !cards().some((card) => card.id === selectedId) ? selectedId : null;
       }
       const available = (cards().length > 0 || Boolean(removedCardId)) && flowType.value === "expense";
       if (reset || !available) {
+        // Income has no card: undo the due date this module set, unless the
+        // person changed the date since.
+        if (!reset && !state.editingId && suggestedDate && dateInput.value === suggestedDate) {
+          dateInput.value = todayISO();
+          onDateChange();
+        }
         suggestedDate = null;
         setEntryHelp("");
       }
       renderEntryOptions(!available ? "" : reset ? selectedId : entrySelect.value);
       entryField.hidden = !available;
       entrySelect.disabled = !available;
+      if (opensNewEntry && available && entrySelect.value) applySelectedCard({ lastUsed: true });
     }
 
     // Card to save on the entry; none for income or when the field is hidden.
@@ -164,7 +194,7 @@
       return entryField.hidden || flowType.value !== "expense" ? "" : entrySelect.value;
     }
 
-    function applySelectedCard() {
+    function applySelectedCard({ lastUsed = false } = {}) {
       if (state.editingId) {
         setEntryHelp(entrySelect.value ? "A data do lançamento não muda ao trocar a forma de pagamento." : "");
         return;
@@ -180,7 +210,7 @@
       suggestedDate = domain.creditCardDueDate(todayISO(), card);
       dateInput.value = suggestedDate;
       const formatted = dateFormat.format(new Date(`${suggestedDate}T00:00:00Z`));
-      setEntryHelp(`Data preenchida com o vencimento da fatura do ${card.name}: ${formatted}. Você pode alterá-la.`);
+      setEntryHelp(`${lastUsed ? "Última forma de pagamento usada. " : ""}Data preenchida com o vencimento da fatura do ${card.name}: ${formatted}. Você pode alterá-la.`);
       onDateChange();
     }
 
@@ -199,12 +229,12 @@
       const button = event.target.closest("[data-remove-credit-card]");
       if (button) removeCard(button.dataset.removeCreditCard);
     });
-    entrySelect.addEventListener("change", applySelectedCard);
+    entrySelect.addEventListener("change", () => applySelectedCard());
     dateInput.addEventListener("input", () => {
       if (suggestedDate && dateInput.value !== suggestedDate) setEntryHelp("");
     });
 
-    return { renderSettings, updateEntryField, selectedCardId };
+    return { renderSettings, updateEntryField, selectedCardId, rememberLastUsed };
   }
 
   global.MGCreditCards = { create };

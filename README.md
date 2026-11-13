@@ -174,7 +174,11 @@ pagamento** oferece os cartões cadastrados, e o cartão escolhido fica gravado 
 lançamento.
 
 Num **novo** lançamento, escolher o cartão também troca a data pelo vencimento
-da fatura em que uma compra feita hoje cai. A data continua editável. Ao
+da fatura em que uma compra feita hoje cai. A data continua editável. Um novo
+lançamento de despesa já abre com a **última forma de pagamento usada** num
+lançamento novo neste aparelho e, se for um cartão, com a data do vencimento. Só
+o id do cartão (ou vazio, para Pix, débito ou dinheiro) fica no `localStorage`,
+na chave `meus-gastos-last-payment-method:<id do perfil>`; não é sincronizado. Ao
 **editar** um lançamento, a forma de pagamento pode ser trocada, mas a data não
 muda: ela já é a data do pagamento, e a data da compra não é conhecida.
 

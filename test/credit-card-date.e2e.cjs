@@ -129,13 +129,18 @@ async function openNewEntry(page) {
     assert.equal(entry.value, 89.9);
     assert.equal(entry.credit_card_id, nubankId);
 
-    // Ao abrir de novo, o formulário recomeça em Pix e hoje.
+    // Ao abrir de novo, o formulário começa com a última forma usada, logo
+    // após a movimentação, e a data já vem no vencimento da fatura.
     await openNewEntry(page);
-    assert.equal(await page.inputValue('#creditCard'), '');
-    assert.equal(await page.inputValue('#date'), TODAY);
-    // Receitas não usam cartão.
+    assert.equal(await page.evaluate(() => document.querySelector('#creditCardField').previousElementSibling.contains(document.querySelector('#flowType'))), true,
+      'forma de pagamento logo após a movimentação');
+    assert.equal(await page.inputValue('#creditCard'), nubankId);
+    assert.equal(await page.inputValue('#date'), '2026-12-10');
+    assert.match(await page.textContent('#creditCardHelp'), /^Última forma de pagamento usada\. Data preenchida com o vencimento da fatura do Nubank: 10\/12\/2026/);
+    // Receitas não usam cartão: o campo some e a data volta para hoje.
     await page.selectOption('#flowType', 'income');
     assert.equal(await page.isVisible('#creditCardField'), false);
+    assert.equal(await page.inputValue('#date'), TODAY);
     await page.locator('#entryForm [data-close]').first().click();
 
     // Edição mostra o cartão do lançamento; trocar o cartão não muda a data.
@@ -247,12 +252,26 @@ async function openNewEntry(page) {
     assert.equal('credit_card_id' in subscription.series, false);
     assert.ok(subscription.entries.every(item => !('credit_card_id' in item)), 'a troca vale para toda a série');
 
-    // O cartão continua salvo depois de recarregar o app.
+    // O cartão e a última forma usada continuam depois de recarregar o app.
     await page.reload();
     await page.waitForSelector('#syncStatus[data-state="local"]');
     await openNewEntry(page);
-    await page.getByLabel('Forma de pagamento').selectOption({ label: 'Crédito: Itaú' });
+    assert.equal(await page.inputValue('#creditCard'), itauId, 'a última forma usada foi o Itaú');
     assert.equal(await page.inputValue('#date'), '2026-12-05');
+
+    // Um lançamento novo salvo com Pix faz o próximo começar em Pix e hoje.
+    await page.getByLabel('Forma de pagamento').selectOption({ label: 'Pix, débito ou dinheiro' });
+    assert.equal(await page.inputValue('#date'), TODAY);
+    await page.fill('#value', '12');
+    await page.selectOption('#type', 'ALIMENTAÇÃO');
+    await page.selectOption('#description', 'SUPERMERCADO');
+    await page.locator('#saveEntry').click();
+    await page.waitForSelector('#entryDialog:not([open])', { state: 'attached' });
+    await openNewEntry(page);
+    assert.equal(await page.inputValue('#creditCard'), '');
+    assert.equal(await page.inputValue('#date'), TODAY);
+    assert.equal(await page.isVisible('#creditCardHelp'), false);
+    await page.locator('#entryForm [data-close]').first().click();
 
     assert.deepEqual(errors, []);
     await context.close();
