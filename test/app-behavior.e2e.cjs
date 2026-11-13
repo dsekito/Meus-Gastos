@@ -51,8 +51,15 @@ async function newEntry(page, { value, type = 'MORADIA', description = 'ALUGUEL'
 const scenarios = {
   async recordsFiltersAndStatus(browser) {
     const { page, errors } = await open(browser, { settings: settled, entries: [
-      entry({ description: 'ALUGUEL', paid: true }), entry({ type: 'ALIMENTAÇÃO', description: 'SUPERMERCADO' }),
+      entry({ description: 'ALUGUEL', paid: true }), entry({ type: 'ALIMENTAÇÃO', description: 'SUPERMERCADO', detail: 'feira do mês' }),
       entry({ type: 'ALIMENTAÇÃO', description: 'RESTAURANTE' })] });
+    // Each row leads with "TIPO - DESCRIÇÃO"; the comment sits next to the date, where the type used to be.
+    const market = card(page, 'SUPERMERCADO');
+    assert.equal(await market.locator('.entry-title-text').innerText(), 'ALIMENTAÇÃO - SUPERMERCADO');
+    assert.equal(await market.locator('.entry-meta-line .entry-detail').innerText(), 'feira do mês');
+    assert.doesNotMatch(await market.locator('.entry-meta-line').innerText(), /ALIMENTAÇÃO/);
+    assert.match(await market.getAttribute('aria-label'), /^ALIMENTAÇÃO - SUPERMERCADO, comentário: feira do mês, despesa, /);
+    assert.equal(await card(page, 'RESTAURANTE').locator('.entry-detail').count(), 0, 'no empty comment');
     // The list opens with what is still to pay or to receive; the paid one is hidden, and the summary says so.
     assert.equal(await page.locator('#filterStatus').inputValue(), 'pending');
     assert.equal(await page.locator('#rows [data-entry]').count(), 2);
@@ -91,7 +98,7 @@ const scenarios = {
     await page.waitForTimeout(650);
     await page.mouse.up();
     await page.waitForFunction(() => /selecionado/.test(document.querySelector('#panelTitle').textContent));
-    assert.match(await card(page, 'SUPERMERCADO').getAttribute('aria-label'), /Selecionar SUPERMERCADO, tipo ALIMENTAÇÃO/);
+    assert.match(await card(page, 'SUPERMERCADO').getAttribute('aria-label'), /^Selecionar ALIMENTAÇÃO - SUPERMERCADO, comentário: feira do mês, despesa$/);
     return { page, errors };
   },
 

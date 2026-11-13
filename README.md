@@ -190,6 +190,10 @@ muda: ela já é a data do pagamento, e a data da compra não é conhecida.
 - Em compras parceladas, a 1ª parcela fica no vencimento sugerido e as demais
   nos meses seguintes.
 
+Cada registro da lista mostra em destaque **tipo e descrição** (por exemplo,
+“ALIMENTAÇÃO - SUPERMERCADO”) e, abaixo, a data, o comentário (campo **Detalhe**
+do formulário), o cartão, a parcela e o status.
+
 A lista de **Registros** abre mostrando só o que está **a pagar ou a receber**;
 o resumo do botão de filtros diz isso. **Limpar filtros** volta a esse padrão, e
 "Todos os status" mostra também os pagos e recebidos. Quando os filtros escondem

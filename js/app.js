@@ -1629,21 +1629,25 @@ const profileDefaults = window.MGProfileDefaults;
         const statusLabel = e.paid
           ? (isIncome ? "Recebido" : "Pago")
           : (isIncome ? "A receber" : "Em aberto");
+        // The row leads with "TIPO - DESCRIÇÃO"; the comment (the form's
+        // "Detalhe") sits on the line below, next to the date.
+        const title = `${e.type} - ${e.description}`;
+        const spokenName = `${title}${e.detail ? `, comentário: ${e.detail}` : ""}, ${isIncome ? "receita" : "despesa"}`;
         return `
-          <article class="entry dense-entry ${selected ? "selected" : ""} ${statusPending ? "status-pending" : ""} ${statusChanged ? "status-changed" : ""}" data-entry="${esc(e.id)}" role="${state.selectionMode ? "button" : "group"}" ${state.selectionMode ? `tabindex="0" aria-pressed="${selected}"` : ""} aria-busy="${statusPending}" aria-label="${state.selectionMode ? `Selecionar ${esc(e.description)}, tipo ${esc(e.type)}, ${isIncome ? "receita" : "despesa"}` : `${esc(e.description)}, tipo ${esc(e.type)}, ${isIncome ? "receita" : "despesa"}, ${money(e.value)}, ${statusLabel}. Toque para editar.`}" style="--type-color:${typeColor}">
+          <article class="entry dense-entry ${selected ? "selected" : ""} ${statusPending ? "status-pending" : ""} ${statusChanged ? "status-changed" : ""}" data-entry="${esc(e.id)}" role="${state.selectionMode ? "button" : "group"}" ${state.selectionMode ? `tabindex="0" aria-pressed="${selected}"` : ""} aria-busy="${statusPending}" aria-label="${state.selectionMode ? `Selecionar ${esc(spokenName)}` : `${esc(spokenName)}, ${money(e.value)}, ${statusLabel}. Toque para editar.`}" style="--type-color:${typeColor}">
             <div class="entry-content">
               <div class="entry-summary">
                 <div class="entry-header">
-                  <div class="entry-title" title="${esc(e.description)}${e.detail ? ` - ${esc(e.detail)}` : ""}">
+                  <div class="entry-title" title="${esc(title)}">
                     <span class="entry-dot" aria-hidden="true"></span>
-                    <span class="entry-title-text">${esc(e.description)}${e.detail ? ` <span class="entry-detail-inline">- ${esc(e.detail)}</span>` : ""}</span>
+                    <span class="entry-title-text">${esc(title)}</span>
                   </div>
                   <div class="entry-value ${isIncome ? "income" : ""}">${isIncome ? "+ " : "− "}${money(e.value)}</div>
                 </div>
                 <div class="entry-footer">
                   <div class="entry-meta-line">
                     <span>${formatDay(e.date)} ${formatMonth(e.date)}</span>
-                    <span class="entry-type">${esc(e.type)}</span>
+                    ${e.detail ? `<span class="entry-detail" title="${esc(e.detail)}">${esc(e.detail)}</span>` : ""}
                     ${e.credit_card_id ? `<span class="entry-card"><span class="visually-hidden">Crédito: </span>${esc(entryFilters.cardLabel(e, state.settings.credit_cards || []))}</span>` : ""}
                     ${e.installment ? `<span class="entry-installment">${e.installment.current}/${e.installment.total}</span>` : ""}
                     ${state.selectionMode ? "" : `<button type="button" class="status-button ${e.paid ? "paid" : "pending"}" data-toggle-status="${esc(e.id)}" aria-label="Alterar status de ${esc(e.description)}. Status atual: ${statusLabel}" aria-pressed="${e.paid}" ${statusPending ? "disabled" : ""}><span class="status-button-label">${statusPending ? "Salvando" : statusLabel}</span></button>`}

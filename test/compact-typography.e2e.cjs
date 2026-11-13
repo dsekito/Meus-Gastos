@@ -40,7 +40,7 @@ fs.mkdirSync(output, { recursive: true });
         const visible = e => e.checkVisibility() && getComputedStyle(e).visibility !== 'hidden';
         const font = s => [...root.querySelectorAll(s)].filter(visible).map(e => ({ text: e.textContent.trim().slice(0,60), size: parseFloat(getComputedStyle(e).fontSize) }));
         const smallTargets = [...root.querySelectorAll('button,input:not([type=checkbox]),select,summary')].filter(visible).filter(e => { const r = e.getBoundingClientRect(); return r.width < 47.9 || r.height < 47.9; }).map(e => e.id || e.textContent.trim());
-        const clipped = [...root.querySelectorAll('.amount,.view-heading h2,.card-note,.upcoming-item span,.entry-title-text,.entry-type')].filter(visible).filter(e => e.scrollWidth > e.clientWidth + 1 && ['hidden','clip'].includes(getComputedStyle(e).overflowX)).map(e => e.className);
+        const clipped = [...root.querySelectorAll('.amount,.view-heading h2,.card-note,.upcoming-item span,.entry-title-text,.entry-detail')].filter(visible).filter(e => e.scrollWidth > e.clientWidth + 1 && ['hidden','clip'].includes(getComputedStyle(e).overflowX)).map(e => e.className);
         const controlOverflow = [...root.querySelectorAll('button,summary')].filter(visible).filter(e => e.scrollWidth > e.clientWidth + 1).map(e => e.id || e.textContent.trim());
         const squeezedLabels = [...root.querySelectorAll('.upcoming-item > span')].filter(visible).filter(e => e.getBoundingClientRect().width < 150).map(e => e.textContent.trim());
         return { overflow: document.documentElement.scrollWidth > innerWidth + 1, smallTargets, clipped, controlOverflow, squeezedLabels,

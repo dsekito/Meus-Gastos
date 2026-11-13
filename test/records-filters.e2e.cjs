@@ -46,7 +46,8 @@ async function openRecords(browser, { entries, cards }) {
   return { context, page, errors };
 }
 
-const rows = page => page.locator('#rows [data-entry] .entry-title-text').allTextContents();
+// Rows read "TIPO - DESCRIÇÃO"; the checks below compare descriptions.
+const rows = async page => (await page.locator('#rows [data-entry] .entry-title-text').allTextContents()).map(text => text.split(' - ').slice(1).join(' - '));
 const totals = page => page.evaluate(() => ['#filteredIncome', '#filteredExpense', '#filteredBalance'].map(id => document.querySelector(id).textContent.replace(/\s/g, ' ')));
 const noHorizontalScroll = page => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
 

@@ -28,7 +28,7 @@ fs.mkdirSync(out,{recursive:true});
     const visible=e=>e.checkVisibility(); const box=e=>e.getBoundingClientRect();
     const controls=[...root.querySelectorAll('button,input:not([type=checkbox]),select,summary')].filter(visible);
     const small=controls.filter(e=>box(e).width<47.9||box(e).height<47.9).map(e=>e.id||e.textContent.trim());
-    const clipped=[...root.querySelectorAll('.amount,.card-note,.entry-title-text,.entry-type,button')].filter(visible).filter(e=>e.scrollWidth>e.clientWidth+1&&['clip','hidden'].includes(getComputedStyle(e).overflowX)).map(e=>e.id||e.className);
+    const clipped=[...root.querySelectorAll('.amount,.card-note,.entry-title-text,.entry-detail,button')].filter(visible).filter(e=>e.scrollWidth>e.clientWidth+1&&['clip','hidden'].includes(getComputedStyle(e).overflowX)).map(e=>e.id||e.className);
     const cards=[...document.querySelectorAll('.decision-cards > article')].map(e=>({top:box(e).top,left:box(e).left,height:box(e).height}));
     const action=document.querySelector('#openModalMobile');
     return {overflow:document.documentElement.scrollWidth>innerWidth+1,small,clipped,cards,actionPosition:getComputedStyle(action).position,overviewHeight:box(document.querySelector('.decision-cards')).height,navIcons:document.querySelectorAll('.app-navigation button svg').length};
