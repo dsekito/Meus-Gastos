@@ -1,7 +1,8 @@
 # Meus Gastos
 
-Aplicativo financeiro local-first. Os dados ficam no IndexedDB do dispositivo e
-são sincronizados com a pasta privada `appDataFolder` do Google Drive do usuário.
+Aplicativo financeiro local-first. Os dados ficam no IndexedDB do dispositivo e,
+se a pessoa quiser, são sincronizados com a pasta privada `appDataFolder` do
+Google Drive dela. Também é possível usar o app sem conta (modo local).
 
 O aplicativo pode ser instalado diretamente pelo navegador como PWA no Android,
 iOS e desktop. Não é necessário gerar um APK para uso pessoal.
@@ -110,6 +111,42 @@ Para sincronização totalmente contínua, inclusive após reiniciar o aplicativ
 necessário adicionar um backend OAuth que armazene o refresh token de forma segura.
 Não grave access tokens ou refresh tokens no `localStorage` ou no IndexedDB.
 
+## Modo local (sem conta Google)
+
+Na primeira tela, **Usar só neste aparelho** abre o app sem entrar com o Google.
+O aparelho recebe um perfil local com id estável `local:<uuid>`, guardado no
+`localStorage` (chave `meus-gastos-local-profile`) junto com a data de criação;
+nenhum token, e-mail ou dado pessoal é gravado. Os dados financeiros ficam no
+IndexedDB sob esse id, como em qualquer perfil.
+
+No modo local nada é enviado para a internet: o status mostra **Modo local** e o
+cabeçalho oferece **Conectar Google**. As alterações continuam registradas na fila
+local para que possam ser enviadas depois. Limpar os dados do navegador apaga os
+lançamentos de um perfil local; crie um backup ou conecte o Google para ter uma cópia.
+
+### Conectar o Google depois
+
+Ao conectar, o app autoriza a conta, salva o estado atual e lê o Google Drive
+antes de mover qualquer coisa (se o Drive não puder ser lido, nada é movido):
+
+- **Sem dados na conta** (Drive vazio e nenhuma cópia da conta neste aparelho): os
+  dados do perfil local passam para o id da conta e são enviados ao Drive.
+- **A conta já tem dados**: o app mostra quantos lançamentos há em cada lado e pede
+  uma escolha explícita: **Manter os deste aparelho** (o Drive passa a ter
+  exatamente os dados do aparelho; lançamentos que só existiam no Drive são
+  removidos), **Manter os do Google Drive** (os lançamentos do perfil local são
+  descartados) ou **Cancelar** (nada muda e o app continua no modo local). Fechar
+  o diálogo equivale a cancelar.
+
+A gravação usa uma única transação do IndexedDB (`MGLocalStore.transfer`) que
+confere os dois registros (compare-and-swap), grava a conta e apaga o perfil local
+juntos: ou tudo é confirmado, ou nada muda. Se os dados mudaram durante a conexão
+(por exemplo, em outra aba) ou a gravação falhar, a sessão Google é descartada e a
+pessoa continua no modo local com os mesmos dados. Se o app for fechado no meio da
+conexão, o perfil local tem prioridade na próxima abertura.
+
+A lógica fica em `js/local-profile.js` (`window.MGLocalProfile`).
+
 ## Instalação
 
 Em produção HTTPS, abra o menu do navegador e escolha **Instalar app** ou
@@ -213,6 +250,12 @@ O `package.json` não declara dependências: o Playwright precisa estar disponí
 no ambiente (`npm i -D playwright`, se ainda não estiver instalado).
 
 As regras de desenvolvimento do projeto estão em `agents.md`.
+
+`test/local-profile.test.js` cobre a migração do modo local (sem dados remotos,
+conflito, falha de gravação e compare-and-swap) sobre o `MGLocalStore` real com um
+IndexedDB em memória. `node test/local-profile.e2e.cjs` exercita a tela de entrada,
+o modo local e as três escolhas de conflito com Google simulado; a variável
+`MG_BASE_URL` permite usar outro servidor local além de `http://localhost:8000`.
 
 `node test/sync-pipeline.e2e.cjs` exercita o app e o repositório reais com serviços
 Google simulados, incluindo edição de configuração durante o upload. Nenhum
