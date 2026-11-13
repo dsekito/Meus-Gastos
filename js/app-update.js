@@ -42,6 +42,7 @@
         if (accepted) reload();
       });
       registration = await serviceWorker.register(url, { updateViaCache: "none" });
+      if (!registration) return null;
       registration.addEventListener("updatefound", () => track(registration.installing));
       track(registration.installing);
       announce();
