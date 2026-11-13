@@ -53,5 +53,24 @@
     return isNew ? `${text} As parcelas começam em aberto; marque o pagamento de cada uma nos registros.` : text;
   }
 
-  global.MGEntryFormRules = { isRecurring, valueError, endDateError, recurrenceSummary, installmentPreview };
+  // A saved entry whose date falls outside the month on screen does not show
+  // in the list. Returns what to tell the person and the month to go to, or
+  // null when the entry is in the month on screen.
+  function savedOutsideVisibleMonth(date, visibleMonth) {
+    const month = String(date || "").slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(month) || month === visibleMonth) return null;
+    const [year, monthNumber] = month.split("-").map(Number);
+    const sameYear = String(year) === String(visibleMonth || "").slice(0, 4);
+    const monthName = new Intl.DateTimeFormat("pt-BR", { month: "long", timeZone: "UTC" })
+      .format(new Date(Date.UTC(year, monthNumber - 1, 1)));
+    const label = sameYear ? monthName : `${monthName} de ${year}`;
+    const formattedDate = new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`));
+    return {
+      month,
+      note: `Data: ${formattedDate}, fora do mês exibido.`,
+      actionLabel: `Ver ${label}`,
+    };
+  }
+
+  global.MGEntryFormRules = { isRecurring, valueError, endDateError, recurrenceSummary, installmentPreview, savedOutsideVisibleMonth };
 })(window);

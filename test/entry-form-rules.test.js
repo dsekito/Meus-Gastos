@@ -53,3 +53,13 @@ test("prévia das parcelas usa a mesma divisão que será gravada, com o resto n
   }
   assert.match(rules.installmentPreview({ rawAmount: "", rawQuantity: "3", isNew: false, money }), /^Informe o valor total/);
 });
+
+test("lançamento salvo fora do mês exibido diz a data e oferece ir até o mês", () => {
+  assert.equal(rules.savedOutsideVisibleMonth("2026-11-20", "2026-11"), null);
+  assert.deepEqual(rules.savedOutsideVisibleMonth("2026-12-10", "2026-11"),
+    { month: "2026-12", note: "Data: 10/12/2026, fora do mês exibido.", actionLabel: "Ver dezembro" });
+  assert.deepEqual(rules.savedOutsideVisibleMonth("2027-01-05", "2026-12"),
+    { month: "2027-01", note: "Data: 05/01/2027, fora do mês exibido.", actionLabel: "Ver janeiro de 2027" });
+  assert.equal(rules.savedOutsideVisibleMonth("2026-10-31", "2026-11").actionLabel, "Ver outubro");
+  assert.equal(rules.savedOutsideVisibleMonth("", "2026-11"), null);
+});

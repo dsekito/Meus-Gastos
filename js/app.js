@@ -3859,6 +3859,15 @@ const profileDefaults = window.MGProfileDefaults;
       previousMonth.onclick = () => changeCalendarMonth(-1);
       nextMonth.onclick = () => changeCalendarMonth(1);
       const goToCurrentMonth = document.querySelector("#goToCurrentMonth");
+      function showMonthInRecords(month) {
+        filterMonth.value = month;
+        state.filterDate = null;
+        state.selectedEntries.clear();
+        state.selectionMode = false;
+        navigateApp("records");
+        render();
+      }
+
       function resetCalendarToCurrentMonth() {
         filterMonth.value = todayISO().slice(0, 7);
         state.filterDate = null;
@@ -4214,16 +4223,22 @@ const profileDefaults = window.MGProfileDefaults;
                     : "Lançamento salvo e sincronizado."
                 : `Lançamento salvo neste dispositivo. ${pendingSyncMessage()}`;
 
+          const outsideMonth = formRules.savedOutsideVisibleMonth(date, filterMonth.value);
+          const savedMessage = outsideMonth ? `${successMessage} ${outsideMonth.note}` : successMessage;
+
           if (keepAdding) {
             valueInput.value = "";
             detailInput.value = "";
             updateEntryFormValidity();
-            entryFormStatus.textContent = `${successMessage} Os demais dados foram mantidos; informe o próximo valor e detalhe.`;
+            entryFormStatus.textContent = `${savedMessage} Os demais dados foram mantidos; informe o próximo valor e detalhe.`;
             entryFormStatus.hidden = false;
             valueInput.focus();
           } else {
             closeEntryDialog();
-            show(successMessage);
+            show(savedMessage, outsideMonth && {
+              label: outsideMonth.actionLabel,
+              onClick: () => showMonthInRecords(outsideMonth.month),
+            });
           }
         } catch (error) {
           console.error(error);
