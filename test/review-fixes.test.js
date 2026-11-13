@@ -177,9 +177,10 @@ async function testServiceWorkerNeverCachesErrorPages() {
   const listeners = {};
   const puts = [];
   const cached = new Map([["./index.html", "CACHED_APP"]]);
-  const cache = { put: (key, value) => { puts.push([String(key.url || key), value.status]); return Promise.resolve(); }, addAll: async () => {} };
+  const precached = [];
+  const cache = { put: (key, value) => { puts.push([String(key.url || key), value.status]); return Promise.resolve(); }, addAll: async (items) => { precached.push(...items); } };
   const context = {
-    URL, Request: class { constructor(url) { this.url = url; } },
+    URL, Request: class { constructor(url, init = {}) { this.url = url; this.cache = init.cache; } },
     self: { location: { origin: "https://app.example" }, registration: { scope: "https://app.example/MeusGastos/" },
       addEventListener: (name, handler) => { listeners[name] = handler; }, skipWaiting() { skipped += 1; }, clients: { claim() {} } },
     caches: { open: async () => cache, match: async key => cached.get(key), keys: async () => [] },
@@ -221,6 +222,7 @@ async function testServiceWorkerNeverCachesErrorPages() {
   listeners.install({ waitUntil: value => installWork.push(value) });
   await Promise.all(installWork);
   assert.equal(skipped, 0, "install must not skip waiting");
+  assert.ok(precached.length > 5 && precached.every(item => item.cache === "reload"), "precache must bypass the HTTP cache");
   listeners.message({ data: { type: "OTHER" } });
   assert.equal(skipped, 0);
   listeners.message({ data: { type: "SKIP_WAITING" } });

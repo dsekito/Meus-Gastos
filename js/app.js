@@ -22,6 +22,7 @@ const descriptionOptionsByType = {
       const googleAuth = window.MGGoogleAuth.create({
         clientId: window.MG_CONFIG?.googleClientId,
       });
+      const confirmDialog = window.MGConfirmDialog.create(document.querySelector("#confirmDialog"));
       const appUpdate = window.MGAppUpdate.create({
         reload: () => {
           appReloadRequested = true;
@@ -169,9 +170,10 @@ const descriptionOptionsByType = {
       }
 
       // Capture before existing handlers while a recovery snapshot is prepared.
+      // The confirmation dialog stays usable: recovery waits for its answer.
       ["click", "submit", "change", "input", "keydown"].forEach((eventName) => {
         document.addEventListener(eventName, (event) => {
-          if ((!recoveryBusy && !financialMutationBusy) || !event.target.closest?.("#appShell, dialog")) return;
+          if ((!recoveryBusy && !financialMutationBusy) || !event.target.closest?.("#appShell, dialog:not(#confirmDialog)")) return;
           event.preventDefault();
           event.stopImmediatePropagation();
         }, true);
@@ -1839,7 +1841,13 @@ const descriptionOptionsByType = {
       async function removeTypeOption() {
         const option = deleteTypeOption.value;
         const linkedCount = state.entries.filter((entry) => entry.type === option && !entry.excluded_from_series).length;
-        if (!option || !confirm(`Excluir a opção de tipo “${option}”? ${linkedCount} lançamento(s) usam este tipo. Os lançamentos atuais serão preservados; a opção será removida da lista para novos registros.`)) return;
+        if (!option || !await confirmDialog.ask({
+          title: `Excluir o tipo “${option}”?`,
+          description: "A opção sai da lista para novos registros.",
+          details: [`${linkedCount} lançamento(s) usam este tipo e serão preservados.`],
+          confirmLabel: "Excluir tipo",
+          tone: "danger",
+        })) return;
         state.types = state.types.filter((item) => item !== option);
         state.hiddenTypes = sortedOptions([...state.hiddenTypes, option]);
         state.settingsDirty = true;
@@ -1853,7 +1861,13 @@ const descriptionOptionsByType = {
         const selectedType = deleteDescriptionType.value;
         const option = deleteDescriptionOption.value;
         const linkedCount = state.entries.filter((entry) => entry.type === selectedType && entry.description === option && !entry.excluded_from_series).length;
-        if (!selectedType || !option || !confirm(`Excluir a descrição “${option}” de “${selectedType}”? ${linkedCount} lançamento(s) usam esta descrição. Os lançamentos atuais serão preservados; a opção será removida da lista para novos registros.`)) return;
+        if (!selectedType || !option || !await confirmDialog.ask({
+          title: `Excluir a descrição “${option}”?`,
+          description: `A opção sai da lista de “${selectedType}” para novos registros.`,
+          details: [`${linkedCount} lançamento(s) usam esta descrição e serão preservados.`],
+          confirmLabel: "Excluir descrição",
+          tone: "danger",
+        })) return;
         state.customDescriptionOptionsByType = {
           ...state.customDescriptionOptionsByType,
           [selectedType]: categoryOptions(state.customDescriptionOptionsByType, selectedType).filter((item) => item !== option),
@@ -1937,7 +1951,12 @@ const descriptionOptionsByType = {
         const nextType = includeFields ? managerBulkType.value : "";
         const nextDescription = includeFields ? managerBulkDescription.value : "";
         const changes = [paid === null ? null : paid ? "marcar como pago/recebido" : "marcar em aberto", nextType ? `tipo: ${nextType}` : null, nextDescription ? `descrição: ${nextDescription}` : null].filter(Boolean);
-        if (changes.length && !confirm(`Aplicar ${changes.join("; ")} a ${managerSelectedEntries.size} registro(s) selecionado(s)? Outros registros não serão alterados.`)) return;
+        if (changes.length && !await confirmDialog.ask({
+          title: `Alterar ${managerSelectedEntries.size} registro(s)?`,
+          description: "Somente os registros selecionados serão alterados.",
+          details: changes.map((change) => change.charAt(0).toUpperCase() + change.slice(1)),
+          confirmLabel: "Aplicar alterações",
+        })) return;
         const selectedIds = new Set(managerSelectedEntries);
         managerApplyChanges.disabled = true;
         managerApplyChanges.setAttribute("aria-busy", "true");
@@ -3051,7 +3070,18 @@ const descriptionOptionsByType = {
             show(`Nenhum lançamento novo. ${preview.duplicateIds.length} duplicado(s), ${preview.conflictIds.length} conflito(s) e ${preview.deletedIds.length} excluído(s) foram preservados sem alterações.`);
             return;
           }
-          const accepted = confirm(`Prévia da recuperação:\n${preview.added} lançamento(s) novo(s).\n${preview.duplicateIds.length} duplicado(s), ${preview.conflictIds.length} conflito(s) e ${preview.deletedIds.length} excluído(s) ignorados.\n${preview.detached} ocorrência(s) serão avulsas. ${preview.ignoredRecurrenceSeries} recorrência(s) do backup não serão ativadas.\nSaldo, configurações e dados atuais serão preservados.\n\nATENÇÃO: recuperação LOCAL APENAS. Todo envio ao Google Drive ficará PAUSADO por segurança, inclusive alterações futuras, até uma atualização com suporte seguro. Não limpe os dados deste aparelho.\n\nAdicionar esses lançamentos neste aparelho?`);
+          const accepted = await confirmDialog.ask({
+            title: `Recuperar ${preview.added} lançamento(s)?`,
+            description: "A recuperação vale só para este aparelho. Por segurança, o envio ao Google Drive fica pausado, inclusive para alterações futuras, até uma atualização com suporte seguro. Não limpe os dados deste aparelho.",
+            details: [
+              `${preview.added} lançamento(s) novo(s) serão adicionados.`,
+              `${preview.duplicateIds.length} duplicado(s), ${preview.conflictIds.length} conflito(s) e ${preview.deletedIds.length} excluído(s) serão ignorados.`,
+              preview.detached ? `${preview.detached} ocorrência(s) ficarão avulsas.` : null,
+              preview.ignoredRecurrenceSeries ? `${preview.ignoredRecurrenceSeries} recorrência(s) do backup não serão ativadas.` : null,
+              "Saldo, configurações e dados atuais serão preservados.",
+            ],
+            confirmLabel: "Adicionar neste aparelho",
+          });
           if (!accepted) return;
           await backupRecovery.commit(userId, previewId, { confirmed: true });
           await loadLocal(userId);
@@ -3613,6 +3643,7 @@ const descriptionOptionsByType = {
       async function persistEntryStatus(id, paid, { undo = false } = {}) {
         if (state.pendingStatusEntries.has(id)) return;
         const session = state.user;
+        let saved = null;
         state.pendingStatusEntries.add(id);
         closeContextMenu();
         render();
@@ -3623,18 +3654,14 @@ const descriptionOptionsByType = {
             const entry = state.entries.find(item => item.id === id);
             if (!entry) return null;
             const previousPaid = entry.paid;
+            const adjustment = domain.referenceBalanceAdjustment(entry, paid, state.settings);
             entry.paid = paid;
             queueUpsert(entry);
-            return { previousPaid };
+            return { previousPaid, adjustment, entry: { ...entry } };
           });
           if (!result.ok || !result.value || state.user !== session) return;
+          saved = result.value;
           state.recentlyChangedEntry = id;
-          const successMessage = undo ? "Alteração desfeita."
-            : `Status salvo neste dispositivo. ${pendingSyncMessage()}`;
-          show(successMessage, undo ? null : {
-            label: "Desfazer",
-            onClick: () => persistEntryStatus(id, result.value.previousPaid, { undo: true }),
-          });
           if (navigator.vibrate) navigator.vibrate(20);
           setTimeout(() => {
             if (state.user !== session || state.recentlyChangedEntry !== id) return;
@@ -3645,6 +3672,55 @@ const descriptionOptionsByType = {
           state.pendingStatusEntries.delete(id);
           if (state.user === session) render();
         }
+        // The status is already saved and unlocked; the balance question never
+        // holds the entry while the person decides.
+        if (!undo && saved.adjustment && await offerReferenceBalanceAdjustment(saved.entry, paid, saved.adjustment)) return;
+        if (state.user !== session) return;
+        show(undo ? "Alteração desfeita." : `Status salvo neste dispositivo. ${pendingSyncMessage()}`, undo ? null : {
+          label: "Desfazer",
+          onClick: () => persistEntryStatus(id, saved.previousPaid, { undo: true }),
+        });
+      }
+
+      // Offered after a status change on the balance reference date: the
+      // informed balance moves by the entry value only with explicit consent.
+      async function offerReferenceBalanceAdjustment(entry, paid, adjustment) {
+        const income = domain.entryFlowType(entry) === "income";
+        const movement = paid
+          ? income ? "Se o valor já entrou na conta" : "Se o pagamento já saiu da conta"
+          : "Se esse valor ainda não passou pela conta";
+        const session = state.user;
+        const accepted = await confirmDialog.ask({
+          title: "Atualizar o saldo informado?",
+          description: `“${entry.description}” é da data-base do saldo (${new Date(`${entry.date}T12:00`).toLocaleDateString("pt-BR")}). ${movement}, atualize o saldo para a projeção continuar igual à do banco.`,
+          details: [`Saldo informado: ${money(adjustment.from)} → ${money(adjustment.to)}`],
+          confirmLabel: "Atualizar saldo",
+          cancelLabel: "Manter saldo",
+        });
+        if (!accepted || state.user !== session) return false;
+        if (Math.round(Number(state.settings.current_balance) * 100) !== Math.round(adjustment.from * 100)) {
+          show("O saldo informado mudou enquanto você decidia. Confira o valor em Ajustes.");
+          return false;
+        }
+        const applyBalance = (balance) => financialMutation(() => {
+          state.settings = { ...state.settings, current_balance: balance };
+          state.settingsDirty = true;
+        });
+        const result = await applyBalance(adjustment.to);
+        if (!result.ok) return false;
+        render();
+        show(`Status salvo e saldo informado atualizado para ${money(adjustment.to)}.`, {
+          label: "Desfazer saldo",
+          onClick: async () => {
+            if (state.user !== session) return;
+            if (Math.round(Number(state.settings.current_balance) * 100) !== Math.round(adjustment.to * 100)) return;
+            const restored = await applyBalance(adjustment.from);
+            if (!restored.ok) return;
+            render();
+            show(`Saldo informado voltou para ${money(adjustment.from)}.`);
+          },
+        });
+        return true;
       }
 
       async function toggleEntryStatus() {
@@ -4191,7 +4267,13 @@ const descriptionOptionsByType = {
         if (!entry) return;
         const scope = button.dataset.seriesDeleteScope;
         const scopeLabel = { this: "somente esta ocorrência", future: "esta e as próximas ocorrências", all: "toda a série, incluindo ocorrências anteriores" }[scope];
-        if (!confirm(`Excluir ${scopeLabel} de “${entry.description}” (${money(entry.value)})? Confira o alcance antes de continuar.`)) return;
+        if (!await confirmDialog.ask({
+          title: `Excluir ${scopeLabel}?`,
+          description: "Confira o alcance antes de continuar.",
+          details: [`${entry.description} · ${money(entry.value)}`],
+          confirmLabel: "Excluir",
+          tone: "danger",
+        })) return;
         const buttons = [...seriesScopeDialog.querySelectorAll("button")];
         buttons.forEach((item) => { item.disabled = true; });
         button.setAttribute("aria-busy", "true");

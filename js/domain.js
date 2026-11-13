@@ -395,6 +395,20 @@
     return minimum;
   }
 
+  // An entry dated on the balance reference date counts in the projection
+  // only while it is open. When it changes status, moving the informed
+  // balance by its value keeps the projection unchanged and matches the bank.
+  function referenceBalanceAdjustment(entry, paid, settings = {}) {
+    if (!entry || entry.excluded_from_series || Boolean(entry.paid) === Boolean(paid)) return null;
+    if (!settings.balance_reference_date || entry.date !== settings.balance_reference_date) return null;
+    const value = toCents(entry.value);
+    if (!Number.isFinite(value) || value === 0) return null;
+    const direction = entryFlowType(entry) === "income" ? 1 : -1;
+    const from = toCents(settings.current_balance);
+    const to = from + (paid ? direction : -direction) * value;
+    return { from: from / 100, to: to / 100 };
+  }
+
   // Aggregate stored occurrences by their own date, never the original purchase
   // total. Integer cents preserve installment rounding and expense refunds.
   function monthlyCashFlow(entries, year, { status = "" } = {}) {
@@ -473,5 +487,6 @@
     reconcileInstallmentEntries,
     projectedBalance,
     minimumProjectedBalance,
+    referenceBalanceAdjustment,
   };
 })(window);

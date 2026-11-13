@@ -52,7 +52,7 @@ async function snapshot(page) {
           const date = new Date().toISOString().slice(0, 10);
           const entry = { id, date, value: 41, type: 'OUTROS', description: 'OUTROS', paid: false,
             notes: 'synthetic status', updated_at: '2026-01-01T12:00:00.000Z' };
-          await MGLocalStore.save(user.id, { entries: [entry], settings: { onboarding_status: 'completed', current_balance: 100, balance_reference_date: date }, syncQueue: [] });
+          await MGLocalStore.save(user.id, { entries: [entry], settings: { onboarding_status: 'completed', current_balance: 100, balance_reference_date: '2026-01-01' }, syncQueue: [] });
         }, { user, id });
         for (const page of [a, b]) {
           await page.goto(origin);

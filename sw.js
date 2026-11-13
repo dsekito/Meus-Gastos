@@ -1,15 +1,15 @@
-const CACHE_NAME = "meus-gastos-v40";
+const CACHE_NAME = "meus-gastos-v41";
 const NAVIGATION_TIMEOUT_MS = 3000;
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./mobile.css?v=2026111203",
+  "./mobile.css?v=2026111301",
   "./manifest.webmanifest",
   "./icons/app-icon.svg",
   "./icons/app-icon-192.png",
   "./icons/app-icon-512.png",
   "./js/config.js?v=2026081001",
-  "./js/domain.js?v=2026111202",
+  "./js/domain.js?v=2026111301",
   "./js/document-validator.js?v=2026111104",
   "./js/local-store.js?v=2026111202",
   "./js/local-profile.js?v=2026111201",
@@ -17,13 +17,17 @@ const APP_SHELL = [
   "./js/google-auth.js?v=2026111201",
   "./js/google-drive-repository.js?v=2026111201",
   "./js/sync-service.js?v=2026111102",
+  "./js/confirm-dialog.js?v=2026111301",
   "./js/app-update.js?v=2026111201",
-  "./js/app.js?v=2026111203",
+  "./js/app.js?v=2026111301",
 ];
 
 self.addEventListener("install", (event) => {
   // No skipWaiting here: the new version waits until the person accepts it.
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
+  // cache: "reload" skips the HTTP cache, so a new worker never stores a
+  // stale index.html that still points to the previous asset versions.
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) =>
+    cache.addAll(APP_SHELL.map((url) => new Request(url, { cache: "reload" })))));
 });
 
 self.addEventListener("message", (event) => {

@@ -91,6 +91,7 @@ async function snapshot(page) {
         const before=await snapshot(page);
         const [chooser]=await Promise.all([page.waitForEvent('filechooser'),page.locator('#importLocalBackup').click()]);
         await chooser.setFiles({name:'synthetic-import.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(scenario.input))});
+        if(!scenario.invalid){const confirmation=page.locator('#confirmDialog[open]');await confirmation.waitFor({state:'visible'});dialogs.push({type:'confirm',message:await confirmation.innerText()});await confirmation.locator('[data-confirm-accept]').click();}
         await page.waitForFunction(()=>!recoveryBusy && !document.querySelector('#importLocalBackup').disabled && !!document.querySelector('#toast').textContent);
         const after=await snapshot(page);
         result.dialogs=dialogs;
@@ -120,6 +121,10 @@ async function snapshot(page) {
             // Exercise lookup consumers used by option creation and removal too.
             await page.evaluate(()=>closeEntryDialog());
             await page.evaluate(async category=>{
+              // Removal asks through the in-app dialog; accept each confirmation.
+              const confirmation=document.querySelector('#confirmDialog');
+              new MutationObserver(()=>{if(confirmation.open)confirmation.querySelector('[data-confirm-accept]').click();})
+                .observe(confirmation,{attributes:true,attributeFilter:['open']});
               if (!state.types.includes(category)) state.types.push(category);
               renderOptionManagement({descriptionType:category,selectedDescription:'Conta'});
               await removeDescriptionOption();

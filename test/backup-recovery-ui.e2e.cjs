@@ -136,19 +136,11 @@ function addedEntry(f) {
 async function selectFile(f, value, { confirm = true, invalid = false } = {}) {
   const { page } = f;
   const seen = [];
-  let dialogFailure, finishDialog;
-  const handledDialog = new Promise(resolve => { finishDialog = resolve; });
+  let dialogFailure;
+  // The confirmation is the app's own <dialog>; any native dialog is a failure.
   const onDialog = async dialog => {
-    const item = { type: dialog.type(), message: dialog.message(), accepted: confirm };
-    seen.push(item); f.dialogs.push(item);
-    try {
-      if (invalid || dialog.type() !== 'confirm') {
-        dialogFailure = new Error('Unexpected native dialog: ' + JSON.stringify(item));
-        await dialog.dismiss();
-      } else if (confirm) await dialog.accept();
-      else await dialog.dismiss();
-    } catch (error) { dialogFailure = error; }
-    finally { finishDialog(); }
+    dialogFailure = new Error('Unexpected native dialog: ' + JSON.stringify({ type: dialog.type(), message: dialog.message() }));
+    await dialog.dismiss().catch(() => {});
   };
   page.on('dialog', onDialog);
   try {
@@ -161,15 +153,15 @@ async function selectFile(f, value, { confirm = true, invalid = false } = {}) {
     if (invalid) {
       await page.waitForFunction(() => /inválid|invalido|invalid/i.test(document.querySelector('#toast')?.textContent || ''));
     } else {
-      let timer;
-      try {
-        await Promise.race([handledDialog, new Promise((_, reject) => {
-          timer = setTimeout(() => reject(new Error('RED: native confirmation was never shown')), 7000);
-        })]);
-      } finally { clearTimeout(timer); }
+      const confirmation = page.locator('#confirmDialog[open]');
+      await confirmation.waitFor({ state: 'visible', timeout: 7000 });
+      const item = { type: 'confirm', message: await confirmation.innerText(), accepted: confirm };
+      seen.push(item); f.dialogs.push(item);
+      await confirmation.locator(confirm ? '[data-confirm-accept]' : '.modal-foot [data-confirm-cancel]').click();
+      await page.locator('#confirmDialog').waitFor({ state: 'hidden' });
       // Cancellation need not show a toast. Completion is the released recovery lock/control.
       await page.waitForFunction(() => document.querySelector('#importLocalBackup')?.disabled === false);
-      assert.equal(seen.length, 1, 'file selection must show one explicit native confirmation');
+      assert.equal(seen.length, 1, 'file selection must show one explicit confirmation');
     }
     await page.waitForFunction(() => document.querySelector('#importLocalBackup')?.disabled === false);
     if (dialogFailure) throw dialogFailure;

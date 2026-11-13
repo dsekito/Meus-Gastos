@@ -1,6 +1,6 @@
 /* Meus Gastos: productive financial workspace. One coherent visual layer.
    Source rendering, IDs, accessibility labels and financial state are unchanged. */
-:root { --ink:#192923; --muted:#53635c; --bg:#f1f4f2; --paper:#fff; --line:#d6dfda; --brand:#14634b; --brand-dark:#0b4634; --soft:#eaf3ee; --danger:#b42318; --shadow:0 16px 48px #152d2426; --navigation-height:72px; }
+:root { --ink:#192923; --muted:#53635c; --bg:#f1f4f2; --paper:#fff; --line:#d6dfda; --control-line:#73857c; --brand:#14634b; --brand-dark:#0b4634; --soft:#eaf3ee; --danger:#b42318; --shadow:0 16px 48px #152d2426; --navigation-height:72px; }
 [hidden] { display:none !important; }
 html,body { max-width:100%; overflow-x:visible; }
 body { font:16px/1.5 "Segoe UI",Arial,sans-serif; background:var(--bg); color:var(--ink); }
@@ -15,10 +15,10 @@ button[aria-busy="true"] { cursor:progress; }
 :is(.primary,.secondary,.auth-button,.google-button,input,select,textarea) { border-radius:6px; box-shadow:none; }
 :is(.primary,.secondary,.auth-button,.google-button) { padding:10px 14px; font-weight:600; }
 .primary { background:var(--brand); color:white; }
-.secondary,.auth-button,.google-button { background:var(--paper); border:1px solid #b9c9c0; color:var(--ink); }
+.secondary,.auth-button,.google-button { background:var(--paper); border:1px solid var(--control-line); color:var(--ink); }
 :is(.secondary,.auth-button,.google-button):hover { background:var(--soft); }
 .primary:hover { background:var(--brand-dark); }
-input,select,textarea { min-width:0; border-color:#b9c9c0; background:var(--paper); color:var(--ink); padding:10px 12px; }
+input,select,textarea { min-width:0; border-color:var(--control-line); background:var(--paper); color:var(--ink); padding:10px 12px; }
 input[type="checkbox"] { accent-color:var(--brand); }
 label,.filter-field label { font-size:16px; font-weight:600; }
 h1,h2,h3 { font-weight:650; letter-spacing:-.025em; }
@@ -431,3 +431,7 @@ dialog .modal,#entryDialog .modal,#settingsDialog .modal,#recordsManagerDialog .
 }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto !important; animation:none !important; transition:none !important; } }
 .field-help { display:block; margin-top:6px; color:var(--muted); font-size:14px; line-height:1.4; }
+.confirm-details { display:grid; gap:8px; margin:0 16px 8px; padding:12px 12px 12px 32px; border:1px solid var(--line); border-radius:6px; background:var(--soft); font-size:16px; line-height:1.4; }
+#confirmDialog [data-confirm-cancel].secondary, #confirmDialog [data-confirm-accept] { min-height:48px; }
+/* Component boundaries need 3:1 against their background (WCAG 1.4.11); --line stays for decorative dividers. */
+.calendar-nav,.entry-actions summary,.filter-disclosure > summary,.monthly-method summary,:is(.entry-advanced,.onboarding-category-disclosure,.install-help) > summary,.settings-topic-nav button { border-color:var(--control-line); }

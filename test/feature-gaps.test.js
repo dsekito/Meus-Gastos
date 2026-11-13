@@ -11,7 +11,7 @@ test('importação JSON usa recuperação transacional local sem restauração d
   const app = fs.readFileSync(path.join(__dirname, '../js/app.js'), 'utf8');
   assert.match(html, /backup-recovery\.js/);
   assert.match(app, /backupRecovery\.commit\(userId, previewId, \{ confirmed: true \}\)/);
-  assert.match(app, /Todo envio ao Google Drive ficará PAUSADO/);
+  assert.match(app, /o envio ao Google Drive fica pausado, inclusive para alterações futuras/);
   const recovery = app.slice(app.indexOf('async function recoverBackupAdditively'), app.indexOf('async function addOption'));
   assert.doesNotMatch(recovery, /queueDelete\(|state\.entries = structuredClone\(backup/);
 });

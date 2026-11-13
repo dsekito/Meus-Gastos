@@ -67,7 +67,7 @@ const cases={
     const after=await snapshot(page);assert.deepEqual(after.entries,before.entries);assert.deepEqual(after.syncQueue,before.syncQueue);assert.match(after.toast,/não salva/i);assert.equal(await page.evaluate(()=>bulkDateDialog.open),true);
   },
   async 'manager-abort'(page){
-    await page.evaluate(id=>{managerSelectedEntries.add(id);window.confirm=()=>true;},id);const before=await snapshot(page);await abortNextPut(page);await page.evaluate(()=>applyManagerChanges({paid:true}));
+    await page.evaluate(id=>{managerSelectedEntries.add(id);},id);const before=await snapshot(page);await abortNextPut(page);await page.evaluate(()=>{window.__managerApply=applyManagerChanges({paid:true});});await page.locator('#confirmDialog[open] [data-confirm-accept]').click();await page.evaluate(()=>window.__managerApply);
     const after=await snapshot(page);assert.deepEqual(after.entries,before.entries);assert.deepEqual(after.syncQueue,before.syncQueue);assert.match(after.toast,/não salva/i);assert.equal(await page.evaluate(id=>managerSelectedEntries.has(id),id),true);
   },
   async 'recovery-conversion-keeps-local-only'(page){
