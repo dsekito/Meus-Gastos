@@ -118,10 +118,11 @@ async function contextFor(browser, origin, width, signedIn = true) {
           await close();
         }
         await nav('records'); await page.evaluate(() => openRecentRecordsDialog()); await capture(page, 'recentRecordsDialog', width); await close();
-        await page.locator('#entryActions > summary').click(); await page.locator('#openRecordsManagerMain').click(); await page.locator('#recordsManagerDialog[open]').waitFor(); await capture(page, 'recordsManagerDialog', width);
-        await page.locator('#recordsManagerDialog .manager-filters > summary').click(); await capture(page, 'recordsManager-filters', width); await close();
+        await page.locator('#startSelection').click(); await page.locator('#selectAll').click(); await capture(page, 'records-selection', width);
+        await page.locator('#editSelection').click(); await page.locator('#bulkEditDialog[open]').waitFor(); await capture(page, 'bulkEditDialog', width); await close();
+        await page.locator('#exitSelection').click();
         await page.evaluate(() => { renderOnboardingCategories(); document.querySelector('#onboardingBalance').value = '4700'; document.querySelector('#onboardingReferenceDate').value = '2026-11-11'; onboardingDialog.showModal(); }); await capture(page, 'onboardingDialog', width); await close();
-        for (const id of ['seriesScopeDialog', 'bulkDateDialog', 'syncConflictDialog', 'deleteConfirmDialog']) {
+        for (const id of ['seriesScopeDialog', 'syncConflictDialog', 'deleteConfirmDialog']) {
           await page.evaluate(id => document.getElementById(id).showModal(), id); await capture(page, id, width); await close();
         }
         await page.evaluate(() => setSyncStatus('conflict', 'Conflito de sincronização')); await capture(page, 'sync-error', width);

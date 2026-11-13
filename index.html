@@ -14,7 +14,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>Meus Gastos</title>
-    <link rel="stylesheet" href="./mobile.css?v=2026111312" />
+    <link rel="stylesheet" href="./mobile.css?v=2026111313" />
   </head>
   <body aria-busy="true">
     <section class="bootstrap-screen" id="bootstrapScreen" role="status" aria-live="polite">
@@ -133,13 +133,10 @@
           </div>
 
           <div id="selectionActions"></div>
-          <details class="entry-actions" id="entryActions">
-            <summary aria-label="Mais ações dos lançamentos">Mais ações</summary>
-            <div class="entry-actions-content">
-              <button class="secondary recent-records-shortcut" id="openRecentRecordsMain" type="button" aria-label="Abrir histórico de registros recentes">Histórico</button>
-              <button class="secondary recent-records-shortcut" id="openRecordsManagerMain" type="button" aria-label="Gerenciar todos os registros">Gerenciar</button>
-            </div>
-          </details>
+          <div class="entry-actions" id="entryActions">
+            <button class="secondary" id="startSelection" type="button" aria-label="Selecionar lançamentos para editar ou excluir em lote">Selecionar</button>
+            <button class="secondary recent-records-shortcut" id="openRecentRecordsMain" type="button" aria-label="Abrir histórico de registros recentes">Histórico</button>
+          </div>
           <div class="date-filter" id="dateFilterInfo"><span id="dateFilterLabel"></span><button id="clearDateFilter" type="button" aria-label="Limpar filtro da data">×</button></div>
         </div>
         <details class="filter-disclosure">
@@ -171,6 +168,9 @@
             <select id="filterDescription">
               <option value="">Todas as descrições</option>
             </select>
+          </div>
+          <div class="filter-field filter-all-months">
+            <label class="checkbox-label"><input id="filterAllMonths" type="checkbox" /><span>Todos os meses</span></label>
           </div>
           <div class="filter-field">
             <label for="filterStatus">Status</label>
@@ -445,24 +445,47 @@
         </div>
       </div>
     </dialog>
-    <dialog id="bulkDateDialog" aria-labelledby="bulkDateTitle">
-      <form class="modal" id="bulkDateForm">
+    <dialog id="bulkEditDialog" aria-labelledby="bulkEditTitle" aria-describedby="bulkEditDescription">
+      <form class="modal" id="bulkEditForm" novalidate>
         <div class="modal-head">
           <div>
-            <h2 id="bulkDateTitle">Alterar data</h2>
-            <p id="bulkDateDescription">Escolha a nova data dos lançamentos selecionados.</p>
+            <h2 id="bulkEditTitle">Editar selecionados</h2>
+            <p id="bulkEditDescription">Escolha só o que deve mudar. Campos em “Não alterar” ficam como estão.</p>
           </div>
-          <button class="close" type="button" data-close-bulk-date aria-label="Fechar alteração de data">&times;</button>
+          <button class="close" type="button" data-close-bulk-edit aria-label="Fechar edição em lote">&times;</button>
         </div>
         <div class="form-grid">
           <div class="field wide">
-            <label for="bulkDate">Nova data</label>
-            <input id="bulkDate" type="date" required aria-describedby="bulkDateDescription" />
+            <label for="bulkStatus">Status</label>
+            <select id="bulkStatus">
+              <option value="">Não alterar</option>
+              <option value="paid">Pago ou recebido</option>
+              <option value="pending">Em aberto</option>
+            </select>
+          </div>
+          <div class="field wide">
+            <label for="bulkDate">Data</label>
+            <input id="bulkDate" type="date" aria-describedby="bulkDateHelp" />
+            <small class="field-help" id="bulkDateHelp">Deixe em branco para não alterar.</small>
+          </div>
+          <div class="field">
+            <label for="bulkType">Tipo</label>
+            <select id="bulkType"></select>
+          </div>
+          <div class="field">
+            <label for="bulkDescription">Descrição</label>
+            <select id="bulkDescription"></select>
+          </div>
+          <div class="field wide" id="bulkPaymentField">
+            <label for="bulkPayment">Forma de pagamento</label>
+            <select id="bulkPayment" aria-describedby="bulkPaymentHelp"></select>
+            <small class="field-help" id="bulkPaymentHelp">Vale só para as despesas selecionadas.</small>
           </div>
         </div>
+        <p class="field-error bulk-edit-error" id="bulkEditError" role="alert" hidden></p>
         <div class="modal-foot">
-          <button class="secondary" type="button" data-close-bulk-date>Cancelar</button>
-          <button class="primary" id="saveBulkDate" type="submit">Alterar data</button>
+          <button class="secondary" type="button" data-close-bulk-edit>Cancelar</button>
+          <button class="primary" id="reviewBulkEdit" type="submit">Revisar alterações</button>
         </div>
       </form>
     </dialog>
@@ -626,40 +649,6 @@
         </div>
       </section>
     </dialog>
-    <dialog id="recordsManagerDialog" aria-labelledby="recordsManagerTitle">
-      <section class="modal">
-        <div class="modal-head">
-          <div>
-            <h2 id="recordsManagerTitle">Gerenciar registros</h2>
-            <p id="recordsManagerCount" aria-live="polite">Filtre e selecione os lançamentos para editar em lote.</p>
-          </div>
-          <button class="close" type="button" data-close-records-manager aria-label="Fechar gerenciamento de registros">&times;</button>
-        </div>
-        <details class="manager-filters">
-          <summary>Filtrar registros</summary>
-          <div class="records-manager-filters">
-            <div class="field"><label for="managerFilterType">Tipo</label><select id="managerFilterType"><option value="">Todos os tipos</option></select></div>
-            <div class="field"><label for="managerFilterDescription">Descrição</label><select id="managerFilterDescription"><option value="">Todas as descrições</option></select></div>
-            <div class="field"><label for="managerFilterStatus">Status</label><select id="managerFilterStatus"><option value="">Todos os status</option><option value="paid">Pagos / recebidos</option><option value="pending">A pagar / a receber</option></select></div>
-          </div>
-        </details>
-        <div class="manager-selection-bar">
-          <span id="managerSelectionSummary">Selecione registros para editar em lote.</span>
-          <button class="secondary" id="managerSelectAll" type="button">Selecionar filtrados</button>
-          <button class="primary" id="managerToggleBulk" type="button" disabled>Editar selecionados</button>
-        </div>
-        <div class="manager-bulk-editor" id="managerBulkEditor" hidden>
-          <button class="secondary" id="managerMarkPaid" type="button">Marcar pago / recebido</button>
-          <button class="secondary" id="managerMarkPending" type="button">Marcar em aberto</button>
-          <div class="field"><label for="managerBulkType">Novo tipo</label><select id="managerBulkType"><option value="">Não alterar</option></select></div>
-          <div class="field"><label for="managerBulkDescription">Nova descrição</label><select id="managerBulkDescription" disabled><option value="">Não alterar</option></select></div>
-          <button class="primary" id="managerApplyChanges" type="button">Aplicar alterações</button>
-        </div>
-        <div class="records-manager-list" id="recordsManagerList"></div>
-        <div class="modal-foot"><button class="secondary" type="button" data-close-records-manager>Fechar</button></div>
-      </section>
-    </dialog>
-
     <dialog id="confirmDialog" aria-labelledby="confirmDialogTitle" aria-describedby="confirmDialogDescription">
       <div class="modal">
         <div class="modal-head">
@@ -689,6 +678,11 @@
           <strong id="deleteConfirmEntry"></strong>
           <span>Você poderá desfazer logo após confirmar.</span>
         </div>
+        <fieldset class="delete-installment-scope" id="deleteInstallmentScope" hidden>
+          <legend id="deleteInstallmentScopeTitle">Parcelas selecionadas</legend>
+          <label class="checkbox-label"><input type="radio" name="deleteInstallmentScope" value="selected" checked /><span>Só as parcelas selecionadas</span></label>
+          <label class="checkbox-label"><input type="radio" name="deleteInstallmentScope" value="purchase" /><span id="deleteWholePurchaseLabel">A compra inteira</span></label>
+        </fieldset>
         <div class="modal-foot">
           <button class="secondary" type="button" data-close-delete-confirm>Cancelar</button>
           <button class="primary danger-action" id="confirmDelete" type="submit">Excluir</button>
@@ -715,13 +709,14 @@
     <script src="./js/google-drive-repository.js?v=2026111201"></script>
     <script src="./js/sync-service.js?v=2026111102"></script>
     <script src="./js/sync-status-view.js?v=2026111306"></script>
-    <script src="./js/records-manager.js?v=2026111306"></script>
     <script src="./js/credit-cards.js?v=2026111310"></script>
     <script src="./js/entry-filters.js?v=2026111311"></script>
+    <script src="./js/bulk-edit.js?v=2026111313"></script>
+    <script src="./js/bulk-edit-dialog.js?v=2026111313"></script>
     <script src="./js/confirm-dialog.js?v=2026111301"></script>
     <script src="./js/app-update.js?v=2026111201"></script>
     <script src="./js/projection-view.js?v=2026111303"></script>
     <script src="./js/monthly-view.js?v=2026111306"></script>
-    <script src="./js/app.js?v=2026111312"></script>
+    <script src="./js/app.js?v=2026111313"></script>
   </body>
 </html>

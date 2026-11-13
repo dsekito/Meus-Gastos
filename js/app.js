@@ -3,6 +3,7 @@ const profileDefaults = window.MGProfileDefaults;
 
       const domain = window.MGDomain;
       const entryFilters = window.MGEntryFilters;
+      const bulkEdit = window.MGBulkEdit;
       const projectionView = window.MGProjectionView;
       const monthlyView = window.MGMonthlyView;
       const formRules = window.MGEntryFormRules;
@@ -276,7 +277,7 @@ const profileDefaults = window.MGProfileDefaults;
         deleteDescriptionOption = document.querySelector("#deleteDescriptionOption"),
         deleteDescriptionOptionButton = document.querySelector("#deleteDescriptionOptionButton"),
         openRecentRecordsMain = document.querySelector("#openRecentRecordsMain"),
-        openRecordsManagerMain = document.querySelector("#openRecordsManagerMain"),
+        startSelection = document.querySelector("#startSelection"),
         recentRecordsDialog = document.querySelector("#recentRecordsDialog"),
         recentRecordsList = document.querySelector("#recentRecordsList"),
         recentRecordsCount = document.querySelector("#recentRecordsCount"),
@@ -289,10 +290,8 @@ const profileDefaults = window.MGProfileDefaults;
         previousMonth = document.querySelector("#previousMonth"),
         nextMonth = document.querySelector("#nextMonth"),
         seriesScopeDialog = document.querySelector("#seriesScopeDialog"),
-        bulkDateDialog = document.querySelector("#bulkDateDialog"),
-        bulkDateForm = document.querySelector("#bulkDateForm"),
-        bulkDateInput = document.querySelector("#bulkDate"),
-        saveBulkDate = document.querySelector("#saveBulkDate"),
+        filterAllMonths = document.querySelector("#filterAllMonths"),
+        deleteInstallmentScope = document.querySelector("#deleteInstallmentScope"),
         saveEntry = document.querySelector("#saveEntry"),
         saveAndAddAnother = document.querySelector("#saveAndAddAnother"),
         optionDialog = document.querySelector("#optionDialog"),
@@ -403,19 +402,8 @@ const profileDefaults = window.MGProfileDefaults;
           return;
         }
 
-        if (e.target.closest("#editDateSelection")) {
-          openBulkDateDialog();
-          return;
-        }
-
-        if (e.target.closest("#markPaidSelection")) {
-          markSelectedAsPaid();
-          return;
-        }
-
-        if (e.target.closest("#markPendingSelection")) {
-          markSelectedAsPending();
-          return;
+        if (e.target.closest("#editSelection")) {
+          bulkEditDialog.open();
         }
       };
 
@@ -1780,6 +1768,7 @@ const profileDefaults = window.MGProfileDefaults;
       // no filter keeps hiding entries without being seen.
       function resetEntryFilters({ status = "", date = null } = {}) {
         document.querySelector("#filterSearch").value = "";
+        filterAllMonths.checked = false;
         filterFlow.value = "";
         filterPayment.value = "";
         filterType.value = "";
@@ -1802,6 +1791,14 @@ const profileDefaults = window.MGProfileDefaults;
             .join("");
 
         filterDescription.value = descriptions.includes(selected) ? selected : "";
+      }
+
+      // The records list shows the selected month or, with "Todos os meses",
+      // every record; the projection always uses the selected month.
+      function listedEntries() {
+        return filterAllMonths.checked
+          ? state.entries.filter((entry) => !entry.excluded_from_series)
+          : getMonthlyEntries(filterMonth.value);
       }
 
       function getMonthlyEntries(month) {
@@ -1963,6 +1960,7 @@ const profileDefaults = window.MGProfileDefaults;
         const selectedLabel = (select) => (select.value ? select.selectedOptions[0]?.textContent : null);
         const search = document.querySelector("#filterSearch").value.trim();
         const summary = entryFilters.activeFiltersSummary([
+          filterAllMonths.checked ? "Todos os meses" : null,
           search ? `Busca: “${search}”` : null,
           selectedLabel(filterFlow),
           selectedLabel(filterPayment),
@@ -2004,7 +2002,7 @@ const profileDefaults = window.MGProfileDefaults;
           return;
         }
         const month = filterMonth.value;
-        const hasMonthlyEntries = getMonthlyEntries(month).length > 0;
+        const hasMonthlyEntries = listedEntries().length > 0;
         const monthName = new Date(`${month}-01T12:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
         rows.innerHTML = hasMonthlyEntries
           ? '<div class="empty"><strong>Nenhum lançamento com estes filtros.</strong><p>Há registros neste mês. Ajuste a busca ou limpe os filtros para vê-los.</p><button class="secondary" type="button" data-empty-action="filters" aria-label="Limpar filtros dos lançamentos">Limpar filtros</button></div>'
@@ -2036,7 +2034,13 @@ const profileDefaults = window.MGProfileDefaults;
         const referenceDate = state.settings.balance_reference_date || todayISO();
         balanceReferenceSummary.textContent = `${new Date(`${todayISO()}T12:00`).toLocaleDateString("pt-BR")} · inclui pendências. Base: ${new Date(`${referenceDate}T12:00`).toLocaleDateString("pt-BR")}`;
 
-        const list = getFilteredEntries(monthly);
+        const list = getFilteredEntries(listedEntries());
+        // Only what is on screen can be selected: editing never reaches a
+        // record hidden by a filter or another month.
+        if (state.selectionMode) {
+          const listedIds = new Set(list.map((entry) => entry.id));
+          state.selectedEntries.forEach((id) => { if (!listedIds.has(id)) state.selectedEntries.delete(id); });
+        }
 
         updateCount(list);
         renderFilteredTotals(list);
@@ -2047,14 +2051,16 @@ const profileDefaults = window.MGProfileDefaults;
         if (activeAppView === "monthly") renderMonthlyCashFlow();
 
         panelTitle.textContent = state.selectionMode
-          ? `${state.selectedEntries.size} selecionado${state.selectedEntries.size > 1 ? "s" : ""}`
+          ? (state.selectedEntries.size
+            ? `${state.selectedEntries.size} selecionado${state.selectedEntries.size > 1 ? "s" : ""}`
+            : "Nenhum selecionado")
           : state.filterDate
             ? `Lançamentos de ${new Date(`${state.filterDate}T12:00`).toLocaleDateString("pt-BR")}`
             : "Lançamentos";
 
         count.style.display = state.selectionMode ? "none" : "";
         openRecentRecordsMain.hidden = state.selectionMode;
-        openRecordsManagerMain.hidden = state.selectionMode;
+        startSelection.disabled = list.length === 0;
         document.querySelector("#entryActions").hidden = state.selectionMode;
         dateFilterInfo.classList.toggle(
           "visible",
@@ -2064,126 +2070,22 @@ const profileDefaults = window.MGProfileDefaults;
           ? new Date(`${state.filterDate}T12:00`).toLocaleDateString("pt-BR")
           : "";
 
-        let hasPendingSelection = false;
-
-        if (state.selectionMode) {
-          hasPendingSelection = state.entries.some(
-            (entry) => state.selectedEntries.has(entry.id) && !entry.paid,
-          );
-        }
-
+        const selectedCount = state.selectedEntries.size;
+        const allListed = list.length > 0 && list.every((entry) => state.selectedEntries.has(entry.id));
         selectionActions.innerHTML = state.selectionMode
           ? `
-          <div class="selection-actions">
-
-              <button
-                  id="exitSelection"
-                  class="icon-button"
-                  type="button"
-                  aria-label="Cancelar seleção"
-                  title="Cancelar seleção">
-                  ←
-              </button>
-              ${
-                list.length === 0
-                  ? ""
-                  : list.every((entry) => state.selectedEntries.has(entry.id))
-                    ? `
-                              <button
-                                  id="selectAll"
-                                  class="icon-button"
-                                  type="button"
-                                  aria-label="Desmarcar todos os lançamentos"
-                                  title="Desmarcar todos">
-                                  ☒
-                              </button>
-                          `
-                    : `
-                              <button
-                                  id="selectAll"
-                                  class="icon-button"
-                                  type="button"
-                                  aria-label="Selecionar todos os lançamentos filtrados"
-                                  title="Selecionar todos">
-                                  ☑
-                              </button>
-                          `
-              }
-              <div class="selection-toolbar">
-
-                  ${
-                    hasPendingSelection
-                      ? `
-                      <button
-                          id="markPaidSelection"
-                          class="icon-button"
-                          type="button"
-                          aria-label="Marcar selecionados como pagos"
-                          title="Marcar como pago">
-                          ✔
-                      </button>
-                      `
-                      : `
-                      <button
-                          id="markPendingSelection"
-                          class="icon-button"
-                          type="button"
-                          aria-label="Marcar selecionados como pendentes"
-                          title="Marcar como pendente">
-                          ↺
-                      </button>
-                      `
-                  }
-
-                  <button
-                      id="editDateSelection"
-                      class="icon-button"
-                      type="button"
-                      aria-label="Alterar data dos selecionados"
-                      title="Alterar data dos selecionados">
-                      <svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M3 5h18v16H3zM16 3v4M8 3v4M3 10h18"/></svg>
-                  </button>
-
-                  <button
-                      id="deleteSelection"
-                      class="icon-button"
-                      type="button"
-                      aria-label="Excluir selecionados"
-                      title="Excluir selecionados">
-                      <svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2m-9 0 1 15h8l1-15M10 10v7m4-7v7"/></svg>
-                  </button>
-
-              </div>
-
+          <div class="selection-actions" role="toolbar" aria-label="Ações dos lançamentos selecionados">
+              <button id="exitSelection" class="secondary" type="button">Cancelar</button>
+              ${list.length ? `<button id="selectAll" class="secondary" type="button">${allListed ? "Desmarcar todos" : `Selecionar todos (${list.length})`}</button>` : ""}
+              <button id="editSelection" class="primary" type="button" ${selectedCount ? "" : "disabled"}>Editar</button>
+              <button id="deleteSelection" class="secondary danger" type="button" ${selectedCount ? "" : "disabled"}>Excluir</button>
           </div>
           `
           : "";
       }
 
-      async function setSelectedPaymentStatus(paid) {
-        const ids = new Set(state.selectedEntries);
-        const result = await financialMutation(() => {
-          let changed = 0;
-          for (const entry of state.entries) {
-            if (!ids.has(entry.id) || entry.paid === paid) continue;
-            entry.paid = paid;
-            queueUpsert(entry);
-            changed++;
-          }
-          return changed;
-        });
-        if (!result.ok) return;
-        exitSelectionMode();
-        show(result.value
-          ? `${result.value} lançamento(s) atualizado(s). ${pendingSyncMessage()}`
-          : "Os lançamentos selecionados já estavam nesse status.");
-      }
-
-      function markSelectedAsPaid() { return setSelectedPaymentStatus(true); }
-      function markSelectedAsPending() { return setSelectedPaymentStatus(false); }
-
       function selectAllFiltered() {
-        const list = getFilteredEntries(getMonthlyEntries(filterMonth.value));
+        const list = getFilteredEntries(listedEntries());
 
         const allSelected =
           list.length > 0 &&
@@ -2193,11 +2095,6 @@ const profileDefaults = window.MGProfileDefaults;
           list.forEach((entry) => {
             state.selectedEntries.delete(entry.id);
           });
-
-          if (state.selectedEntries.size === 0) {
-            exitSelectionMode();
-            return;
-          }
         } else {
           list.forEach((entry) => {
             state.selectedEntries.add(entry.id);
@@ -2224,36 +2121,6 @@ const profileDefaults = window.MGProfileDefaults;
         endDate.setCustomValidity(formRules.endDateError({
           recurring: isRecurringValue(), endMode: endMode.value, endDate: endDate.value, startDate: dateInput.value,
         }));
-      }
-
-      function openBulkDateDialog() {
-        if (state.selectedEntries.size === 0) return;
-        bulkDateInput.value = todayISO();
-        bulkDateDialog.showModal();
-        bulkDateInput.focus();
-      }
-
-      async function changeSelectedDate(newDate) {
-        const ids = new Set(state.selectedEntries);
-        const result = await financialMutation(() => {
-          let changed = 0;
-          for (const entry of state.entries) {
-            if (!ids.has(entry.id) || entry.date === newDate) continue;
-            entry.date = newDate;
-            if (entry.series_id) entry.detached_from_series = true;
-            queueUpsert(entry);
-            changed++;
-          }
-          return changed;
-        });
-        if (!result.ok) return;
-        bulkDateDialog.close();
-        exitSelectionMode();
-        show(
-          result.value === 0
-            ? "Os lançamentos selecionados já estavam nessa data."
-            : `Data de ${result.value} lançamento(s) alterada. ${pendingSyncMessage()}`,
-        );
       }
 
       function updateRecurrenceSummary() {
@@ -2774,10 +2641,10 @@ const profileDefaults = window.MGProfileDefaults;
         }, action ? 5000 : 2400);
       }
 
-      function enterSelectionMode(id) {
+      function enterSelectionMode(id = null) {
         state.selectionMode = true;
         state.selectedEntries.clear();
-        state.selectedEntries.add(id);
+        if (id) state.selectedEntries.add(id);
 
         render();
       }
@@ -2795,11 +2662,6 @@ const profileDefaults = window.MGProfileDefaults;
           state.selectedEntries.delete(id);
         } else {
           state.selectedEntries.add(id);
-        }
-
-        if (state.selectedEntries.size === 0) {
-          exitSelectionMode();
-          return;
         }
 
         render();
@@ -3326,12 +3188,20 @@ const profileDefaults = window.MGProfileDefaults;
         if (deleteConfirmDialog.open) deleteConfirmDialog.close();
       }
 
-      function requestDeleteConfirmation({ title, description, entryLabel, confirmLabel = "Excluir", onConfirm }) {
+      function requestDeleteConfirmation({ title, description, entryLabel, confirmLabel = "Excluir", onConfirm, installmentChoice = null, wholePurchaseConfirmLabel = confirmLabel }) {
         pendingDeletionAction = onConfirm;
         deleteConfirmTitle.textContent = title;
         deleteConfirmDescription.textContent = description;
         deleteConfirmEntry.textContent = entryLabel;
         confirmDelete.textContent = confirmLabel;
+        deleteInstallmentScope.hidden = !installmentChoice;
+        deleteInstallmentScope.querySelector('[value="selected"]').checked = true;
+        // The button says how many records go away with the chosen scope.
+        deleteInstallmentScope.onchange = () => {
+          const wholePurchase = deleteInstallmentScope.querySelector('[value="purchase"]').checked;
+          confirmDelete.textContent = wholePurchase ? wholePurchaseConfirmLabel : confirmLabel;
+        };
+        if (installmentChoice) document.querySelector("#deleteWholePurchaseLabel").textContent = installmentChoice;
         deleteConfirmDialog.showModal();
       }
 
@@ -3458,38 +3328,37 @@ const profileDefaults = window.MGProfileDefaults;
         });
       }
 
-      async function performDeleteSelectedEntries(selectedIds) {
+      async function performDeleteSelectedEntries(selectedIds, { wholePurchase = false } = {}) {
+        const plan = bulkEdit.planDelete(state.entries, selectedIds, { wholePurchase });
+        const affectedIds = new Set([...plan.deleteIds, ...plan.excludeIds]);
         const snapshots = state.entries
           .map((entry, index) => ({ entry: structuredClone(entry), index }))
-          .filter(({ entry }) => selectedIds.has(entry.id));
+          .filter(({ entry }) => affectedIds.has(entry.id));
         const deletionSession = state.user;
         const result = await financialMutation(() => {
-        state.entries = state.entries.filter(
-          (entry) => !selectedIds.has(entry.id) || Boolean(entry.series_id),
-        );
-        snapshots.forEach(({ entry }) => {
-          const currentEntry = state.entries.find((item) => item.id === entry.id);
-          if (entry.series_id && currentEntry) {
-            currentEntry.detached_from_series = true;
-            currentEntry.excluded_from_series = true;
-            queueUpsert(currentEntry);
-          } else {
-            queueDelete(entry.id, entry.updated_at);
-          }
-        });
-
+          state.entries = state.entries.filter((entry) => !plan.deleteIds.has(entry.id));
+          snapshots.forEach(({ entry }) => {
+            if (plan.excludeIds.has(entry.id)) {
+              const currentEntry = state.entries.find((item) => item.id === entry.id);
+              currentEntry.detached_from_series = true;
+              currentEntry.excluded_from_series = true;
+              queueUpsert(currentEntry);
+            } else {
+              queueDelete(entry.id, entry.updated_at);
+            }
+          });
         });
         if (!result.ok) return;
-        const deletedState = structuredClone(state.entries.filter((item) => selectedIds.has(item.id)));
+        const deletedState = structuredClone(state.entries.filter((item) => affectedIds.has(item.id)));
         exitSelectionMode();
-        const total = snapshots.length;
+        const total = plan.total;
         show(
           `${total} lançamento${total > 1 ? "s" : ""} excluído${total > 1 ? "s" : ""}.`,
           {
             label: "Desfazer",
             onClick: async () => {
               if (state.user !== deletionSession) return;
-              if (JSON.stringify(state.entries.filter((item) => selectedIds.has(item.id))) !== JSON.stringify(deletedState)) {
+              if (JSON.stringify(state.entries.filter((item) => affectedIds.has(item.id))) !== JSON.stringify(deletedState)) {
                 show("Exclusão não desfeita: os registros mudaram. Confira os dados atuais.");
                 return;
               }
@@ -3512,18 +3381,23 @@ const profileDefaults = window.MGProfileDefaults;
 
       function deleteSelectedEntries() {
         const selectedIds = new Set(state.selectedEntries);
-        const total = selectedIds.size;
-
-        if (total === 0) {
-          exitSelectionMode();
-          return;
-        }
+        const plan = bulkEdit.planDelete(state.entries, selectedIds);
+        if (plan.total === 0) return;
+        const details = [
+          plan.counts.single ? `${plan.counts.single} avulso${plan.counts.single > 1 ? "s" : ""}` : null,
+          plan.counts.installment ? `${plan.counts.installment} parcela${plan.counts.installment > 1 ? "s" : ""}` : null,
+          plan.counts.occurrence ? `${plan.counts.occurrence} ocorrência${plan.counts.occurrence > 1 ? "s" : ""} de recorrência (a série continua)` : null,
+        ].filter(Boolean).join(" · ");
         requestDeleteConfirmation({
-          title: `Excluir ${total} lançamento${total > 1 ? "s" : ""}?`,
+          title: `Excluir ${plan.total} lançamento${plan.total > 1 ? "s" : ""}?`,
           description: "Os itens selecionados serão removidos da lista.",
-          entryLabel: `${total} lançamento${total > 1 ? "s selecionados" : " selecionado"}`,
-          confirmLabel: `Excluir ${total}`,
-          onConfirm: () => performDeleteSelectedEntries(selectedIds),
+          entryLabel: details,
+          confirmLabel: `Excluir ${plan.total}`,
+          wholePurchaseConfirmLabel: `Excluir ${bulkEdit.planDelete(state.entries, selectedIds, { wholePurchase: true }).total}`,
+          installmentChoice: plan.purchaseCount
+            ? `A compra inteira (${plan.purchaseInstallments} parcela${plan.purchaseInstallments > 1 ? "s" : ""}${plan.purchaseCount > 1 ? ` de ${plan.purchaseCount} compras` : ""})`
+            : null,
+          onConfirm: (options) => performDeleteSelectedEntries(selectedIds, options),
         });
       }
       function fillForm(entry) {
@@ -3724,18 +3598,11 @@ const profileDefaults = window.MGProfileDefaults;
         });
         if (added) show(`Descrição “${added}” adicionada às opções de ${selectedType}.`);
       };
-      openRecentRecordsMain.onclick = () => {
-        document.querySelector("#entryActions").open = false;
-        openRecentRecordsDialog(false);
-      };
-      openRecordsManagerMain.onclick = () => {
-        document.querySelector("#entryActions").open = false;
-        recordsManager.open();
-      };
-      const recordsManager = window.MGRecordsManager.create({
-        state, domain, esc, money, fill, sortedOptions, entryTypeOptions, entryDescriptionOptions, confirmDialog,
-        financialMutation, queueUpsert, render, show, pendingSyncMessage, editEntry,
-        closeSettings: () => { if (settingsDialog.open) settingsDialog.close(); },
+      openRecentRecordsMain.onclick = () => openRecentRecordsDialog(false);
+      startSelection.onclick = () => enterSelectionMode();
+      const bulkEditDialog = window.MGBulkEditDialog.create({
+        state, domain, bulkEdit, fill, entryTypeOptions, entryDescriptionOptions, confirmDialog,
+        financialMutation, queueUpsert, render, show, pendingSyncMessage, exitSelectionMode,
       });
       loadMoreRecentRecords.onclick = async () => {
         loadMoreRecentRecords.disabled = true;
@@ -3794,23 +3661,6 @@ const profileDefaults = window.MGProfileDefaults;
       document
         .querySelectorAll("[data-close-series-scope]")
         .forEach((button) => (button.onclick = () => seriesScopeDialog.close()));
-      document
-        .querySelectorAll("[data-close-bulk-date]")
-        .forEach((button) => (button.onclick = () => bulkDateDialog.close()));
-      bulkDateForm.onsubmit = async (event) => {
-        event.preventDefault();
-        if (!bulkDateForm.reportValidity()) return;
-        saveBulkDate.disabled = true;
-        saveBulkDate.setAttribute("aria-busy", "true");
-        saveBulkDate.textContent = "Alterando…";
-        try {
-          await changeSelectedDate(bulkDateInput.value);
-        } finally {
-          saveBulkDate.disabled = false;
-          saveBulkDate.removeAttribute("aria-busy");
-          saveBulkDate.textContent = "Alterar data";
-        }
-      };
       seriesScopeDialog.onclick = async (event) => {
         const button = event.target.closest("[data-series-delete-scope]");
         if (!button) return;
@@ -3868,16 +3718,11 @@ const profileDefaults = window.MGProfileDefaults;
         control.oninput = updateEntryFormValidity;
       });
 
-      document.querySelector("#filterSearch").addEventListener("input", () => {
-        state.selectedEntries.clear();
-        state.selectionMode = false;
-        render();
-      });
-      [filterMonth, filterFlow, filterPayment, filterType, filterDescription, filterStatus].forEach((control) => {
+      // Filters keep the selection mode; render() drops whatever leaves the list.
+      document.querySelector("#filterSearch").addEventListener("input", () => render());
+      [filterMonth, filterAllMonths, filterFlow, filterPayment, filterType, filterDescription, filterStatus].forEach((control) => {
         control.onchange = () => {
           if (control === filterMonth) state.filterDate = null;
-          state.selectedEntries.clear();
-          state.selectionMode = false;
           render();
         };
       });
@@ -3887,8 +3732,6 @@ const profileDefaults = window.MGProfileDefaults;
         const next = new Date(year, month - 1 + offset, 1, 12);
         filterMonth.value = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
         state.filterDate = null;
-        state.selectedEntries.clear();
-        state.selectionMode = false;
         render();
       }
 
@@ -3927,8 +3770,10 @@ const profileDefaults = window.MGProfileDefaults;
         confirmDelete.disabled = true;
         confirmDelete.setAttribute("aria-busy", "true");
         deleteConfirmDialog.close();
+        const wholePurchase = !deleteInstallmentScope.hidden
+          && deleteInstallmentScope.querySelector('[value="purchase"]').checked;
         try {
-          await action();
+          await action({ wholePurchase });
         } finally {
           confirmDelete.disabled = false;
           confirmDelete.removeAttribute("aria-busy");

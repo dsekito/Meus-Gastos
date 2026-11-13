@@ -91,7 +91,11 @@ const scenarios = {
 
   async deleteCanBeUndone(browser) {
     const { page, errors } = await open(browser, { settings: settled, entries: [entry({ description: 'ALUGUEL' }), entry({ description: 'CONDOMÍNIO' })] });
-    await card(page, 'CONDOMÍNIO').locator('.entry-menu').click();
+    // Scroll first, as a person does: the app closes the menu when the page scrolls.
+    const menuButton = card(page, 'CONDOMÍNIO').locator('.entry-menu');
+    await menuButton.scrollIntoViewIfNeeded();
+    await page.evaluate(() => new Promise(requestAnimationFrame));
+    await menuButton.click();
     await page.locator('#contextMenu [data-action="delete"]').click();
     await page.locator('#confirmDelete').click();
     await page.waitForFunction(() => /Lançamento excluído/.test(document.querySelector('#toast').textContent));
@@ -103,32 +107,102 @@ const scenarios = {
     return { page, errors };
   },
 
-  async recordsManagerBulkEdit(browser) {
-    const { page, errors } = await open(browser, { settings: settled, entries: [
-      entry({ description: 'ALUGUEL' }), entry({ description: 'CONDOMÍNIO' }), entry({ type: 'LAZER', description: 'CINEMA' })] });
-    await page.locator('#entryActions > summary').click();
-    await page.locator('#openRecordsManagerMain').click();
-    await page.locator('#recordsManagerDialog[open]').waitFor();
-    assert.equal(await page.locator('[data-manager-select]').count(), 3);
-    await page.locator('.manager-filters > summary').click();
-    await page.locator('#managerFilterType').selectOption('MORADIA');
-    assert.equal(await page.locator('[data-manager-select]').count(), 2);
-    await page.locator('#managerSelectAll').click();
-    assert.match(await page.locator('#managerSelectionSummary').innerText(), /2 selecionados/);
-    await page.locator('#managerToggleBulk').click();
-    await page.locator('#managerMarkPaid').click();
+  async bulkEditFromSelection(browser) {
+    const purchase = [1, 2, 3].map(current => entry({ type: 'COMPRAS', description: 'CASA', value: 50,
+      date: dayOffset(30 * (current - 1)), installment_group_id: 'compra-casa', installment: { current, total: 3, original: 150 } }));
+    const occurrence = entry({ type: 'ASSINATURAS', description: 'STREAMING', value: 40, series_id: 'serie-teste',
+      scheduled_date: today, detached_from_series: false, excluded_from_series: false });
+    const { page, errors } = await open(browser, { settings: settled,
+      recurrenceSeries: [{ id: 'serie-teste', frequency: 'monthly', interval_value: 1, start_date: today, end_mode: 'never',
+        value: 40, type: 'ASSINATURAS', description: 'STREAMING', flow_type: 'expense', active: false }],
+      entries: [entry({ description: 'ALUGUEL' }), entry({ description: 'CONDOMÍNIO' }), entry({ type: 'LAZER', description: 'CINEMA' }), ...purchase, occurrence] });
+    const byDescription = async description => (await stored(page)).entries.filter(e => e.description === description);
+    const confirmText = () => page.locator('#confirmDialog[open]').innerText();
+
+    // The selection starts from a visible button; with nothing selected, Edit and Delete wait.
+    await page.getByRole('button', { name: 'Selecionar lançamentos para editar ou excluir em lote' }).click();
+    assert.equal(await page.locator('#panelTitle').innerText(), 'Nenhum selecionado');
+    assert.equal(await page.locator('#editSelection').isDisabled(), true);
+    assert.equal(await page.locator('#deleteSelection').isDisabled(), true);
+
+    // Single entries: status for the filtered selection, then undo.
+    await page.locator('.filter-disclosure > summary').click();
+    await page.locator('#filterType').selectOption('MORADIA');
+    await page.locator('#selectAll').click();
+    assert.equal(await page.locator('#panelTitle').innerText(), '2 selecionados');
+    await page.locator('#editSelection').click();
+    await page.locator('#bulkEditDialog[open]').waitFor();
+    assert.equal(await page.locator('#bulkEditTitle').innerText(), 'Editar 2 selecionados');
+    await page.locator('#reviewBulkEdit').click();
+    assert.match(await page.locator('#bulkEditError').innerText(), /Escolha pelo menos uma alteração/);
+    await page.locator('#bulkStatus').selectOption('paid');
+    await page.locator('#reviewBulkEdit').click();
+    assert.match(await confirmText(), /Status: Pago ou recebido/);
+    assert.match(await confirmText(), /2 lançamentos avulsos/);
     await page.locator('#confirmDialog[open] [data-confirm-accept]').click();
-    await page.waitForFunction(() => /2 registro\(s\) atualizado/.test(document.querySelector('#toast').textContent));
-    let entries = (await stored(page)).entries;
-    assert.deepEqual(entries.map(e => e.paid), [true, true, false]);
-    // Selection is cleared after applying; select again to change the type.
-    await page.locator('#managerSelectAll').click();
-    await page.locator('#managerBulkType').selectOption('OUTROS');
-    await page.locator('#managerApplyChanges').click();
+    await page.waitForFunction(() => /2 registros atualizados/.test(document.querySelector('#toast').textContent));
+    assert.deepEqual((await stored(page)).entries.filter(e => e.type === 'MORADIA').map(e => e.paid), [true, true]);
+    assert.equal((await byDescription('CINEMA'))[0].paid, false, 'records outside the selection are untouched');
+    assert.equal(await page.locator('#startSelection').isVisible(), true, 'selection ends after applying');
+    await toast(page).getByRole('button', { name: 'Desfazer' }).click();
+    await page.waitForFunction(() => /desfeita/.test(document.querySelector('#toast').textContent));
+    assert.deepEqual((await stored(page)).entries.filter(e => e.type === 'MORADIA').map(e => e.paid), [false, false]);
+
+    // Installments: the type changes on every installment of the purchase; the status only on the selected one.
+    await page.locator('#clearEntryFilters').click();
+    assert.equal(await page.locator('.filter-disclosure').evaluate(details => details.open), true, 'filters stay open after clearing');
+    await page.locator('#filterAllMonths').check();
+    assert.match(await page.locator('#activeFiltersSummary').innerText(), /Todos os meses/);
+    await page.locator('#startSelection').click();
+    await card(page, 'CASA').nth(1).click();
+    await page.locator('#editSelection').click();
+    await page.locator('#bulkStatus').selectOption('paid');
+    await page.locator('#bulkType').selectOption('LAZER');
+    await page.locator('#bulkDescription').selectOption('PASSEIOS');
+    await page.locator('#reviewBulkEdit').click();
+    assert.match(await confirmText(), /1 parcela de “CASA”: status e data mudam só nas selecionadas; tipo, descrição e forma de pagamento mudam nas 3 parcelas da compra/);
     await page.locator('#confirmDialog[open] [data-confirm-accept]').click();
-    await page.waitForFunction(async () => (await MGLocalStore.load('behavior-test', { observe: false })).entries.filter(e => e.type === 'OUTROS').length === 2);
-    entries = (await stored(page)).entries;
-    assert.equal(entries.find(e => e.description === 'CINEMA').type, 'LAZER', 'records outside the selection are untouched');
+    await page.waitForFunction(() => /3 registros atualizados/.test(document.querySelector('#toast').textContent));
+    const installments = (await stored(page)).entries.filter(e => e.installment_group_id === 'compra-casa').sort((a, b) => a.installment.current - b.installment.current);
+    assert.deepEqual(installments.map(e => [e.type, e.description, e.paid]), [['LAZER', 'PASSEIOS', false], ['LAZER', 'PASSEIOS', true], ['LAZER', 'PASSEIOS', false]]);
+
+    // Occurrences: a date change turns the selected occurrence into an exception.
+    await page.locator('#startSelection').click();
+    await card(page, 'STREAMING').click();
+    await page.locator('#editSelection').click();
+    await page.locator('#bulkDate').fill(dayOffset(1));
+    await page.locator('#reviewBulkEdit').click();
+    assert.match(await confirmText(), /1 ocorrência de recorrência: vira exceção da série/);
+    await page.locator('#confirmDialog[open] [data-confirm-accept]').click();
+    await page.waitForFunction(() => /1 registro atualizado/.test(document.querySelector('#toast').textContent));
+    const [movedOccurrence] = await byDescription('STREAMING');
+    assert.equal(movedOccurrence.date, dayOffset(1));
+    assert.equal(movedOccurrence.detached_from_series, true);
+
+    // Delete: one installment or the whole purchase, chosen in the confirmation; undo brings all back.
+    await page.locator('#startSelection').click();
+    await card(page, 'PASSEIOS').first().click();
+    await page.locator('#deleteSelection').click();
+    await page.locator('#deleteConfirmDialog[open]').waitFor();
+    assert.equal(await page.locator('#deleteInstallmentScope').isVisible(), true);
+    assert.equal(await page.locator('#confirmDelete').innerText(), 'Excluir 1');
+    await page.getByLabel('A compra inteira (3 parcelas)').check();
+    assert.equal(await page.locator('#confirmDelete').innerText(), 'Excluir 3', 'the button counts the whole purchase');
+    await page.locator('#confirmDelete').click();
+    await page.waitForFunction(() => /3 lançamentos excluídos/.test(document.querySelector('#toast').textContent));
+    assert.equal((await byDescription('PASSEIOS')).length, 0);
+    await toast(page).getByRole('button', { name: 'Desfazer' }).click();
+    await page.waitForFunction(() => /Exclusão desfeita/.test(document.querySelector('#toast').textContent));
+    assert.equal((await byDescription('PASSEIOS')).length, 3);
+
+    // Deleting single entries does not ask about installments.
+    await page.locator('#startSelection').click();
+    await card(page, 'CINEMA').click();
+    await page.locator('#deleteSelection').click();
+    await page.locator('#deleteConfirmDialog[open]').waitFor();
+    assert.equal(await page.locator('#deleteInstallmentScope').isVisible(), false);
+    await page.locator('#deleteConfirmDialog [data-close-delete-confirm]').first().click();
+    await page.locator('#exitSelection').click();
     return { page, errors };
   },
 

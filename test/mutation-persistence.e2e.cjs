@@ -62,15 +62,14 @@ const cases={
     await page.locator('#saveEntry').click();await page.waitForFunction(()=>!document.querySelector('#entryDialog').open);
     const after=await snapshot(page);assert.equal(after.disk.entries.length,1);assert.equal(after.disk.entries[0].id,id);assert.equal(after.disk.entries[0].value,75);
   },
-  async 'bulk-date-abort'(page){
-    await page.evaluate(id=>{enterSelectionMode(id);openBulkDateDialog();},id);const before=await snapshot(page);await abortNextPut(page);await page.evaluate(()=>changeSelectedDate('2026-11-20'));
-    const after=await snapshot(page);assert.deepEqual(after.entries,before.entries);assert.deepEqual(after.syncQueue,before.syncQueue);assert.match(after.toast,/não salva/i);assert.equal(await page.evaluate(()=>bulkDateDialog.open),true);
-  },
-  async 'manager-abort'(page){
-    await page.locator('.app-navigation [data-app-destination="records"]').click();await page.locator('#entryActions > summary').click();await page.locator('#openRecordsManagerMain').click();await page.locator('#recordsManagerDialog[open]').waitFor();
-    const checkbox=page.locator(`[data-manager-select="${id}"]`);await checkbox.check();await page.locator('#managerToggleBulk').click();
-    const before=await snapshot(page);await abortNextPut(page);await page.locator('#managerMarkPaid').click();await page.locator('#confirmDialog[open] [data-confirm-accept]').click();await page.waitForFunction(()=>/não salva/i.test(document.querySelector('#toast').textContent));
-    const after=await snapshot(page);assert.deepEqual(after.entries,before.entries);assert.deepEqual(after.syncQueue,before.syncQueue);assert.match(after.toast,/não salva/i);assert.equal(await checkbox.isChecked(),true,'selection survives a failed save');
+  async 'bulk-edit-abort'(page){
+    await page.locator('.app-navigation [data-app-destination="records"]').click();await page.locator('#startSelection').click();await page.locator(`[data-entry="${id}"]`).click();
+    await page.locator('#editSelection').click();await page.locator('#bulkEditDialog[open]').waitFor();
+    await page.locator('#bulkStatus').selectOption('paid');await page.locator('#bulkDate').fill('2026-11-20');
+    const before=await snapshot(page);await abortNextPut(page);await page.locator('#reviewBulkEdit').click();await page.locator('#confirmDialog[open] [data-confirm-accept]').click();await page.waitForFunction(()=>/não salva/i.test(document.querySelector('#toast').textContent));
+    const after=await snapshot(page);assert.deepEqual(after.entries,before.entries);assert.deepEqual(after.syncQueue,before.syncQueue);assert.match(after.toast,/não salva/i);
+    assert.equal(await page.evaluate(()=>document.querySelector('#bulkEditDialog').open),true,'the dialog stays open with the choices');assert.equal(await page.locator('#bulkStatus').inputValue(),'paid');
+    assert.equal(await page.evaluate(id=>state.selectedEntries.has(id),id),true,'selection survives a failed save');
   },
   async 'recovery-conversion-keeps-local-only'(page){
     await page.evaluate(async id=>{const entry=state.entries[0];entry.import_local_only=true;queueUpsert(entry);await saveLocal();state.activeEntry=id;editEntry();recurrence.value='installments';installments.value='3';updateEntryFormVisibility();},id);
@@ -111,7 +110,7 @@ const cases={
         this.transaction.abort();return request;
       };
     },id);
-    await page.evaluate(()=>markSelectedAsPaid());
+    await page.evaluate(()=>bulkEditDialog.commit(new Set(state.selectedEntries),{paid:true}));
     await page.evaluate(()=>window.__overlappingStatus);
     const after=await snapshot(page);
     assert.equal(after.entries.find(e=>e.id===id).paid,false);
@@ -121,7 +120,7 @@ const cases={
     assert.match(after.toast,/não salva/i);
   },
   async 'bulk-status-abort'(page){
-    await page.evaluate(id=>enterSelectionMode(id),id);const before=await snapshot(page);await abortNextPut(page);await page.evaluate(()=>markSelectedAsPaid());await page.waitForTimeout(150);
+    await page.evaluate(id=>enterSelectionMode(id),id);const before=await snapshot(page);await abortNextPut(page);await page.evaluate(()=>bulkEditDialog.commit(new Set(state.selectedEntries),{paid:true}));await page.waitForTimeout(150);
     const after=await snapshot(page);assert.deepEqual(after.entries,before.entries,'bulk status must roll back');assert.deepEqual(after.syncQueue,before.syncQueue);assert.match(after.toast,/não salva/i);assert.equal(await page.evaluate(id=>state.selectedEntries.has(id),id),true);
   },
 };

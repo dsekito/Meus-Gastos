@@ -44,9 +44,9 @@ ficam em `domain.js`; a interface monta o restante a partir de módulos por assu
 - `entry-form-rules.js`: validação, resumo da recorrência e prévia das parcelas do formulário.
 - `projection-view.js` e `monthly-view.js`: marcação da Projeção e do consolidado Mensal.
 - `sync-status-view.js`: o que o status e o aviso de sincronização dizem em cada situação.
-- `records-manager.js`: o diálogo “Gerenciar registros” e a edição em lote.
 - `credit-cards.js`: cadastro de cartões e a data sugerida pela forma de pagamento.
 - `entry-filters.js`: quais lançamentos passam nos filtros dos registros, as opções de forma de pagamento e os totais exibidos.
+- `bulk-edit.js`: regras da edição e da exclusão em lote (o que muda em avulsos, parcelas e recorrências); `bulk-edit-dialog.js`: o diálogo “Editar selecionados”.
 - `app.js`: estado da sessão, navegação, formulário e a ligação entre os módulos.
 
 ## Estrutura de dados
@@ -213,6 +213,29 @@ Versões anteriores do app ignoram esses campos e os descartam ao gravar: um
 aparelho ainda não atualizado pode apagar a lista de cartões ao salvar a
 projeção e tirar o cartão de um lançamento que editar. Atualize a interface em
 todos os aparelhos ao começar a usar cartões.
+
+## Edição em lote
+
+Em **Registros**, o botão **Selecionar** (ou um toque longo num registro) abre a
+seleção. Só o que está na lista pode ficar selecionado: os filtros valem, e
+**Filtrar > Todos os meses** mostra registros de qualquer mês. A barra de seleção
+oferece **Selecionar todos**, **Editar**, **Excluir** e **Cancelar**.
+
+**Editar** abre um formulário em que cada campo começa em “Não alterar”: status,
+data, tipo, descrição e forma de pagamento (esta só nas despesas). Antes de
+aplicar, a confirmação mostra o que muda em cada tipo de registro; depois,
+aparece **Desfazer**.
+
+| Registro | Status e data | Tipo, descrição e forma de pagamento |
+|---|---|---|
+| Avulso | Só nos selecionados | Só nos selecionados |
+| Parcela | Só nas parcelas selecionadas | Em todas as parcelas da compra |
+| Ocorrência de recorrência | Só nas selecionadas; mudar a data a torna exceção da série | Só nas selecionadas, que viram exceções; as próximas continuam como estavam |
+
+O valor não muda em lote. **Excluir** pergunta, quando há parcelas, se apaga só
+as selecionadas ou a compra inteira, e o botão mostra quantos registros saem.
+Ocorrências de recorrência excluídas saem da série, que continua gerando as
+próximas.
 
 ## Instalação
 

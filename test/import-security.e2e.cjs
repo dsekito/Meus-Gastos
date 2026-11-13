@@ -75,15 +75,14 @@ async function snapshot(page) {
           await page.getByRole('button',{name:'Registros',exact:true}).click();
           assert.equal(await page.locator('.dense-entry').getAttribute('data-entry'),scenario.seed.id);
           assert.equal(await page.locator('[data-audit-injected]').count(),0,'existing IDs must not create attributes in record/status/menu markup');
-          await page.locator('#entryActions > summary').click();
           await page.locator('#openRecentRecordsMain').click();
           assert.equal(await page.locator('[data-edit-recent]').getAttribute('data-edit-recent'),scenario.seed.id);
           assert.equal(await page.locator('[data-audit-injected]').count(),0,'history renderer must escape existing IDs');
           await page.keyboard.press('Escape');
-          if(!await page.locator('#openRecordsManagerMain').isVisible())await page.locator('#entryActions > summary').click();
-          await page.locator('#openRecordsManagerMain').click();
-          assert.equal(await page.locator('[data-manager-select]').getAttribute('data-manager-select'),scenario.seed.id);
-          assert.equal(await page.locator('[data-audit-injected]').count(),0,'manager renderers must escape existing IDs');
+          await page.locator('#startSelection').click();
+          await page.locator('#selectAll').click();
+          assert.equal(await page.locator('.dense-entry[aria-pressed="true"]').getAttribute('data-entry'),scenario.seed.id);
+          assert.equal(await page.locator('[data-audit-injected]').count(),0,'selection renderers must escape existing IDs');
         } else {
         await page.locator('[data-app-destination="settings"]').click();
         await page.locator('[data-settings-topic="data"]').click();

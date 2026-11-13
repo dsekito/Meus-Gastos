@@ -95,7 +95,7 @@ const fs = require('node:fs');
       await page.locator('#entryAdvanced > summary').click();
       await page.locator('#recurrence').selectOption('custom');
       await page.locator('#endMode').selectOption('on_date');
-      const dialogIds = ['entryDialog', 'settingsDialog', 'recordsManagerDialog', 'recentRecordsDialog', 'deleteConfirmDialog', 'seriesScopeDialog', 'syncConflictDialog', 'bulkDateDialog', 'onboardingDialog', 'optionDialog'];
+      const dialogIds = ['entryDialog', 'settingsDialog', 'recentRecordsDialog', 'deleteConfirmDialog', 'seriesScopeDialog', 'syncConflictDialog', 'bulkEditDialog', 'onboardingDialog', 'optionDialog'];
       for (const id of dialogIds) {
         if (id !== 'entryDialog') await page.evaluate(id => document.getElementById(id).showModal(), id);
         const result = await page.evaluate(async id => {

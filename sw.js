@@ -1,9 +1,9 @@
-const CACHE_NAME = "meus-gastos-v53";
+const CACHE_NAME = "meus-gastos-v54";
 const NAVIGATION_TIMEOUT_MS = 3000;
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./mobile.css?v=2026111312",
+  "./mobile.css?v=2026111313",
   "./manifest.webmanifest",
   "./icons/app-icon.svg",
   "./icons/app-icon-192.png",
@@ -20,14 +20,15 @@ const APP_SHELL = [
   "./js/google-drive-repository.js?v=2026111201",
   "./js/sync-service.js?v=2026111102",
   "./js/sync-status-view.js?v=2026111306",
-  "./js/records-manager.js?v=2026111306",
   "./js/credit-cards.js?v=2026111310",
   "./js/entry-filters.js?v=2026111311",
+  "./js/bulk-edit.js?v=2026111313",
+  "./js/bulk-edit-dialog.js?v=2026111313",
   "./js/confirm-dialog.js?v=2026111301",
   "./js/app-update.js?v=2026111201",
   "./js/projection-view.js?v=2026111303",
   "./js/monthly-view.js?v=2026111306",
-  "./js/app.js?v=2026111312",
+  "./js/app.js?v=2026111313",
 ];
 
 self.addEventListener("install", (event) => {

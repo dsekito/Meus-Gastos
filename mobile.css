@@ -50,7 +50,6 @@ body { margin: 0px; background: var(--bg); color: var(--ink); font-family: Inter
 .sync-notice p { margin: 0px; color: var(--muted); font-size: 14px; line-height: 1.45; }
 .sync-notice button { flex-shrink: 0; }
 .selection-actions { display: flex; align-items: center; gap: 8px; }
-.selection-toolbar { display: flex; align-items: center; gap: 6px; }
 .status-button { border-style: none; border-color: currentcolor; background-color: initial; border-radius: 10px; transition: background 0.15s, opacity 0.15s; }
 .status-button:disabled { cursor: wait; opacity: 0.72; }
 .status-button:not(:disabled):active { background: rgba(20, 92, 68, 0.1); transform: scale(0.97); }
@@ -215,17 +214,6 @@ dialog::backdrop { background: rgba(24, 51, 42, 0.55); backdrop-filter: blur(3px
 .option-manager-copy p { margin-top: 0px; }
 .option-manager-row { display: grid; gap: 10px; align-items: end; }
 .option-manager-row button { min-width: 122px; }
-.records-manager-list { display: grid; overscroll-behavior: contain; }
-.managed-record { display: grid; grid-template-columns: auto minmax(0px, 1fr) auto; gap: 10px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
-.managed-record strong, .managed-record small { display: block; overflow: hidden; text-overflow: ellipsis; }
-.managed-record small { margin-top: 3px; color: var(--muted); }
-.manager-filters { margin: 0px 22px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
-.manager-filters summary { display: flex; align-items: center; padding-right: 14px; padding-left: 14px; font-weight: 700; }
-.manager-filters[open] summary { border-bottom: 1px solid var(--line); }
-.manager-selection-bar { display: flex; align-items: center; }
-.manager-selection-bar span { flex: 1 1 0%; color: var(--muted); font-size: 14px; }
-.manager-bulk-editor { display: none; gap: 10px; padding: 12px 22px; border-top: 1px solid var(--line); background: var(--soft); }
-.manager-bulk-editor.visible { display: grid; }
 .recent-records-list { display: grid; overscroll-behavior: contain; }
 .recent-record { display: grid; gap: 8px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
 .recent-record-head, .recent-record-meta { display: flex; justify-content: space-between; }
@@ -287,17 +275,15 @@ body { min-height: 100svh; }
   .filters > .filter-field { min-width: 0px; flex-basis: 100%; }
   .entry.dense-entry { min-width: 0px; }
   .dense-entry .entry-value { flex-shrink: 0; }
-  dialog:not(#settingsDialog):not(#recordsManagerDialog) { width: calc(100% - 32px); max-width: 420px; }
+  dialog:not(#settingsDialog) { width: calc(100% - 32px); max-width: 420px; }
   dialog .modal { max-width: 100%; }
   .modal-head h2 { overflow-wrap: anywhere; }
   .modal .form-grid { scrollbar-gutter: stable; }
   .modal .field, .modal .field.wide, .recurrence-fields, .recurrence-summary { grid-column: 1; min-width: 0px; }
   .modal label, .filter-field label { line-height: 1.35; }
-  #settingsDialog .modal-head, #recordsManagerDialog .modal-head { padding-top: max(16px, env(safe-area-inset-top)); }
+  #settingsDialog .modal-head { padding-top: max(16px, env(safe-area-inset-top)); }
   #settingsDialog .settings-group, #settingsDialog .option-manager-card, #settingsDialog .backup-actions { padding: 14px; }
   .option-manager-row button, .backup-actions button { width: 100%; }
-  .manager-selection-bar { align-items: stretch; }
-  .manager-selection-bar button { min-width: 0px; }
   .recent-record-head { align-items: flex-start; flex-direction: column; }
   .recent-record-value { overflow-wrap: anywhere; }
   .context-menu { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
@@ -308,13 +294,12 @@ body { min-height: 100svh; }
   .modal-foot { grid-template-columns: minmax(0px, 1fr); }
 }
 @media (max-width: 480px) and (orientation: landscape), (max-height: 520px) and (orientation: landscape) {
-  dialog:not(#settingsDialog):not(#recordsManagerDialog) { max-height: calc(100dvh - 16px); }
+  dialog:not(#settingsDialog) { max-height: calc(100dvh - 16px); }
 }
 .decision-overview-head { align-items: center; gap: 16px; }
 .minimum-warning { font-weight: 600; }
 .entries-panel .panel-head > div:first-child { flex-grow: 1; flex-basis: 0%; }
 .entry-actions { max-width: 100%; }
-.entry-actions-content { display: flex; flex-wrap: wrap; padding-top: 8px; }
 summary { cursor: pointer; border-radius: 10px; }
 summary:hover, summary:active { background: var(--soft); }
 summary:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
@@ -444,11 +429,7 @@ h1,h2,h3 { font-weight:650; letter-spacing:-.025em; }
 .entries-panel { padding:0; }
 .entries-panel .panel-head { display:flex; flex-wrap:wrap; gap:8px; padding:16px; }
 .entries-panel .entry-actions { margin-left:0; }
-.entry-actions summary { display:flex; align-items:center; padding:8px 12px; border:1px solid var(--line); border-radius:6px; }
-.entry-actions-content { gap:8px; }
 /* An open disclosure must take the full row, or its 16px labels overflow 48px targets. */
-.entries-panel .entry-actions[open] { flex:1 1 100%; }
-.entry-actions-content button { flex:1 1 auto; min-width:48px; }
 .filter-disclosure { margin:0 16px; }
 .filter-disclosure > summary { display:flex; align-items:center; gap:8px; padding:8px 12px; border:1px solid var(--line); border-radius:6px; cursor:pointer; }
 .filter-disclosure > summary span { flex:1; }
@@ -612,9 +593,9 @@ h1,h2,h3 { font-weight:650; letter-spacing:-.025em; }
 #appShell[data-locked] .interface-update-notice { border-color:#d2a88f; background:#fff7eb; }
 
 /* All ten dialog families: fixed frame, internally scrolling fields/lists. */
-dialog,#settingsDialog,#recordsManagerDialog { width:min(760px,calc(100% - 32px)); max-width:none; height:fit-content; max-height:calc(100dvh - 32px); margin:auto; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:var(--paper); box-shadow:var(--shadow); color:var(--ink); }
+dialog,#settingsDialog { width:min(760px,calc(100% - 32px)); max-width:none; height:fit-content; max-height:calc(100dvh - 32px); margin:auto; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:var(--paper); box-shadow:var(--shadow); color:var(--ink); }
 dialog::backdrop { background:#12271e80; backdrop-filter:none; }
-dialog .modal,#entryDialog .modal,#settingsDialog .modal,#recordsManagerDialog .modal,#recentRecordsDialog .modal { display:flex; flex-direction:column; width:100%; max-height:calc(100dvh - 34px); padding:0; gap:0; overflow:hidden; }
+dialog .modal,#entryDialog .modal,#settingsDialog .modal,#recentRecordsDialog .modal { display:flex; flex-direction:column; width:100%; max-height:calc(100dvh - 34px); padding:0; gap:0; overflow:hidden; }
 .modal-head,#entryForm .modal-head { position:static; flex:0 0 auto; display:flex; align-items:start; gap:12px; margin:0; padding:16px; border-bottom:1px solid var(--line); background:var(--paper); }
 .modal-head > div { flex:1; min-width:0; }
 .modal h2,#entryForm .modal-head h2 { font-size:22px; line-height:1.25; margin:0; }
@@ -646,27 +627,15 @@ dialog .modal,#entryDialog .modal,#settingsDialog .modal,#recordsManagerDialog .
 .delete-confirm-copy { margin:16px; padding:12px; border-radius:6px; }
 .primary.danger-action { box-shadow:none; background:var(--danger); }
 .secondary.danger,.danger { color:var(--danger); }
-.records-manager-list,.recent-records-list { flex:1 1 auto; min-height:0; padding:0 16px 16px; gap:0; overflow-y:auto; }
-#recordsManagerDialog .modal > * { flex-shrink:1; }
-#recordsManagerDialog .modal > :is(.modal-head,.modal-foot,.manager-filters,.manager-selection-bar) { flex-shrink:0; }
-#recordsManagerDialog .records-manager-list { overflow-y:auto; }
-.recent-record,.managed-record { border:0; border-bottom:1px solid var(--line); border-radius:0; padding:12px 0; gap:8px; background:transparent; }
+.recent-records-list { flex:1 1 auto; min-height:0; padding:0 16px 16px; gap:0; overflow-y:auto; }
+.recent-record { border:0; border-bottom:1px solid var(--line); border-radius:0; padding:12px 0; gap:8px; background:transparent; }
 .recent-record-head { flex-wrap:wrap; gap:4px 12px; }
-.recent-record-title,.managed-record strong { white-space:normal; overflow:visible; overflow-wrap:anywhere; }
+.recent-record-title { white-space:normal; overflow:visible; overflow-wrap:anywhere; }
 .recent-record-value { margin-left:auto; }
 .recent-record-meta { flex-direction:row; flex-wrap:wrap; align-items:baseline; gap:4px 12px; font-size:14px; }
 .recent-record-meta span:last-child { text-align:left; }
 .recent-record-actions button { width:auto; }
 .recent-record-group-count { border-radius:4px; font-size:14px; }
-.managed-record { grid-template-columns:48px minmax(0,1fr) 48px; }
-.managed-record input { width:48px; height:48px; min-width:48px; }
-.managed-record small { white-space:normal; overflow-wrap:anywhere; font-size:14px; }
-.manager-filters { margin:12px 16px; border-radius:6px; }
-.manager-filters .records-manager-filters { display:grid; grid-template-columns:minmax(0,1fr); padding:12px; gap:12px; }
-.manager-selection-bar { padding:0 16px 12px; flex-wrap:wrap; gap:8px; }
-.manager-selection-bar span { min-width:100%; }
-.manager-selection-bar button { flex:1 1 120px; }
-.manager-bulk-editor { padding:12px 16px; gap:8px; overflow-y:auto; }
 .context-menu { border-radius:8px; box-shadow:var(--shadow); }
 .context-menu button { display:flex; align-items:center; gap:12px; font-size:16px; min-height:48px; }
 .toast { bottom:calc(84px + env(safe-area-inset-bottom)); max-width:calc(100vw - 32px); border-radius:6px; font-size:16px; background:var(--ink); }
@@ -739,7 +708,6 @@ dialog .modal,#entryDialog .modal,#settingsDialog .modal,#recordsManagerDialog .
   .modal-foot button { flex:0 1 auto; }
   .entry-modal-foot .repeat-entry { flex-basis:auto; margin-right:auto; }
   .settings-topic-nav { padding:12px 24px; }
-  .manager-filters .records-manager-filters { grid-template-columns:repeat(3,minmax(0,1fr)); }
 }
 @media (min-width:1000px) {
   .shell,.shell[data-view] { padding:24px 24px 32px 216px; }
@@ -807,9 +775,9 @@ dialog .modal,#entryDialog .modal,#settingsDialog .modal,#recordsManagerDialog .
   .onboarding-category-options { grid-template-columns:minmax(0,1fr); }
 }
 @media (max-height:520px) {
-  dialog .modal,#entryDialog .modal,#settingsDialog .modal,#recordsManagerDialog .modal,#recentRecordsDialog .modal { overflow-y:auto; }
-  dialog .modal > *,#recordsManagerDialog .modal > * { flex-shrink:0; }
-  dialog .modal .form-grid,#entryForm > .form-grid,#settingsDialog .form-grid,#recordsManagerDialog .records-manager-list,dialog .recent-records-list { flex:0 0 auto; overflow:visible; }
+  dialog .modal,#entryDialog .modal,#settingsDialog .modal,#recentRecordsDialog .modal { overflow-y:auto; }
+  dialog .modal > * { flex-shrink:0; }
+  dialog .modal .form-grid,#entryForm > .form-grid,#settingsDialog .form-grid,dialog .recent-records-list { flex:0 0 auto; overflow:visible; }
   .modal-foot { position:static; }
 }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto !important; animation:none !important; transition:none !important; } }
@@ -817,7 +785,7 @@ dialog .modal,#entryDialog .modal,#settingsDialog .modal,#recordsManagerDialog .
 .confirm-details { display:grid; gap:8px; margin:0 16px 8px; padding:12px 12px 12px 32px; border:1px solid var(--line); border-radius:6px; background:var(--soft); font-size:16px; line-height:1.4; }
 #confirmDialog [data-confirm-cancel].secondary, #confirmDialog [data-confirm-accept] { min-height:48px; }
 /* Component boundaries need 3:1 against their background (WCAG 1.4.11); --line stays for decorative dividers. */
-.calendar-nav,.entry-actions summary,.filter-disclosure > summary,.monthly-method summary,:is(.entry-advanced,.onboarding-category-disclosure,.install-help) > summary,.settings-topic-nav button { border-color:var(--control-line); }
+.calendar-nav,.filter-disclosure > summary,.monthly-method summary,:is(.entry-advanced,.onboarding-category-disclosure,.install-help) > summary,.settings-topic-nav button { border-color:var(--control-line); }
 /* Credit cards: settings list and form, and the hint under "Forma de pagamento". */
 .credit-card-list { display:grid; gap:8px; margin:0; padding:0; list-style:none; }
 .credit-card-list li { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 12px; padding:8px 12px; border:1px solid var(--control-line); border-radius:6px; background:var(--paper); font-size:16px; }
@@ -849,3 +817,16 @@ dialog .modal,#entryDialog .modal,#settingsDialog .modal,#recordsManagerDialog .
   .filter-disclosure .filters { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); }
   .filter-disclosure .filters > .filter-search { grid-column:1 / -1; }
 }
+/* Selection of several records: text buttons, edit dialog and delete scope. */
+.entries-panel .entry-actions { display:flex; flex-wrap:wrap; gap:8px; flex:1 1 100%; }
+.entries-panel .entry-actions > button { flex:1 1 0; width:auto; min-width:0; min-height:48px; }
+.selection-actions { flex-wrap:wrap; width:100%; }
+.selection-actions > button { flex:1 1 auto; min-height:48px; padding-inline:12px; }
+.selection-actions > .danger { color:var(--danger); }
+.filter-all-months { align-self:end; }
+.filter-all-months .checkbox-label { min-height:48px; }
+.bulk-edit-error { margin:0 16px 12px; font-size:16px; color:var(--danger); }
+.delete-installment-scope { display:grid; gap:4px; margin:0 16px 12px; padding:8px 12px; border:1px solid var(--control-line); border-radius:6px; }
+.delete-installment-scope legend { padding:0 4px; font-weight:700; }
+.delete-installment-scope .checkbox-label { min-height:48px; justify-content:flex-start; font-size:16px; }
+.delete-installment-scope input[type="radio"],.filter-all-months input[type="checkbox"] { flex:0 0 auto; width:22px; height:22px; min-height:22px; padding:0; accent-color:var(--brand); }
