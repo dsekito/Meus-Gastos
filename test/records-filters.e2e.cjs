@@ -56,10 +56,19 @@ const noHorizontalScroll = page => page.evaluate(() => document.documentElement.
     {
       const { context, page, errors } = await openRecords(browser, { entries: ENTRIES, cards: CARDS });
 
-      // Sem filtro: o resumo diz isso, "Limpar" fica desabilitado e os totais têm sinal.
+      // Padrão: só o que está a pagar ou a receber. O resumo diz isso, "Limpar"
+      // fica desabilitado (já está no padrão) e os totais têm sinal.
+      assert.equal(await page.textContent('#activeFiltersSummary'), 'A pagar / a receber');
+      assert.equal(await page.textContent('#filtersToggleLabel'), 'Filtrar (1)');
+      assert.equal(await page.isDisabled('#clearEntryFilters'), true);
+      assert.deepEqual(await rows(page), ['ALUGUEL', 'COMBUSTÍVEL', 'SALÁRIO', 'PASSEIOS']);
+      assert.deepEqual(await totals(page), ['+ R$ 6.000,00', '− R$ 2.170,00', '+ R$ 3.830,00']);
+
+      // Todos os status: nenhum filtro ativo, e "Limpar" volta ao padrão.
+      await page.locator('#filterStatus').evaluate(select => { select.value = ''; select.dispatchEvent(new Event('change')); });
       assert.equal(await page.textContent('#activeFiltersSummary'), 'Nenhum filtro ativo');
       assert.equal(await page.textContent('#filtersToggleLabel'), 'Filtrar');
-      assert.equal(await page.isDisabled('#clearEntryFilters'), true);
+      assert.equal(await page.isDisabled('#clearEntryFilters'), false);
       assert.deepEqual(await totals(page), ['+ R$ 6.000,00', '− R$ 2.570,50', '+ R$ 3.429,50']);
       assert.equal((await rows(page)).length, 6);
 
@@ -119,12 +128,21 @@ const noHorizontalScroll = page => page.evaluate(() => document.documentElement.
       await page.locator('#exitSelection').click();
       await page.evaluate(() => { document.querySelector('.filter-disclosure').open = true; });
 
-      // Limpar volta tudo.
+      // Limpar volta ao padrão: a pagar / a receber.
       await page.locator('#clearEntryFilters').click();
-      assert.equal((await rows(page)).length, 6);
+      assert.deepEqual(await rows(page), ['ALUGUEL', 'COMBUSTÍVEL', 'SALÁRIO', 'PASSEIOS']);
       assert.equal(await page.inputValue('#filterFlow'), '');
       assert.equal(await page.inputValue('#filterPayment'), '');
-      assert.equal(await page.textContent('#activeFiltersSummary'), 'Nenhum filtro ativo');
+      assert.equal(await page.inputValue('#filterStatus'), 'pending');
+      assert.equal(await page.textContent('#activeFiltersSummary'), 'A pagar / a receber');
+
+      // Mês em que tudo já foi pago: a lista vazia oferece mostrar todos, inclusive os pagos.
+      await page.locator('#filterPayment').selectOption({ label: 'Crédito: Nubank' });
+      assert.deepEqual(await rows(page), []);
+      await page.locator('#rows').getByRole('button', { name: 'Mostrar todos os lançamentos do período, inclusive os pagos' }).click();
+      assert.equal(await page.inputValue('#filterStatus'), '');
+      assert.equal((await rows(page)).length, 6);
+      await page.locator('#clearEntryFilters').click();
 
       // Atalho de próximos vencimentos começa sem os filtros novos aplicados.
       await page.locator('#filterPayment').selectOption({ label: 'Crédito: Nubank' });

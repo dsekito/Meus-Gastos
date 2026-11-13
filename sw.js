@@ -1,4 +1,4 @@
-const CACHE_NAME = "meus-gastos-v54";
+const CACHE_NAME = "meus-gastos-v55";
 const NAVIGATION_TIMEOUT_MS = 3000;
 const APP_SHELL = [
   "./",
@@ -28,7 +28,7 @@ const APP_SHELL = [
   "./js/app-update.js?v=2026111201",
   "./js/projection-view.js?v=2026111303",
   "./js/monthly-view.js?v=2026111306",
-  "./js/app.js?v=2026111313",
+  "./js/app.js?v=2026111314",
 ];
 
 self.addEventListener("install", (event) => {

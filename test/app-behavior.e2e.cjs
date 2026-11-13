@@ -53,14 +53,20 @@ const scenarios = {
     const { page, errors } = await open(browser, { settings: settled, entries: [
       entry({ description: 'ALUGUEL', paid: true }), entry({ type: 'ALIMENTAÇÃO', description: 'SUPERMERCADO' }),
       entry({ type: 'ALIMENTAÇÃO', description: 'RESTAURANTE' })] });
-    // Every status is listed on arrival, paid ones included.
-    assert.equal(await page.locator('#filterStatus').inputValue(), '');
-    assert.equal(await page.locator('#rows [data-entry]').count(), 3);
+    // The list opens with what is still to pay or to receive; the paid one is hidden, and the summary says so.
+    assert.equal(await page.locator('#filterStatus').inputValue(), 'pending');
+    assert.equal(await page.locator('#rows [data-entry]').count(), 2);
+    assert.doesNotMatch(await rowsText(page), /ALUGUEL/);
+    assert.equal(await page.locator('#activeFiltersSummary').innerText(), 'A pagar / a receber');
+    assert.equal(await page.locator('#clearEntryFilters').isDisabled(), true, 'nothing to clear at the default');
     await page.locator('.filter-disclosure > summary').click();
     await page.locator('#filterDescription').selectOption('SUPERMERCADO');
     assert.equal(await page.locator('#rows [data-entry]').count(), 1);
     assert.match(await rowsText(page), /SUPERMERCADO/);
     await page.locator('#clearEntryFilters').click();
+    assert.equal(await page.locator('#filterStatus').inputValue(), 'pending', 'clearing goes back to the default');
+    assert.equal(await page.locator('#rows [data-entry]').count(), 2);
+    await page.locator('#filterStatus').selectOption('');
     assert.equal(await page.locator('#rows [data-entry]').count(), 3);
 
     // The status button only changes the status, and it can be undone.
@@ -278,6 +284,8 @@ const scenarios = {
     await page.locator('#entryDialog').waitFor({ state: 'hidden' });
     let entries = (await stored(page)).entries;
     assert.equal(entries.length, 3);
+    // Paid occurrences must stay on screen for this check.
+    await page.locator('#filterStatus').evaluate(select => { select.value = ''; select.dispatchEvent(new Event('change')); });
     await card(page, 'ALUGUEL').first().locator('[data-toggle-status]').click();
     await page.waitForFunction(() => /Status salvo/.test(document.querySelector('#toast').textContent));
     await card(page, 'ALUGUEL').first().locator('.entry-title').click();

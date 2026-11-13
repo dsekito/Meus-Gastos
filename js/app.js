@@ -1766,7 +1766,11 @@ const profileDefaults = window.MGProfileDefaults;
 
       // Every shortcut that opens the records starts from no filter at all, so
       // no filter keeps hiding entries without being seen.
-      function resetEntryFilters({ status = "", date = null } = {}) {
+      // The records list opens showing what is still to pay or to receive;
+      // "Limpar filtros" goes back to this.
+      const DEFAULT_ENTRY_STATUS = "pending";
+
+      function resetEntryFilters({ status = DEFAULT_ENTRY_STATUS, date = null } = {}) {
         document.querySelector("#filterSearch").value = "";
         filterAllMonths.checked = false;
         filterFlow.value = "";
@@ -1972,7 +1976,11 @@ const profileDefaults = window.MGProfileDefaults;
         document.querySelector("#activeFiltersSummary").textContent = summary.text;
         document.querySelector("#filtersToggleLabel").textContent = summary.count ? `Filtrar (${summary.count})` : "Filtrar";
         const clearButton = document.querySelector("#clearEntryFilters");
-        clearButton.disabled = summary.count === 0;
+        // "Limpar filtros" goes back to the defaults, so it only waits when
+        // the filters already are the defaults.
+        const atDefaults = !search && !filterAllMonths.checked && !filterFlow.value && !filterPayment.value
+          && !filterType.value && !filterDescription.value && filterStatus.value === DEFAULT_ENTRY_STATUS && !state.filterDate;
+        clearButton.disabled = atDefaults;
       }
 
       function signedMoney(cents, sign) {
@@ -2005,7 +2013,7 @@ const profileDefaults = window.MGProfileDefaults;
         const hasMonthlyEntries = listedEntries().length > 0;
         const monthName = new Date(`${month}-01T12:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
         rows.innerHTML = hasMonthlyEntries
-          ? '<div class="empty"><strong>Nenhum lançamento com estes filtros.</strong><p>Há registros neste mês. Ajuste a busca ou limpe os filtros para vê-los.</p><button class="secondary" type="button" data-empty-action="filters" aria-label="Limpar filtros dos lançamentos">Limpar filtros</button></div>'
+          ? '<div class="empty"><strong>Nenhum lançamento com estes filtros.</strong><p>Há registros neste período que os filtros escondem, como os já pagos ou recebidos.</p><button class="secondary" type="button" data-empty-action="filters" aria-label="Mostrar todos os lançamentos do período, inclusive os pagos">Mostrar todos</button></div>'
           : `<div class="empty"><strong>Nenhum lançamento em ${esc(monthName)}.</strong><p>Adicione uma despesa ou receita neste período, ou escolha outro mês.</p><button class="secondary" type="button" data-empty-action="new-in-month" aria-label="Adicionar lançamento no mês selecionado">Adicionar neste mês</button>${month !== todayISO().slice(0, 7) ? '<button class="secondary" type="button" data-empty-action="current-month" aria-label="Voltar ao mês atual">Voltar ao mês atual</button>' : ""}</div>`;
       }
 
@@ -3512,7 +3520,10 @@ const profileDefaults = window.MGProfileDefaults;
       document.querySelector("#clearEntryFilters").onclick = clearEntryFilters;
       rows.addEventListener("click", (event) => {
         const action = event.target.closest("[data-empty-action]")?.dataset.emptyAction;
-        if (action === "filters") clearEntryFilters();
+        if (action === "filters") {
+          resetEntryFilters({ status: "" });
+          render();
+        }
         if (action === "new") openNew();
         if (action === "current-month") resetCalendarToCurrentMonth();
         if (action === "new-in-month") {

@@ -72,6 +72,8 @@ const scenarios = {
     const drive = { remote: validRemote(), holdUploads: true };
     const { page, errors } = await open(browser, drive);
     await page.locator('.app-navigation [data-app-destination="records"]').click();
+    // Both changes act on the same record, which must stay listed once paid.
+    await page.locator('#filterStatus').evaluate(select => { select.value = ''; select.dispatchEvent(new Event('change')); });
     await page.locator('[data-toggle-status]').first().click();
     await page.waitForFunction(() => /Status salvo/.test(document.querySelector('#toast').textContent));
     while (!drive.release) await page.waitForTimeout(50);

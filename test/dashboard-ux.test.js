@@ -32,7 +32,8 @@ test("mantém filtros e confirmação de exclusão nomeados", () => {
   );
 });
 
-test("registros abrem com todos os status, sem esconder pagos", () => {
-  assert.match(html, /<select id="filterStatus">\s*<option value="" selected>Todos os status<\/option>/);
-  assert.doesNotMatch(html, /<option value="pending" selected>/);
+test("registros abrem mostrando o que está a pagar ou a receber", () => {
+  assert.match(html, /<select id="filterStatus">\s*<option value="">Todos os status<\/option>/);
+  assert.match(html, /<option value="pending" selected>A pagar \/ a receber<\/option>/);
+  assert.doesNotMatch(html, /<option value="" selected>Todos os status/);
 });
