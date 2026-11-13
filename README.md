@@ -204,6 +204,13 @@ Na criação de compras parceladas, as parcelas começam em aberto; cada pagamen
 pode ser registrado posteriormente. A limitação de recuperação local descrita acima
 continua válida, inclusive ao converter um registro recuperado em parcelas.
 
+## Estilos
+
+Todo o CSS fica em `mobile.css`; o `index.html` não tem estilos embutidos. O início
+do arquivo reúne as regras-base que antes ficavam no `index.html`, reduzidas às
+declarações que de fato alteram algum estilo calculado. Estilos novos vão depois
+delas, para manter a ordem da cascata.
+
 ## Testes
 
 A interface tem cinco destinos: Início, Registros, Projeção, Mensal e Ajustes, com

@@ -28,6 +28,8 @@ test("categorias salvas de usuários existentes não recebem padrões novos", ()
 });
 
 test("controles do onboarding respeitam área mínima de toque", () => {
-  assert.match(html, /\.onboarding-modal \.modal-foot button \{[\s\S]*?min-height: 48px/);
-  assert.match(html, /\.onboarding-category-option \{[\s\S]*?min-height: 48px/);
+  const css = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "mobile.css"), "utf8");
+  assert.match(html, /<form class="modal onboarding-modal"[\s\S]*?<div class="modal-foot">/);
+  assert.match(css, /\.modal-foot button \{[^}]*min-height:48px/);
+  assert.match(css, /\.onboarding-category-option \{[^}]*min-height: 48px/);
 });
