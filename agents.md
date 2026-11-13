@@ -40,7 +40,11 @@ acessibilidade > desempenho > estética.**
    tipos) **antes** de substituir qualquer dado local. Entradas externas são uma
    fronteira de confiança.
 6. Mudanças de formato de dados exigem incremento de `schemaVersion`, migração
-   testada e compatibilidade de leitura com a versão anterior.
+   testada e compatibilidade de leitura com a versão anterior. Exceção: um campo
+   novo e **opcional**, que versões anteriores leem sem erro, dispensa o
+   incremento se for validado na entrada, ficar ausente quando vazio (perfis que
+   não o usam mantêm o formato) e o `README.md` disser o que acontece quando uma
+   versão anterior grava sem ele.
 7. Requisições de rede têm timeout, cancelamento e novas tentativas com backoff
    apenas para operações idempotentes (GET/HEAD) ou erros comprovadamente
    transitórios.
@@ -80,7 +84,8 @@ acessibilidade > desempenho > estética.**
 ## 5. Experiência mobile
 
 1. **Mobile-first**: projete para 320 px de largura e amplie. Valide em 320, 375,
-   412 px, paisagem e desktop.
+   412 px, paisagem e desktop, sem rolagem horizontal em nenhuma delas; o teste
+   E2E da tela alterada verifica isso na página inteira, não só no componente.
 2. Margens laterais de no mínimo 16 px e respeito a `env(safe-area-inset-*)`.
 3. Ações principais na zona do polegar; nada fixo pode cobrir conteúdo ou campos.
 4. Campos usam o teclado certo: `inputmode="decimal"` para valores sempre
@@ -129,7 +134,10 @@ acessibilidade > desempenho > estética.**
    interface ou fluxo, `npm run test:e2e` com o servidor local na porta 8000.
 3. Testes E2E usam perfis sintéticos e serviços Google simulados; nunca contas ou
    dados reais.
-4. Testes devem descrever o comportamento **correto**. Testes que documentam
+4. Testes que dependem da data de hoje fixam o relógio (`page.clock` no
+   Playwright; data explícita nos unitários), para não mudar de resultado
+   conforme o dia em que rodam.
+5. Testes devem descrever o comportamento **correto**. Testes que documentam
    defeitos são removidos ou invertidos quando o defeito é corrigido.
-5. Atualize o `README.md` quando mudar comportamento visível, formato de dados ou
+6. Atualize o `README.md` quando mudar comportamento visível, formato de dados ou
    procedimento de configuração.
