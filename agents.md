@@ -80,6 +80,8 @@ acessibilidade > desempenho > estética.**
 7. Respeite `prefers-reduced-motion` e `prefers-color-scheme` quando houver
    animações ou temas.
 8. Mensagens de status assíncronas usam `aria-live`.
+9. Texto não é cortado nem quebrado no meio de uma palavra para caber. Em telas
+   estreitas, reorganize o layout (mude elementos de linha ou de coluna).
 
 ## 5. Experiência mobile
 
@@ -98,6 +100,10 @@ acessibilidade > desempenho > estética.**
 7. Mensagens de erro dizem o que aconteceu e o que fazer, em português claro, sem
    códigos internos.
 8. Formatação com `Intl` em `pt-BR` (moeda BRL, datas, números).
+9. Linhas da lista de registros: “TIPO - DESCRIÇÃO” em destaque, com o valor e
+   o menu (⋮) no topo à direita; abaixo, data, comentário, cartão e parcela, com
+   o status no canto inferior direito. Abaixo de 360 px o valor desce para a
+   base, à esquerda. Menu e status mantêm 48 px e 8 px de distância.
 
 ## 6. PWA e desempenho
 
