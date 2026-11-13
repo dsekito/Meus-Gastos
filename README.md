@@ -171,8 +171,15 @@ exibidas.
 O saldo informado é o saldo da conta na **data-base**: já inclui o que foi pago nessa
 data, mas não o que ainda está em aberto. Por isso, lançamentos da data-base marcados
 como pagos não alteram a projeção, e os que estão em aberto são descontados (ou somados,
-no caso de entradas a receber). Ao pagar uma conta, atualize também o saldo para manter
-a projeção fiel ao banco.
+no caso de entradas a receber). Ao mudar o status de um lançamento da data-base, o app
+pergunta se deve atualizar o saldo informado pelo valor do lançamento. Aceitando, a
+projeção continua igual e o saldo acompanha o banco; recusando, o saldo não muda. O
+ajuste pode ser desfeito pelo aviso que aparece em seguida.
+
+Confirmações (exclusões, alterações em lote, recuperação de backup e ajuste de saldo)
+usam um diálogo do próprio app, acessível por teclado e leitor de tela, em vez da
+janela nativa do navegador. Nas ações destrutivas, o foco inicial fica em
+**Cancelar**. Bordas de campos e botões têm contraste mínimo de 3:1.
 
 A lista de **Registros** abre com todos os status. O filtro de status continua
 disponível, e o atalho das próximas movimentações mostra apenas os em aberto.
