@@ -1,4 +1,4 @@
-const CACHE_NAME = "meus-gastos-v42";
+const CACHE_NAME = "meus-gastos-v43";
 const NAVIGATION_TIMEOUT_MS = 3000;
 const APP_SHELL = [
   "./",
@@ -9,7 +9,7 @@ const APP_SHELL = [
   "./icons/app-icon-192.png",
   "./icons/app-icon-512.png",
   "./js/config.js?v=2026081001",
-  "./js/domain.js?v=2026111302",
+  "./js/domain.js?v=2026111303",
   "./js/document-validator.js?v=2026111104",
   "./js/local-store.js?v=2026111202",
   "./js/local-profile.js?v=2026111201",
@@ -19,8 +19,8 @@ const APP_SHELL = [
   "./js/sync-service.js?v=2026111102",
   "./js/confirm-dialog.js?v=2026111301",
   "./js/app-update.js?v=2026111201",
-  "./js/projection-view.js?v=2026111302",
-  "./js/app.js?v=2026111302",
+  "./js/projection-view.js?v=2026111303",
+  "./js/app.js?v=2026111303",
 ];
 
 self.addEventListener("install", (event) => {

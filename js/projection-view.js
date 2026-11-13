@@ -119,8 +119,9 @@
     const includesToday = balances.has(today);
     const dates = [...new Set([...byDate.keys(), ...(includesToday ? [today] : [])])].sort();
     const item = date => dayMarkup(date, byDate.get(date) || [], balances.get(date), date === today, helpers);
-    const past = includesToday ? dates.filter(date => date < today) : [];
-    const ahead = dates.filter(date => !past.includes(date));
+    const split = includesToday ? dates.indexOf(today) : 0;
+    const past = dates.slice(0, split);
+    const ahead = dates.slice(split);
     return `${past.length ? `<details class="projection-past"><summary>Dias anteriores (${past.length})</summary><ol class="projection-days">${past.map(item).join("")}</ol></details>` : ""}
       <ol class="projection-days">${ahead.map(item).join("")}</ol>`;
   }

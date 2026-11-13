@@ -2020,10 +2020,9 @@ const descriptionOptionsByType = {
           </article>`;
       }
 
-      function updateDecisionOverview(month) {
+      function updateDecisionOverview(month, entryNet = buildDailyEntryNet()) {
         const [year, monthNumber] = month.split("-").map(Number);
         const monthEnd = `${month}-${String(new Date(year, monthNumber, 0).getDate()).padStart(2, "0")}`;
-        const entryNet = buildDailyEntryNet();
         const currentBalance = getProjectedBalance(todayISO(), entryNet);
         const monthEndBalance = getProjectedBalance(monthEnd, entryNet);
         const nextSevenDaysEnd = domain.addDays(todayISO(), 6);
@@ -2247,14 +2246,13 @@ const descriptionOptionsByType = {
 
       let projectionSeries = null;
 
-      function renderProjection() {
+      // render() passes what it already computed; navigation calls it bare.
+      function renderProjection(entryNet = buildDailyEntryNet(), monthlyEntries = getMonthlyEntries(filterMonth.value)) {
         const month = filterMonth.value;
         if (!month) return;
-        const entryNet = buildDailyEntryNet();
         const series = domain.monthBalanceSeries(month, state.settings, entryNet.net, entryNet.pending);
         projectionSeries = series;
         const formatDate = (date) => new Date(`${date}T12:00`).toLocaleDateString("pt-BR");
-        const monthlyEntries = getMonthlyEntries(month);
         const income = monthlyEntries.filter((entry) => domain.entryFlowType(entry) === "income");
         const expenses = monthlyEntries.filter((entry) => domain.entryFlowType(entry) === "expense");
         const setAmount = (selector, value) => {
@@ -2351,7 +2349,8 @@ const descriptionOptionsByType = {
           state.filterDate ? new Date(`${state.filterDate}T12:00`).toLocaleDateString("pt-BR") : null,
         ].filter(Boolean).join(" · ");
 
-        updateDecisionOverview(month);
+        const entryNet = buildDailyEntryNet();
+        updateDecisionOverview(month, entryNet);
         const referenceDate = state.settings.balance_reference_date || todayISO();
         balanceReferenceSummary.textContent = `${new Date(`${todayISO()}T12:00`).toLocaleDateString("pt-BR")} · inclui pendências. Base: ${new Date(`${referenceDate}T12:00`).toLocaleDateString("pt-BR")}`;
 
@@ -2363,7 +2362,7 @@ const descriptionOptionsByType = {
         );
 
         renderEntries(list);
-        renderProjection();
+        renderProjection(entryNet, monthly);
         renderUpcomingAccounts();
         if (activeAppView === "monthly") renderMonthlyCashFlow();
 

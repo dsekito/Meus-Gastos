@@ -67,3 +67,11 @@ test('anos sem registros ficam zerados e entradas inválidas não contaminam tot
   assert.throws(() => monthlyCashFlow(entries, 0), RangeError);
   assert.throws(() => monthlyCashFlow(entries, 2026, { status: 'unknown' }), RangeError);
 });
+
+test('reconhece A RECEBER com qualquer caixa e espaçamento, e só a expressão exata', () => {
+  const flow = (type) => MGDomain.entryFlowType({ type, flow_type: 'expense' });
+  for (const type of ['A RECEBER', 'a receber', ' A  Receber ', 'A\tRECEBER\n']) assert.equal(flow(type), 'income', JSON.stringify(type));
+  for (const type of ['A RECEBERES', 'ARECEBER', 'À RECEBER', 'RECEBER', '', null, undefined, 0]) assert.equal(flow(type), 'expense', JSON.stringify(type));
+  assert.equal(MGDomain.entryFlowType({ type: 'MORADIA', status: ' a RECEBER ' }), 'income');
+  assert.equal(MGDomain.entryFlowType({ type: 'SALÁRIO', flow_type: 'income' }), 'income');
+});

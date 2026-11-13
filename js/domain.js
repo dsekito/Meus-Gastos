@@ -101,11 +101,14 @@
     return occurrences;
   }
 
+  // Matches "a receber" in any case and spacing. A plain regex, because
+  // locale-aware lowercasing is slow and this runs for every entry on render.
+  const RECEIVABLE_LABEL = /^\s*a\s+receber\s*$/i;
+
   function entryFlowType(entry = {}) {
-    const normalize = value => String(value || "").trim().toLocaleLowerCase("pt-BR").replace(/\s+/g, " ");
     // Historical receivables may have been stored with the expense default.
     // Resolve the exact classification without rewriting stored records.
-    if (normalize(entry.type) === "a receber" || normalize(entry.status) === "a receber") return "income";
+    if (RECEIVABLE_LABEL.test(String(entry.type || "")) || RECEIVABLE_LABEL.test(String(entry.status || ""))) return "income";
     return entry.flow_type === "income" ? "income" : "expense";
   }
 
