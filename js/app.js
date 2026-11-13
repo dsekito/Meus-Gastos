@@ -33,6 +33,20 @@ const descriptionOptionsByType = {
           document.querySelector("#interfaceUpdateNotice").hidden = false;
         },
       });
+      // Set when this device's data was saved by a newer app version (for
+      // example, an old offline copy of the app opened after an update). The
+      // data is then neither shown, synchronized nor overwritten here.
+      let localDataFromNewerVersion = false;
+      const NEWER_LOCAL_DATA_MESSAGE = "Os dados deste aparelho foram salvos por uma versão mais nova do Meus Gastos. Atualize a interface para vê-los; nada foi alterado.";
+
+      function lockForNewerLocalData() {
+        localDataFromNewerVersion = true;
+        document.querySelector("#appShell").dataset.locked = "newer-data";
+        document.querySelector("#interfaceUpdateMessage").textContent = NEWER_LOCAL_DATA_MESSAGE;
+        document.querySelector("#interfaceUpdateNotice").hidden = false;
+        show(NEWER_LOCAL_DATA_MESSAGE);
+      }
+
       const repository = window.MGGoogleDriveRepository.create({
         getAccessToken: googleAuth.getAccessToken,
         isAccessTokenExpired: googleAuth.isAccessTokenExpired,
@@ -711,7 +725,14 @@ const descriptionOptionsByType = {
 
       async function loadLocal(userId) {
         const session = state.user;
-        const cached = await localStore.load(userId);
+        let cached;
+        try {
+          cached = await localStore.load(userId);
+        } catch (error) {
+          if (error.message !== "LOCAL_STORE_NEWER_SCHEMA") throw error;
+          lockForNewerLocalData();
+          return;
+        }
         if (!cached || state.user !== session || state.user?.id !== userId) return;
         state.entries = cached.entries || [];
         state.recurrenceSeries = cached.recurrenceSeries || [];
@@ -885,7 +906,7 @@ const descriptionOptionsByType = {
       }
 
       async function flushSynchronization() {
-        if (financialMutationBusy) return false;
+        if (financialMutationBusy || localDataFromNewerVersion) return false;
         if (recoveryBusy || hasLocalOnlyRecovery()) {
           setSyncStatus("pending", "Envio pausado por segurança");
           return false;
@@ -1023,7 +1044,10 @@ const descriptionOptionsByType = {
           if (state.user !== session) return { ok: false };
           if (before) rollbackFinancialMutation(before, attempted || captureFinancialState());
           let warning = "Alteração não salva. Seus dados do formulário foram mantidos; tente novamente.";
-          if (error.message === "LOCAL_STORE_CONFLICT") {
+          if (error.message === "LOCAL_STORE_NEWER_SCHEMA") {
+            lockForNewerLocalData();
+            warning = "Alteração não salva: " + NEWER_LOCAL_DATA_MESSAGE;
+          } else if (error.message === "LOCAL_STORE_CONFLICT") {
             try {
               // FULL reload also adopts the CAS baseline. Never replay the old
               // mutation automatically against a snapshot the user hasn't seen.
@@ -1232,6 +1256,11 @@ const descriptionOptionsByType = {
         if (state.user && !isSameUser) {
           resetStateForUser(state.user);
           await loadLocal(state.user.id);
+          if (localDataFromNewerVersion) {
+            updateAuthArea();
+            setSyncStatus("pending", "Atualize a interface para continuar");
+            return;
+          }
           render();
         }
         updateAuthArea();
@@ -2734,7 +2763,7 @@ const descriptionOptionsByType = {
         const isNewProfile = state.settings.onboarding_status === "pending"
           && state.entries.length === 0
           && state.recurrenceSeries.length === 0;
-        if (!state.user || !isNewProfile || onboardingDialog.open) return;
+        if (!state.user || !isNewProfile || onboardingDialog.open || localDataFromNewerVersion) return;
         onboardingBalance.value = state.settings.current_balance;
         onboardingReferenceDate.value = state.settings.balance_reference_date || todayISO();
         onboardingCategoryError.hidden = true;
@@ -3926,7 +3955,8 @@ const descriptionOptionsByType = {
         }
         const reset = setButtonBusy(event.currentTarget, true, "Atualizando…");
         try {
-          await saveLocal();
+          // Newer data must not be overwritten; nothing here is unsaved.
+          if (!localDataFromNewerVersion) await saveLocal();
           appUpdate.apply();
         } catch (error) {
           show("Não foi possível preservar os dados locais. A interface não foi recarregada.");

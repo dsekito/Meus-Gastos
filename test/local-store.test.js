@@ -10,13 +10,18 @@ const database = {
   objectStoreNames: { contains: () => true },
   createObjectStore() {},
   close() {},
-  transaction() {
+  transaction(name, mode) {
     const transaction = {
+      abort() { queueMicrotask(() => transaction.onabort?.()); },
       objectStore() {
         return {
           get(key) {
             const request = {};
-            queueMicrotask(() => { request.result = records.get(key); request.onsuccess?.(); });
+            queueMicrotask(() => {
+              request.result = structuredClone(records.get(key));
+              request.onsuccess?.();
+              if (mode === "readonly") transaction.oncomplete?.();
+            });
             return request;
           },
           put(value, key) {
@@ -59,6 +64,15 @@ global.indexedDB = {
 
 require("../js/local-store.js");
 
+// A promise left pending ends the process quietly; that must not count as a pass.
+let finished = false;
+process.on("exit", () => {
+  if (!finished) {
+    console.error("local store tests: ended before finishing");
+    process.exitCode = 1;
+  }
+});
+
 (async () => {
   const source = { entries: [{ id: "one", value: 1 }] };
   let firstResolved = false;
@@ -84,6 +98,38 @@ require("../js/local-store.js");
   pendingCompletions.shift()();
   await assert.rejects(failedSave, /quota exceeded/, "uma transação abortada não pode confirmar o salvamento");
 
+  // Every write carries the local format version.
+  assert.equal(writes.at(-1).value.schemaVersion, global.MGLocalStore.LOCAL_SCHEMA_VERSION);
+
+  // A record written before versioning reads as version 1 and can be saved over.
+  records.set("legacy", { entries: [{ id: "old", value: 5 }] });
+  const legacy = await global.MGLocalStore.load("legacy");
+  assert.equal(legacy.schemaVersion, 1);
+  assert.deepEqual(legacy.entries, [{ id: "old", value: 5 }]);
+  const legacySave = global.MGLocalStore.save("legacy", { ...legacy, entries: [] });
+  await new Promise((resolve) => setImmediate(resolve));
+  pendingCompletions.shift()();
+  await legacySave;
+  assert.deepEqual(records.get("legacy"), { entries: [], schemaVersion: 1 });
+
+  // A compare-and-swap baseline without the stamp still matches a stamped record.
+  const swap = global.MGLocalStore.compareAndSwap("legacy", { entries: [] }, { entries: [{ id: "new" }] });
+  await new Promise((resolve) => setImmediate(resolve));
+  pendingCompletions.shift()();
+  await swap;
+  assert.deepEqual(records.get("legacy").entries, [{ id: "new" }]);
+
+  // Data from a newer app version is neither read nor overwritten.
+  const newer = { entries: [{ id: "future" }], schemaVersion: 99 };
+  records.set("newer", structuredClone(newer));
+  await assert.rejects(global.MGLocalStore.load("newer"), /LOCAL_STORE_NEWER_SCHEMA/);
+  const writesBefore = writes.length;
+  await assert.rejects(global.MGLocalStore.save("newer", { entries: [] }), /LOCAL_STORE_NEWER_SCHEMA/);
+  await assert.rejects(global.MGLocalStore.compareAndSwap("newer", newer, { entries: [] }), /LOCAL_STORE_NEWER_SCHEMA/);
+  assert.equal(writes.length, writesBefore);
+  assert.deepEqual(records.get("newer"), newer);
+
+  finished = true;
   console.log("local store tests: ok");
 })().catch((error) => {
   console.error(error);

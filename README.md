@@ -38,6 +38,12 @@ Depois, abra `http://localhost:8000`.
 ## Estrutura de dados
 
 - IndexedDB `meus-gastos`: cache local e fila de alterações pendentes por usuário.
+  Cada registro leva `schemaVersion` (hoje 1); registros antigos, sem o campo,
+  têm o mesmo formato e são lidos como versão 1. Se o registro foi salvo por uma
+  versão mais nova do app (por exemplo, uma cópia offline antiga aberta depois de
+  uma atualização), o app não o exibe, não sincroniza nem grava por cima: mostra
+  apenas o aviso para **Atualizar interface**. Ao mudar o formato, incremente
+  `LOCAL_SCHEMA_VERSION` em `js/local-store.js` e acrescente a migração em `upgrade()`.
 - Google Drive `appDataFolder/meus-gastos.json`: documento privado, consolidado e
   versionado com lançamentos, recorrências e configurações.
 

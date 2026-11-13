@@ -170,7 +170,7 @@ async function testLocalStoreRemoveForgetsSnapshot() {
   await store.remove("user");
   // Without forgetting the observed snapshot this save fails with a conflict.
   await store.save("user", { entries: [2] });
-  assert.deepEqual(records.get("user"), { entries: [2] });
+  assert.deepEqual(records.get("user"), { entries: [2], schemaVersion: 1 });
 }
 
 async function testServiceWorkerNeverCachesErrorPages() {
