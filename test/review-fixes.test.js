@@ -181,10 +181,12 @@ async function testServiceWorkerNeverCachesErrorPages() {
   const context = {
     URL, Request: class { constructor(url) { this.url = url; } },
     self: { location: { origin: "https://app.example" }, registration: { scope: "https://app.example/MeusGastos/" },
-      addEventListener: (name, handler) => { listeners[name] = handler; }, skipWaiting() {}, clients: { claim() {} } },
+      addEventListener: (name, handler) => { listeners[name] = handler; }, skipWaiting() { skipped += 1; }, clients: { claim() {} } },
     caches: { open: async () => cache, match: async key => cached.get(key), keys: async () => [] },
     fetch: async () => ({ ok: false, status: 404, type: "basic", clone() { return this; } }),
+    setTimeout, clearTimeout,
   };
+  let skipped = 0;
   vm.runInNewContext(fs.readFileSync(path.join(root, "sw.js"), "utf8"), context);
   const navigate = async (url) => {
     let responded;
@@ -213,6 +215,22 @@ async function testServiceWorkerNeverCachesErrorPages() {
     respondWith: value => { answer = value; }, waitUntil: value => { backgroundWork = value; } });
   assert.equal(await answer, "CACHED_JS");
   await backgroundWork;
+
+  // A new version never activates by itself; only the accepted update does.
+  const installWork = [];
+  listeners.install({ waitUntil: value => installWork.push(value) });
+  await Promise.all(installWork);
+  assert.equal(skipped, 0, "install must not skip waiting");
+  listeners.message({ data: { type: "OTHER" } });
+  assert.equal(skipped, 0);
+  listeners.message({ data: { type: "SKIP_WAITING" } });
+  assert.equal(skipped, 1);
+
+  // A stalled connection falls back to the cached shell after the timeout.
+  context.fetch = () => new Promise(() => {});
+  context.setTimeout = (callback) => { callback(); return 0; };
+  assert.equal(await navigate("https://app.example/MeusGastos/"), "CACHED_APP");
+  context.setTimeout = setTimeout;
 }
 
 function testManifestIconsAreNotForcedMaskable() {

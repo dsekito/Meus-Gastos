@@ -21,6 +21,15 @@ const descriptionOptionsByType = {
       const googleAuth = window.MGGoogleAuth.create({
         clientId: window.MG_CONFIG?.googleClientId,
       });
+      const appUpdate = window.MGAppUpdate.create({
+        reload: () => {
+          appReloadRequested = true;
+          window.location.reload();
+        },
+        onUpdateAvailable: () => {
+          document.querySelector("#interfaceUpdateNotice").hidden = false;
+        },
+      });
       const repository = window.MGGoogleDriveRepository.create({
         getAccessToken: googleAuth.getAccessToken,
         isAccessTokenExpired: googleAuth.isAccessTokenExpired,
@@ -2665,10 +2674,12 @@ const descriptionOptionsByType = {
       async function verifyApplicationUpdate(trigger) {
         const resetButton = setButtonBusy(trigger, true, "Verificando...");
         try {
-          const registration = await navigator.serviceWorker?.getRegistration();
-          await registration?.update();
-          appReloadRequested = true;
-          window.location.reload();
+          const result = await appUpdate.checkForUpdate();
+          show(result === "available"
+            ? "Nova versão disponível. Use “Atualizar interface” quando terminar o que está fazendo."
+            : result === "current"
+              ? "Você já está na versão mais recente. Tente de novo mais tarde."
+              : "Este navegador não permite verificar atualizações do aplicativo.");
         } catch (error) {
           console.error(error);
           show("Não foi possível verificar a atualização agora. Tente novamente quando estiver conectado.");
@@ -3730,8 +3741,7 @@ const descriptionOptionsByType = {
         const reset = setButtonBusy(event.currentTarget, true, "Atualizando…");
         try {
           await saveLocal();
-          appReloadRequested = true;
-          window.location.reload();
+          appUpdate.apply();
         } catch (error) {
           show("Não foi possível preservar os dados locais. A interface não foi recarregada.");
           reset();
@@ -4496,11 +4506,7 @@ const descriptionOptionsByType = {
         localStore.clearLegacyCache();
         render();
         if ("serviceWorker" in navigator && window.isSecureContext) {
-          const alreadyControlled = Boolean(navigator.serviceWorker.controller);
-          navigator.serviceWorker.addEventListener("controllerchange", () => {
-            if (alreadyControlled) document.querySelector("#interfaceUpdateNotice").hidden = false;
-          });
-          navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).then(registration => registration.update()).catch((error) => {
+          appUpdate.register("./sw.js").catch((error) => {
             console.warn("Não foi possível ativar o modo instalável/offline.", error);
           });
         }
