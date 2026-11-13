@@ -105,6 +105,48 @@
     return writeConditional(userId, expected, replacement);
   }
 
+  // Moves a profile between keys in ONE transaction. Both current records must
+  // still match what the caller previewed; the target write and the source
+  // delete commit together or not at all. `replacement === undefined` keeps
+  // the target untouched and only deletes the source.
+  function transfer(fromId, expectedFrom, toId, expectedTo, replacement) {
+    const baselineFrom = structuredClone(expectedFrom);
+    const baselineTo = structuredClone(expectedTo);
+    const snapshot = replacement === undefined ? undefined : structuredClone(replacement);
+    const same = (current, baseline) => JSON.stringify(current) === JSON.stringify(baseline);
+    const pendingWrite = async () => {
+      const database = await openDatabase();
+      return new Promise((resolve, reject) => {
+        const transaction = database.transaction(STORE_NAME, "readwrite");
+        const store = transaction.objectStore(STORE_NAME);
+        let failure = null;
+        const conflict = () => {
+          failure = new Error("LOCAL_STORE_CONFLICT");
+          transaction.abort();
+        };
+        const fromRequest = store.get(fromId);
+        fromRequest.onsuccess = () => {
+          if (!same(fromRequest.result, baselineFrom)) return conflict();
+          const toRequest = store.get(toId);
+          toRequest.onsuccess = () => {
+            if (!same(toRequest.result, baselineTo)) return conflict();
+            if (snapshot !== undefined) store.put(snapshot, toId);
+            store.delete(fromId);
+          };
+        };
+        transaction.oncomplete = () => {
+          observed.delete(fromId);
+          if (snapshot !== undefined) observed.set(toId, structuredClone(snapshot));
+          resolve(structuredClone(snapshot));
+        };
+        transaction.onerror = () => reject(failure || transaction.error || new Error("INDEXED_DB_TRANSACTION_ABORTED"));
+        transaction.onabort = () => reject(failure || transaction.error || new Error("INDEXED_DB_TRANSACTION_ABORTED"));
+      });
+    };
+    writeChain = writeChain.then(pendingWrite, pendingWrite);
+    return writeChain;
+  }
+
   async function remove(userId) {
     const result = await runWrite((store) => store.delete(userId));
     // The record is gone; a stale observed snapshot would fail the next save().
@@ -129,5 +171,5 @@
     }
   }
 
-  global.MGLocalStore = { load, save, compareAndSwap, remove, clearLegacyCache, requestPersistence };
+  global.MGLocalStore = { load, save, compareAndSwap, transfer, remove, clearLegacyCache, requestPersistence };
 })(window);

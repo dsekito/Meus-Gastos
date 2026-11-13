@@ -18,6 +18,7 @@ const descriptionOptionsByType = {
 
       const domain = window.MGDomain;
       const localStore = window.MGLocalStore;
+      const localProfile = window.MGLocalProfile;
       const googleAuth = window.MGGoogleAuth.create({
         clientId: window.MG_CONFIG?.googleClientId,
       });
@@ -256,6 +257,9 @@ const descriptionOptionsByType = {
         authScreen = document.querySelector("#authScreen"),
         appShell = document.querySelector("#appShell"),
         signInGoogleScreen = document.querySelector("#signInGoogleScreen"),
+        useLocalProfileButton = document.querySelector("#useLocalProfile"),
+        localMigrationDialog = document.querySelector("#localMigrationDialog"),
+        localMigrationSummary = document.querySelector("#localMigrationSummary"),
         filteredSubtotal = document.querySelector("#filteredSubtotal"),
         calendarGrid = document.querySelector("#calendarGrid"),
         calendarPanel = document.querySelector(".calendar-panel"),
@@ -416,8 +420,20 @@ const descriptionOptionsByType = {
           : `Google Drive atualizado em ${value.toLocaleDateString("pt-BR")} às ${time}`;
       }
 
+      function isLocalSession() {
+        return localProfile.isLocalUser(state.user);
+      }
+
       function updateSettingsSyncSummary(stateName) {
         if (!settingsSyncSummary) return;
+        if (isLocalSession() && !hasLocalOnlyRecovery()) {
+          const title = document.createElement("strong");
+          title.textContent = "Modo local · sem sincronização";
+          const detail = document.createElement("span");
+          detail.textContent = "Os dados ficam só neste aparelho e nada é enviado para a internet. Use “Conectar Google” no topo da tela para guardar uma cópia no seu Google Drive. Se limpar os dados do navegador, os lançamentos deste aparelho serão apagados.";
+          settingsSyncSummary.replaceChildren(title, detail);
+          return;
+        }
         if (hasLocalOnlyRecovery()) {
           const title = document.createElement("strong");
           title.textContent = "Recuperação local · envio pausado";
@@ -456,6 +472,23 @@ const descriptionOptionsByType = {
         }
       }
 
+      // Sem conta não há sincronização: o status é sempre "Modo local", com o
+      // caminho para conectar o Google no cabeçalho.
+      function showLocalModeStatus() {
+        syncStatus.dataset.state = "local";
+        syncNotice.dataset.state = "local";
+        syncStatus.textContent = "Modo local";
+        syncStatus.setAttribute("aria-label", "Modo local: dados salvos só neste aparelho, sem sincronização");
+        syncNotice.hidden = true;
+        syncNoticeTitle.textContent = "Modo local: dados só neste aparelho";
+        syncNoticeDetail.textContent = "Nada é enviado para a internet. Conecte o Google para guardar uma cópia no seu Drive.";
+        syncNoticeAction.hidden = false;
+        syncNoticeAction.textContent = "Conectar Google";
+        syncNoticeAction.dataset.action = "authorize";
+        syncNoticeAction.setAttribute("aria-label", "Conectar sua conta Google para sincronizar");
+        updateSettingsSyncSummary("local");
+      }
+
       function setSyncStatus(stateName, message) {
         const syncDetails = document.querySelector("#syncDetails");
         const critical = hasLocalOnlyRecovery() || stateName === "conflict"
@@ -476,6 +509,10 @@ const descriptionOptionsByType = {
           syncNoticeAction.dataset.action = "";
           syncNoticeAction.removeAttribute("aria-label");
           updateSettingsSyncSummary("local-only");
+          return;
+        }
+        if (isLocalSession()) {
+          showLocalModeStatus();
           return;
         }
         const pending = pendingSyncCount();
@@ -1039,6 +1076,10 @@ const descriptionOptionsByType = {
           return;
         }
 
+        if (isLocalSession()) {
+          authArea.innerHTML = '<span class="signed-user">Neste aparelho</span><button class="auth-button" id="connectGoogle" type="button" aria-label="Conectar sua conta Google para sincronizar" title="Conectar Google"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.34 5.66"/><path d="M20 4v7h-7"/></svg><span class="button-label">Conectar Google</span></button>';
+          return;
+        }
         const name = state.user.user_metadata?.full_name || state.user.email;
         const reconnectButton = googleAuth.hasAccessToken()
           ? ""
@@ -1203,6 +1244,7 @@ const descriptionOptionsByType = {
           if (!googleAuth.hasAccessToken()) {
             setSyncStatus(state.syncConflict ? "conflict" : "pending", state.syncConflict ? "Conflito de sincronização" : "Autorize o Google Drive para sincronizar");
             render();
+            if (isLocalSession()) maybeOpenOnboarding();
             return;
           }
           try {
@@ -1250,7 +1292,8 @@ const descriptionOptionsByType = {
         else trigger.textContent = "Conectando…";
         try {
           const user = await googleAuth.signIn({ loginHint: state.user?.email || "" });
-          await setCurrentUser(user);
+          if (isLocalSession()) await connectLocalProfile(user);
+          else await setCurrentUser(user);
         } catch (error) {
           console.error(error);
           show(
@@ -1272,6 +1315,113 @@ const descriptionOptionsByType = {
             else trigger.textContent = originalLabel;
           }
         }
+      }
+
+      async function startLocalProfile(button) {
+        if (button.disabled) return;
+        button.disabled = true;
+        button.setAttribute("aria-busy", "true");
+        try {
+          await setCurrentUser(localProfile.create());
+          show("Modo local ativo. Seus dados ficam só neste aparelho.");
+        } catch (error) {
+          console.error(error);
+          show("Não foi possível usar o modo local. Verifique se este navegador permite guardar dados do site e tente novamente.");
+        } finally {
+          button.disabled = false;
+          button.removeAttribute("aria-busy");
+        }
+      }
+
+      function entryCountLabel(count) {
+        return count === 1 ? "1 lançamento" : `${count} lançamentos`;
+      }
+
+      function askLocalMigrationChoice(summary) {
+        localMigrationSummary.textContent = `Neste aparelho: ${entryCountLabel(summary.deviceEntries)}. Na sua conta Google: ${entryCountLabel(summary.accountEntries)}. Nada muda até você escolher.`;
+        localMigrationDialog.returnValue = "";
+        return new Promise((resolve) => {
+          localMigrationDialog.addEventListener("close", () => {
+            // Esc ou fechar sem escolher equivale a cancelar.
+            const choice = localMigrationDialog.returnValue;
+            resolve(["device", "drive"].includes(choice) ? choice : "cancel");
+          }, { once: true });
+          localMigrationDialog.showModal();
+        });
+      }
+
+      async function readDriveSnapshot() {
+        repository.reset();
+        repository.beginSync?.();
+        await repository.load();
+        return {
+          entries: await repository.fetchEntries(),
+          recurrenceSeries: await repository.fetchRecurrenceSeries(),
+          settings: await repository.fetchSettings(),
+        };
+      }
+
+      // Volta ao modo local sem guardar a sessão Google: a conexão só vale
+      // depois que os dados foram movidos com sucesso.
+      async function abandonGoogleConnection() {
+        repository.cancelPendingRequests?.();
+        await googleAuth.signOut();
+        repository.reset();
+        updateAuthArea();
+        setSyncStatus("local");
+      }
+
+      // Move os dados do perfil local para o id da conta Google. O estado em
+      // memória só muda depois que a transação confirma; em qualquer falha a
+      // pessoa continua no modo local com os mesmos dados.
+      async function connectLocalProfile(googleUser) {
+        const session = state.user;
+        if (financialMutationBusy || recoveryBusy) {
+          await abandonGoogleConnection();
+          show("Aguarde a operação em andamento terminar e tente conectar o Google novamente.");
+          return;
+        }
+        recoveryBusy = true;
+        let result;
+        try {
+          await saveLocal();
+          const plan = await localProfile.planMigration({
+            store: localStore, localId: session.id, googleId: googleUser.id, readRemote: readDriveSnapshot,
+          });
+          if (state.user !== session) throw new Error("LOCAL_MIGRATION_CANCELLED");
+          let choice = null;
+          if (plan.kind === "conflict") {
+            // The capture guard blocks dialog clicks while busy. The modal keeps
+            // the app inert, and the transfer's compare-and-swap rejects any
+            // change made in the meantime (for example in another tab).
+            recoveryBusy = false;
+            choice = await askLocalMigrationChoice(plan.summary);
+            recoveryBusy = true;
+          }
+          if (state.user !== session) throw new Error("LOCAL_MIGRATION_CANCELLED");
+          result = await localProfile.commitMigration({ store: localStore, plan, choice });
+        } catch (error) {
+          console.error(error);
+          recoveryBusy = false;
+          if (state.user !== session) return;
+          await abandonGoogleConnection();
+          show(error.message === "LOCAL_STORE_CONFLICT"
+            ? "Os dados deste aparelho mudaram durante a conexão. Nada foi movido; confira e tente conectar novamente."
+            : "Não foi possível conectar o Google agora. Seus dados continuam salvos neste aparelho; verifique a conexão e tente novamente.");
+          return;
+        }
+        recoveryBusy = false;
+        if (result.status === "cancelled") {
+          await abandonGoogleConnection();
+          show("Conexão cancelada. Seus dados continuam só neste aparelho.");
+          return;
+        }
+        localProfile.forget();
+        repository.reset();
+        await setCurrentUser(googleUser);
+        show(result.choice === "device"
+          ? "Google conectado. Os dados deste aparelho foram movidos para a sua conta."
+          : "Google conectado. Os dados da sua conta Google foram carregados.");
       }
 
       async function signOut() {
@@ -1314,7 +1464,11 @@ const descriptionOptionsByType = {
 
       async function initializeAuth() {
         try {
-          const restoredUser = googleAuth.restoreSession();
+          const { user: restoredUser, forgetGoogleSession } = localProfile.resolveStartupUser({
+            googleUser: googleAuth.restoreSession(),
+            localUser: localProfile.restore(),
+          });
+          if (forgetGoogleSession) await googleAuth.signOut();
           if (restoredUser) {
             await setCurrentUser(restoredUser);
           } else {
@@ -1552,12 +1706,16 @@ const descriptionOptionsByType = {
       }
 
       authArea.onclick = async (event) => {
-        const signInButton = event.target.closest("#signInGoogle, #reconnectGoogle");
+        const signInButton = event.target.closest("#signInGoogle, #reconnectGoogle, #connectGoogle");
         if (signInButton) await signInWithGoogle(signInButton);
         if (event.target.closest("#signOut")) await signOut();
       };
 
       signInGoogleScreen.onclick = () => signInWithGoogle(signInGoogleScreen);
+      useLocalProfileButton.onclick = () => startLocalProfile(useLocalProfileButton);
+      localMigrationDialog.querySelectorAll("[data-migration-choice]").forEach((button) => {
+        button.onclick = () => localMigrationDialog.close(button.dataset.migrationChoice);
+      });
       syncNoticeAction.onclick = async () => {
         const action = syncNoticeAction.dataset.action;
         if (action === "cancel") return cancelSynchronization();
@@ -1594,7 +1752,7 @@ const descriptionOptionsByType = {
       });
 
       window.addEventListener("beforeunload", (event) => {
-        if (appReloadRequested || !state.user || !hasPendingChanges()) return;
+        if (appReloadRequested || !state.user || isLocalSession() || !hasPendingChanges()) return;
         event.preventDefault();
         event.returnValue = "";
       });

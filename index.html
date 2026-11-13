@@ -2327,7 +2327,7 @@
         dialog .modal-foot { position: static; }
       }
     </style>
-    <link rel="stylesheet" href="./mobile.css?v=2026111201" />
+    <link rel="stylesheet" href="./mobile.css?v=2026111202" />
   </head>
   <body aria-busy="true">
     <section class="bootstrap-screen" id="bootstrapScreen" role="status" aria-live="polite">
@@ -2341,10 +2341,16 @@
       <div class="auth-card">
         <div class="auth-logo" aria-hidden="true">$</div>
         <h1>Meus Gastos</h1>
-        <p>Seus dados ficam neste dispositivo e no seu próprio Google Drive.</p>
-        <button class="google-button" id="signInGoogleScreen" type="button" aria-label="Continuar com sua conta Google">
-          Continuar com Google
-        </button>
+        <p>Seus dados ficam neste aparelho. Se quiser, guarde uma cópia no seu próprio Google Drive.</p>
+        <div class="auth-options">
+          <button class="google-button" id="signInGoogleScreen" type="button" aria-label="Continuar com sua conta Google">
+            Continuar com Google
+          </button>
+          <button class="secondary" id="useLocalProfile" type="button" aria-describedby="useLocalProfileHint">
+            Usar só neste aparelho
+          </button>
+          <p class="auth-hint" id="useLocalProfileHint">Sem conta e sem sincronização. Você pode conectar o Google depois sem perder os lançamentos.</p>
+        </div>
       </div>
     </section>
     <main class="shell" id="appShell" hidden>
@@ -2868,6 +2874,21 @@
         </div>
       </section>
     </dialog>
+    <dialog id="localMigrationDialog" aria-labelledby="localMigrationTitle" aria-describedby="localMigrationSummary">
+      <section class="modal">
+        <div class="modal-head">
+          <div>
+            <h2 id="localMigrationTitle">Sua conta Google já tem dados</h2>
+            <p id="localMigrationSummary">Escolha quais dados manter.</p>
+          </div>
+        </div>
+        <div class="conflict-actions">
+          <button class="secondary" type="button" data-migration-choice="device"><strong>Manter os deste aparelho</strong><br><small>Os dados da conta Google são substituídos pelos deste aparelho.</small></button>
+          <button class="secondary" type="button" data-migration-choice="drive"><strong>Manter os do Google Drive</strong><br><small>Os lançamentos feitos neste aparelho são descartados.</small></button>
+          <button class="secondary" type="button" data-migration-choice="cancel" autofocus><strong>Cancelar</strong><br><small>Nada muda; você continua usando só neste aparelho.</small></button>
+        </div>
+      </section>
+    </dialog>
     <dialog id="recentRecordsDialog" aria-labelledby="recentRecordsTitle">
       <section class="modal">
         <div class="modal-head">
@@ -2948,11 +2969,12 @@
     <script src="./js/config.js?v=2026081001"></script>
     <script src="./js/domain.js?v=2026111201"></script>
     <script src="./js/document-validator.js?v=2026111104"></script>
-    <script src="./js/local-store.js?v=2026111201"></script>
+    <script src="./js/local-store.js?v=2026111202"></script>
+    <script src="./js/local-profile.js?v=2026111201"></script>
     <script src="./js/backup-recovery.js?v=2026111102"></script>
     <script src="./js/google-auth.js?v=2026111201"></script>
     <script src="./js/google-drive-repository.js?v=2026111201"></script>
     <script src="./js/sync-service.js?v=2026111102"></script>
-    <script src="./js/app.js?v=2026111201"></script>
+    <script src="./js/app.js?v=2026111202"></script>
   </body>
 </html>
