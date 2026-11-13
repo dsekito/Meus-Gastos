@@ -1,5 +1,5 @@
-// Cartão de crédito como forma de pagamento: cadastro nas configurações e data
-// preenchida com o vencimento da fatura. App real em modo local, perfil
+// Cartão de crédito como forma de pagamento: cadastro nas configurações, data
+// preenchida com o vencimento da fatura e cartão gravado no lançamento. App real em modo local, perfil
 // sintético e relógio fixo; nenhuma conta ou requisição real.
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
@@ -114,7 +114,10 @@ async function openNewEntry(page) {
     await page.getByLabel('Forma de pagamento').selectOption({ label: 'Pix, débito ou dinheiro' });
     assert.equal(await page.inputValue('#date'), '2026-12-15');
 
-    // Salvar grava a data escolhida; o cartão não é gravado no lançamento.
+    // Salvar grava a data escolhida e o cartão no lançamento.
+    const cardId = name => stored(page, profileId).then(data => data.settings.credit_cards.find(card => card.name === name).id);
+    const nubankId = await cardId('Nubank');
+    const itauId = await cardId('Itaú');
     await page.getByLabel('Forma de pagamento').selectOption({ label: 'Crédito: Nubank' });
     await page.fill('#value', '89.9');
     await page.selectOption('#type', 'ALIMENTAÇÃO');
@@ -124,7 +127,7 @@ async function openNewEntry(page) {
     const [entry] = (await stored(page, profileId)).entries;
     assert.equal(entry.date, '2026-12-10');
     assert.equal(entry.value, 89.9);
-    assert.equal('credit_card' in entry || 'payment_method' in entry, false);
+    assert.equal(entry.credit_card_id, nubankId);
 
     // Ao abrir de novo, o formulário recomeça em Pix e hoje.
     await openNewEntry(page);
@@ -135,17 +138,44 @@ async function openNewEntry(page) {
     assert.equal(await page.isVisible('#creditCardField'), false);
     await page.locator('#entryForm [data-close]').first().click();
 
-    // Edição não oferece cartão nem muda a data do lançamento.
+    // Edição mostra o cartão do lançamento; trocar o cartão não muda a data.
+    const storedEntry = async () => (await stored(page, profileId)).entries.find(item => item.id === entry.id);
+    async function editSavedEntry() {
+      await page.locator(`[data-entry="${entry.id}"]`).first().click();
+      await page.waitForSelector('#entryDialog[open]');
+      assert.equal(await page.textContent('#entryDialogTitle'), 'Editar lançamento');
+    }
+    async function saveEdit() {
+      await page.locator('#saveEntry').click();
+      await page.waitForSelector('#entryDialog:not([open])', { state: 'attached' });
+    }
     await page.getByRole('button', { name: 'Registros', exact: true }).click();
     await page.locator('#nextMonth').click();
-    await page.locator(`[data-entry="${entry.id}"]`).first().click();
-    await page.waitForSelector('#entryDialog[open]');
-    assert.equal(await page.textContent('#entryDialogTitle'), 'Editar lançamento');
-    assert.equal(await page.isVisible('#creditCardField'), false, 'a edição não oferece cartão');
-    assert.equal(await page.inputValue('#date'), '2026-12-10');
-    await page.locator('#entryForm [data-close]').first().click();
+    await editSavedEntry();
+    assert.ok(await page.isVisible('#creditCardField'), 'a edição oferece a forma de pagamento');
+    assert.equal(await page.inputValue('#creditCard'), nubankId);
+    await page.getByLabel('Forma de pagamento').selectOption({ label: 'Crédito: Itaú' });
+    assert.equal(await page.inputValue('#date'), '2026-12-10', 'a data do lançamento existente não muda');
+    assert.equal(await page.textContent('#creditCardHelp'), 'A data do lançamento não muda ao trocar a forma de pagamento.');
+    assert.ok(await noHorizontalScroll(page), 'edição cabe em 320 px');
+    await saveEdit();
+    assert.equal((await storedEntry()).credit_card_id, itauId);
+    assert.equal((await storedEntry()).date, '2026-12-10');
 
-    // Excluir pede confirmação e preserva o lançamento já feito.
+    // Voltar para Pix tira o cartão do lançamento.
+    await editSavedEntry();
+    await page.getByLabel('Forma de pagamento').selectOption({ label: 'Pix, débito ou dinheiro' });
+    await saveEdit();
+    assert.equal('credit_card_id' in await storedEntry(), false);
+
+    // Lançamento sem cartão: a edição começa em Pix e pode receber um cartão.
+    await editSavedEntry();
+    assert.equal(await page.inputValue('#creditCard'), '');
+    await page.getByLabel('Forma de pagamento').selectOption({ label: 'Crédito: Nubank' });
+    await saveEdit();
+    assert.equal((await storedEntry()).credit_card_id, nubankId);
+
+    // Excluir o cartão pede confirmação e preserva o lançamento já feito.
     await openCardSettings(page);
     await page.getByRole('button', { name: 'Excluir cartão Nubank' }).click();
     await page.waitForSelector('#confirmDialog[open]');
@@ -154,6 +184,68 @@ async function openNewEntry(page) {
     const afterRemoval = await stored(page, profileId);
     assert.deepEqual(afterRemoval.settings.credit_cards.map(card => card.name), ['Itaú']);
     assert.equal(afterRemoval.entries[0].date, '2026-12-10');
+    assert.equal(afterRemoval.entries[0].credit_card_id, nubankId);
+
+    // Editar um lançamento de cartão excluído mostra "Cartão excluído" e não o apaga ao salvar.
+    await page.locator('[data-close-settings]').first().click();
+    await editSavedEntry();
+    assert.equal(await page.inputValue('#creditCard'), nubankId);
+    assert.equal(await page.locator('#creditCard option:checked').textContent(), 'Cartão excluído');
+    await page.fill('#value', '90');
+    await saveEdit();
+    assert.equal((await storedEntry()).credit_card_id, nubankId);
+    assert.equal((await storedEntry()).value, 90);
+
+    // Compra parcelada no cartão: todas as parcelas levam o cartão; a edição troca em todas.
+    await openNewEntry(page);
+    await page.getByLabel('Forma de pagamento').selectOption({ label: 'Crédito: Itaú' });
+    await page.fill('#value', '300');
+    await page.selectOption('#type', 'COMPRAS');
+    await page.selectOption('#description', 'CASA');
+    await page.locator('#entryAdvanced summary').click();
+    await page.selectOption('#recurrence', 'installments');
+    await page.fill('#installments', '3');
+    await page.locator('#saveEntry').click();
+    await page.waitForSelector('#entryDialog:not([open])', { state: 'attached' });
+    const installments = async () => (await stored(page, profileId)).entries.filter(item => item.installment);
+    assert.deepEqual((await installments()).map(item => [item.date, item.credit_card_id]),
+      [['2026-12-05', itauId], ['2027-01-05', itauId], ['2027-02-05', itauId]]);
+    const firstInstallment = (await installments()).find(item => item.installment.current === 1);
+    await page.locator(`[data-entry="${firstInstallment.id}"]`).first().click();
+    await page.waitForSelector('#entryDialog[open]');
+    assert.equal(await page.inputValue('#creditCard'), itauId);
+    await page.getByLabel('Forma de pagamento').selectOption({ label: 'Pix, débito ou dinheiro' });
+    await saveEdit();
+    assert.ok((await installments()).every(item => !('credit_card_id' in item)), 'a troca vale para todas as parcelas');
+
+    // Recorrência mensal no cartão: a série e as ocorrências levam o cartão;
+    // editar "Em toda a série" troca em todas.
+    await openNewEntry(page);
+    await page.getByLabel('Forma de pagamento').selectOption({ label: 'Crédito: Itaú' });
+    await page.fill('#value', '39.9');
+    await page.selectOption('#type', 'ASSINATURAS');
+    await page.selectOption('#description', 'STREAMING');
+    await page.locator('#entryAdvanced summary').click();
+    await page.selectOption('#recurrence', 'monthly');
+    await page.locator('#saveEntry').click();
+    await page.waitForSelector('#entryDialog:not([open])', { state: 'attached' });
+    const recurring = async () => {
+      const data = await stored(page, profileId);
+      return { series: data.recurrenceSeries[0], entries: data.entries.filter(item => item.series_id === data.recurrenceSeries[0].id) };
+    };
+    let subscription = await recurring();
+    assert.equal(subscription.series.credit_card_id, itauId);
+    assert.ok(subscription.entries.length > 1 && subscription.entries.every(item => item.credit_card_id === itauId));
+    const firstOccurrence = subscription.entries.sort((a, b) => a.date.localeCompare(b.date))[0];
+    await page.locator(`[data-entry="${firstOccurrence.id}"]`).first().click();
+    await page.waitForSelector('#entryDialog[open]');
+    assert.equal(await page.inputValue('#creditCard'), itauId);
+    await page.getByLabel('Forma de pagamento').selectOption({ label: 'Pix, débito ou dinheiro' });
+    await page.selectOption('#editScope', 'all');
+    await saveEdit();
+    subscription = await recurring();
+    assert.equal('credit_card_id' in subscription.series, false);
+    assert.ok(subscription.entries.every(item => !('credit_card_id' in item)), 'a troca vale para toda a série');
 
     // O cartão continua salvo depois de recarregar o app.
     await page.reload();

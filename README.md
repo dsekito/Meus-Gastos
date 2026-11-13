@@ -169,10 +169,14 @@ A lógica fica em `js/local-profile.js` (`window.MGLocalProfile`).
 ## Cartões de crédito
 
 Em **Ajustes > Tipos, descrições e cartões**, cadastre cada cartão com o dia do
-fechamento e o dia do vencimento da fatura. Num novo lançamento de despesa, o
-campo **Forma de pagamento** oferece os cartões cadastrados; ao escolher um, a
-data do lançamento passa a ser o vencimento da fatura em que uma compra feita
-hoje cai. A data continua editável.
+fechamento e o dia do vencimento da fatura. Nas despesas, o campo **Forma de
+pagamento** oferece os cartões cadastrados, e o cartão escolhido fica gravado no
+lançamento.
+
+Num **novo** lançamento, escolher o cartão também troca a data pelo vencimento
+da fatura em que uma compra feita hoje cai. A data continua editável. Ao
+**editar** um lançamento, a forma de pagamento pode ser trocada, mas a data não
+muda: ela já é a data do pagamento, e a data da compra não é conhecida.
 
 - Compras feitas **a partir do dia do fechamento** vão para a fatura seguinte.
 - Se o vencimento é no mesmo dia ou antes do fechamento, a fatura vence no mês
@@ -181,15 +185,22 @@ hoje cai. A data continua editável.
 - Em compras parceladas, a 1ª parcela fica no vencimento sugerido e as demais
   nos meses seguintes.
 
-O cartão só sugere a data: ele não é gravado no lançamento, e editar ou excluir
-um cartão não altera lançamentos já feitos. Os cartões ficam em
-`settings.credit_cards` (`id`, `name`, `closing_day`, `due_day`), sincronizados
-com o Drive e incluídos nos backups; perfis sem cartão não têm o campo. A regra
-fica em `MGDomain.creditCardDueDate` e a interface em `js/credit-cards.js`.
+Recorrências e parcelamentos guardam o cartão na série ou no plano, e todas as
+ocorrências e parcelas o recebem; editar "Em toda a série" ou o parcelamento
+troca o cartão em todas. Excluir um cartão não altera os lançamentos feitos com
+ele: ao editá-los, a opção aparece como **Cartão excluído** e continua gravada.
 
-Versões anteriores do app ignoram esse campo. Se um aparelho ainda não
-atualizado salvar a projeção, a lista de cartões pode ser descartada no Drive;
-atualize a interface em todos os aparelhos ao começar a usar cartões.
+Os cartões ficam em `settings.credit_cards` (`id`, `name`, `closing_day`,
+`due_day`); lançamentos e séries pagos com cartão têm `credit_card_id`. Os dois
+campos são opcionais, ficam ausentes quando não há cartão, são validados ao ler
+o Drive, backups e importações, e vão junto na sincronização e nos backups. As
+regras ficam em `MGDomain.creditCardDueDate` e `MGDomain.withCreditCard`, e a
+interface em `js/credit-cards.js`.
+
+Versões anteriores do app ignoram esses campos e os descartam ao gravar: um
+aparelho ainda não atualizado pode apagar a lista de cartões ao salvar a
+projeção e tirar o cartão de um lançamento que editar. Atualize a interface em
+todos os aparelhos ao começar a usar cartões.
 
 ## Instalação
 

@@ -879,7 +879,7 @@ const profileDefaults = window.MGProfileDefaults;
       }
 
       function occurrenceEntry(series, occurrence) {
-        return {
+        return domain.withCreditCard({
           id: generateId(),
           date: occurrence.date,
           scheduled_date: occurrence.scheduled_date,
@@ -894,7 +894,7 @@ const profileDefaults = window.MGProfileDefaults;
           paid: false,
           installment: null,
           created_at: new Date().toISOString(),
-        };
+        }, series.credit_card_id);
       }
 
       async function materializeRecurrenceSeries(series) {
@@ -2909,17 +2909,17 @@ const profileDefaults = window.MGProfileDefaults;
       function updateEntry(entry) {
         const index = state.entries.findIndex((e) => e.id === state.editingId);
         if (index < 0) return false;
-        state.entries[index] = {
+        state.entries[index] = domain.withCreditCard({
           ...state.entries[index],
           ...entry,
-        };
+        }, entry.credit_card_id);
         queueUpsert(state.entries[index]);
         state.editingId = null;
         return true;
       }
 
       function recurrenceSeriesFromForm(id, startDate) {
-        return {
+        return domain.withCreditCard({
           id,
           flow_type: domain.entryFlowType({ flow_type: flowType.value, type: type.value }),
           frequency: recurrence.value,
@@ -2938,7 +2938,7 @@ const profileDefaults = window.MGProfileDefaults;
           description: desc.value,
           detail: detailInput.value.trim(),
           active: true,
-        };
+        }, creditCards.selectedCardId());
       }
 
       async function createRecurringSeries() {
@@ -3003,6 +3003,7 @@ const profileDefaults = window.MGProfileDefaults;
             detail: detailInput.value.trim(),
             paid: paidInput.checked,
             detached_from_series: true,
+            credit_card_id: creditCards.selectedCardId(),
           });
           return updated ? "this" : null;
         }
@@ -3031,11 +3032,11 @@ const profileDefaults = window.MGProfileDefaults;
           return "future";
         }
 
-        const updated = {
+        const updated = domain.withCreditCard({
           ...original,
           ...recurrenceSeriesFromForm(original.id, original.start_date),
           start_date: original.start_date,
-        };
+        }, creditCards.selectedCardId());
         updated.updated_at = new Date().toISOString();
         const index = state.recurrenceSeries.findIndex((series) => series.id === original.id);
         state.recurrenceSeries[index] = updated;
@@ -3083,6 +3084,7 @@ const profileDefaults = window.MGProfileDefaults;
           type: type.value,
           description: desc.value,
           detail: detailInput.value.trim(),
+          credit_card_id: creditCards.selectedCardId(),
         });
 
         reconciliation.upserts.forEach((updatedEntry) => {
@@ -3123,7 +3125,7 @@ const profileDefaults = window.MGProfileDefaults;
         removed.forEach((item) => queueDelete(item.id, item.updated_at));
         state.entries = state.entries.filter((item) => !removedIds.has(item.id));
 
-        const updated = {
+        const updated = domain.withCreditCard({
           ...primary,
           ...values,
           series_id: null,
@@ -3132,7 +3134,7 @@ const profileDefaults = window.MGProfileDefaults;
           excluded_from_series: false,
           installment: null,
           installment_group_id: null,
-        };
+        }, values.credit_card_id);
         const index = state.entries.findIndex((item) => item.id === primary.id);
         if (index < 0) return false;
         state.entries[index] = updated;
@@ -3169,6 +3171,7 @@ const profileDefaults = window.MGProfileDefaults;
           type: entry.type,
           description: entry.description,
           detail: entry.detail,
+          credit_card_id: entry.credit_card_id,
         });
         installmentPlan.missingInstallments.forEach((installmentEntry) => {
           const created = {
@@ -3504,7 +3507,7 @@ const profileDefaults = window.MGProfileDefaults;
         businessDayAdjustment.value = series?.business_day_adjustment || "none";
         editScopeField.hidden = !series;
         editScope.value = "this";
-        creditCards.updateEntryField({ reset: true });
+        creditCards.updateEntryField({ reset: true, selectedId: formValues.credit_card_id });
         updateEntryFormVisibility();
       }
 
@@ -4119,7 +4122,7 @@ const profileDefaults = window.MGProfileDefaults;
         updateEntryFormValidity();
         if (!form.reportValidity()) return;
 
-        const entry = {
+        const entry = domain.withCreditCard({
           date,
           value: totalValue,
           flow_type: domain.entryFlowType({ flow_type: flowType.value, type: type.value }),
@@ -4127,7 +4130,7 @@ const profileDefaults = window.MGProfileDefaults;
           description: desc.value,
           detail,
           paid,
-        };
+        }, creditCards.selectedCardId());
 
         const activeSubmitButton = keepAdding ? saveAndAddAnother : saveEntry;
         saveEntry.disabled = true;

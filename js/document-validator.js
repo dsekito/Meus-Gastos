@@ -34,8 +34,15 @@
     });
   }
 
+  // Optional: present only when the record was paid with a registered card.
+  function validateCreditCardId(record) {
+    if (record.credit_card_id !== undefined
+      && (typeof record.credit_card_id !== "string" || !record.credit_card_id.trim())) invalid();
+  }
+
   function validateEntry(entry) {
     if (entry.value != null && !Number.isFinite(Number(entry.value))) invalid();
+    validateCreditCardId(entry);
     validateOptionalDate(entry.date, "date");
     validateOptionalDate(entry.scheduled_date, "date");
     validateOptionalDate(entry.created_at, "timestamp");
@@ -48,6 +55,7 @@
     validateOptionalDate(series.created_at, "timestamp");
     validateOptionalDate(series.updated_at, "timestamp");
     if (series.value != null && !Number.isFinite(Number(series.value))) invalid();
+    validateCreditCardId(series);
   }
 
   function validateSettings(settings, { required = false } = {}) {

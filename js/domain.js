@@ -274,17 +274,24 @@
     return colors;
   }
 
+  // The credit card used to pay is optional: a record without one carries no
+  // `credit_card_id` key at all, so it keeps the shape it always had.
+  function withCreditCard(record, creditCardId) {
+    const { credit_card_id: _previous, ...rest } = record;
+    return creditCardId ? { ...rest, credit_card_id: creditCardId } : rest;
+  }
+
   function recurringEntryFormValues(entry, series = null) {
     if (!series || entry.detached_from_series) return entry;
 
-    return {
+    return withCreditCard({
       ...entry,
       value: series.value ?? entry.value,
       flow_type: series.flow_type ?? entry.flow_type,
       type: series.type ?? entry.type,
       description: series.description ?? entry.description,
       detail: series.detail ?? entry.detail,
-    };
+    }, series.credit_card_id);
   }
 
   function reconcileSeriesEntries(entries = [], occurrences = [], series = {}) {
@@ -312,7 +319,7 @@
     for (let index = 0; index < reusableCount; index += 1) {
       const entry = activeEntries[index];
       const occurrence = availableOccurrences[index];
-      upserts.push({
+      upserts.push(withCreditCard({
         ...entry,
         date: occurrence.date,
         scheduled_date: occurrence.scheduled_date,
@@ -324,7 +331,7 @@
         type: series.type,
         description: series.description,
         detail: series.detail || "",
-      });
+      }, series.credit_card_id));
     }
 
     protectedEntries
@@ -366,7 +373,7 @@
       excluded_from_series: false,
       installment_group_id: plan.group_id || null,
     };
-    const installmentAt = (index) => ({
+    const installmentAt = (index) => withCreditCard({
       ...sharedFields,
       date: addMonthsClamped(plan.start_date, index),
       value: (index === quantity - 1 ? lastCents : regularCents) / 100,
@@ -375,13 +382,13 @@
         total: quantity,
         original: totalValue,
       },
-    });
+    }, plan.credit_card_id);
 
     return {
-      upserts: sortedEntries.slice(0, reusableCount).map((entry, index) => ({
+      upserts: sortedEntries.slice(0, reusableCount).map((entry, index) => withCreditCard({
         ...entry,
         ...installmentAt(index),
-      })),
+      }, plan.credit_card_id)),
       staleEntries: sortedEntries.slice(quantity),
       missingInstallments: Array.from(
         { length: Math.max(0, quantity - sortedEntries.length) },
@@ -535,6 +542,7 @@
     descriptionOptionsForType,
     typeColorMap,
     recurringEntryFormValues,
+    withCreditCard,
     reconcileSeriesEntries,
     installmentSplit,
     reconcileInstallmentEntries,

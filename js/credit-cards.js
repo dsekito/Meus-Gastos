@@ -1,7 +1,9 @@
-// Credit cards: registered in the settings ("Opções") and offered in a new
-// expense as the payment method. Choosing a card fills the entry date with
-// the due date of the invoice the purchase falls into. The card is not saved
-// on the entry: it only suggests the date, which stays editable.
+// Credit cards: registered in the settings ("Opções") and offered in every
+// expense as the payment method, saved on the entry as `credit_card_id`. In a
+// new entry, choosing a card also fills the date with the due date of the
+// invoice a purchase made today falls into; the date stays editable. Editing
+// an existing entry never moves its date: that date is already the payment
+// date, and the purchase date is unknown.
 (function attachCreditCards(global) {
   function create({ state, domain, todayISO, generateId, confirmDialog, financialMutation, show, pendingSyncMessage,
     dateInput, flowType, onDateChange }) {
@@ -19,6 +21,9 @@
     // Date this module last wrote into the entry form. Going back to "Pix,
     // débito ou dinheiro" only restores today while the date is still ours.
     let suggestedDate = null;
+    // Card saved on the entry being edited that is no longer registered. It
+    // stays selectable so that saving the entry does not drop it silently.
+    let removedCardId = null;
     let busy = false;
 
     function cards() {
@@ -114,8 +119,8 @@
       const card = cards().find((item) => item.id === id);
       if (busy || !card || !await confirmDialog.ask({
         title: `Excluir o cartão “${card.name}”?`,
-        description: "O cartão sai da forma de pagamento dos novos lançamentos.",
-        details: ["Os lançamentos já feitos com ele não mudam."],
+        description: "O cartão sai das opções de forma de pagamento.",
+        details: ["Os lançamentos já feitos com ele continuam marcados com o cartão e não mudam de data."],
         confirmLabel: "Excluir cartão",
         tone: "danger",
       })) return;
@@ -132,23 +137,38 @@
       const group = document.createElement("optgroup");
       group.label = "Cartão de crédito";
       cards().forEach((card) => group.append(new Option(`Crédito: ${card.name}`, card.id)));
+      if (removedCardId) group.append(new Option("Cartão excluído", removedCardId));
       entrySelect.replaceChildren(other, group);
-      entrySelect.value = cards().some((card) => card.id === selectedId) ? selectedId : "";
+      const known = cards().some((card) => card.id === selectedId) || (selectedId && selectedId === removedCardId);
+      entrySelect.value = known ? selectedId : "";
     }
 
-    // Called whenever the entry form opens or its movement changes.
-    function updateEntryField({ reset = false } = {}) {
-      const available = cards().length > 0 && !state.editingId && flowType.value === "expense";
+    // Called when the entry form opens (`reset`, with the edited entry's card
+    // in `selectedId`) and whenever its movement changes.
+    function updateEntryField({ reset = false, selectedId = "" } = {}) {
+      if (reset) {
+        removedCardId = selectedId && !cards().some((card) => card.id === selectedId) ? selectedId : null;
+      }
+      const available = (cards().length > 0 || Boolean(removedCardId)) && flowType.value === "expense";
       if (reset || !available) {
         suggestedDate = null;
         setEntryHelp("");
       }
-      renderEntryOptions(reset || !available ? "" : entrySelect.value);
+      renderEntryOptions(!available ? "" : reset ? selectedId : entrySelect.value);
       entryField.hidden = !available;
       entrySelect.disabled = !available;
     }
 
+    // Card to save on the entry; none for income or when the field is hidden.
+    function selectedCardId() {
+      return entryField.hidden || flowType.value !== "expense" ? "" : entrySelect.value;
+    }
+
     function applySelectedCard() {
+      if (state.editingId) {
+        setEntryHelp(entrySelect.value ? "A data do lançamento não muda ao trocar a forma de pagamento." : "");
+        return;
+      }
       const card = cards().find((item) => item.id === entrySelect.value);
       if (!card) {
         if (suggestedDate && dateInput.value === suggestedDate) dateInput.value = todayISO();
@@ -184,7 +204,7 @@
       if (suggestedDate && dateInput.value !== suggestedDate) setEntryHelp("");
     });
 
-    return { renderSettings, updateEntryField };
+    return { renderSettings, updateEntryField, selectedCardId };
   }
 
   global.MGCreditCards = { create };
