@@ -17,6 +17,7 @@ const descriptionOptionsByType = {
       ].sort();
 
       const domain = window.MGDomain;
+      const projectionView = window.MGProjectionView;
       const localStore = window.MGLocalStore;
       const localProfile = window.MGLocalProfile;
       const googleAuth = window.MGGoogleAuth.create({
@@ -94,11 +95,7 @@ const descriptionOptionsByType = {
 
         settingsDirty: false,
 
-        selectedCalendarDate: null,
-
         filterDate: null,
-
-        calendarExpanded: false,
 
         activeEntry: null,
 
@@ -185,14 +182,6 @@ const descriptionOptionsByType = {
         });
       const money = n => moneyFormatter.format(n);
 
-      const calendarFormatter = new Intl.NumberFormat("pt-BR", {
-          style: "currency",
-          currency: "BRL",
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
-        });
-      const calendarMoney = n => calendarFormatter.format(n);
-
       const esc = (s) =>
         String(s).replace(
           /[&<>"']/g,
@@ -272,12 +261,10 @@ const descriptionOptionsByType = {
         localMigrationDialog = document.querySelector("#localMigrationDialog"),
         localMigrationSummary = document.querySelector("#localMigrationSummary"),
         filteredSubtotal = document.querySelector("#filteredSubtotal"),
-        calendarGrid = document.querySelector("#calendarGrid"),
-        calendarPanel = document.querySelector(".calendar-panel"),
-        calendarCaption = document.querySelector("#calendarCaption"),
+        projectionChart = document.querySelector("#projectionChart"),
+        projectionTimeline = document.querySelector("#projectionTimeline"),
         monthlyMinimumLabel = document.querySelector("#monthlyMinimumLabel"),
         monthlyMinimumBalance = document.querySelector("#monthlyMinimumBalance"),
-        toggleCalendar = document.querySelector("#toggleCalendar"),
         settingsDialog = document.querySelector("#settingsDialog"),
         settingsForm = document.querySelector("#settingsForm"),
         onboardingDialog = document.querySelector("#onboardingDialog"),
@@ -770,9 +757,7 @@ const descriptionOptionsByType = {
         state.lastSyncedAt = null;
         state.syncConflict = null;
         state.syncDiagnostics = createSyncDiagnostics();
-        state.selectedCalendarDate = null;
         state.filterDate = null;
-        state.calendarExpanded = false;
         state.activeEntry = null;
         state.editingId = null;
         state.selectionMode = false;
@@ -2159,10 +2144,6 @@ const descriptionOptionsByType = {
           );
       }
 
-      function buildDailyEntryTotals() {
-        return domain.dailyEntryTotals(state.entries);
-      }
-
       function buildDailyEntryNet() {
         return { net: domain.dailyEntryNet(state.entries), pending: domain.dailyPendingNet(state.entries) };
       }
@@ -2174,7 +2155,7 @@ const descriptionOptionsByType = {
       const appViews = {
         home: ["inicio", "Visão geral", "Projeções e próximos compromissos."],
         records: ["registros", "Seus registros", "Consulte, filtre e organize seus lançamentos."],
-        projection: ["projecao", "Projeção de saldo", "Selecione um dia para entender os valores previstos."],
+        projection: ["projecao", "Projeção de saldo", "Como o saldo deve evoluir ao longo do mês."],
         monthly: ["mensal", "Consolidado mensal", "Compare suas entradas e saídas, mês a mês."],
         settings: ["ajustes", "Ajustes", "Seu controle, do seu jeito."],
       };
@@ -2202,10 +2183,7 @@ const descriptionOptionsByType = {
         document.querySelector("#appViewDescription").textContent = appViews[view][2];
         document.querySelector("#periodToolbar").hidden = view === "settings" || view === "monthly";
         if (view === "monthly") renderMonthlyCashFlow();
-        if (view === "projection") {
-          state.calendarExpanded = true;
-          renderCalendar();
-        }
+        if (view === "projection") renderProjection();
         const hash = `#${appViews[view][0]}`;
         if (history && location.hash !== hash) window.history.pushState(null, "", hash);
         if (focus) {
@@ -2267,86 +2245,61 @@ const descriptionOptionsByType = {
         }).join("");
       }
 
-      function renderCalendar() {
+      let projectionSeries = null;
+
+      function renderProjection() {
         const month = filterMonth.value;
         if (!month) return;
-        const [year, monthNumber] = month.split("-").map(Number);
-        const monthIndex = monthNumber - 1;
-        const firstDay = new Date(year, monthIndex, 1, 12);
-        const daysInMonth = new Date(year, monthNumber, 0).getDate();
-        const entryTotals = buildDailyEntryTotals();
         const entryNet = buildDailyEntryNet();
-        const entryIncomeTotals = domain.dailyIncomeTotals(state.entries);
-        const monthlyEntries = state.entries.filter(entry => !entry.excluded_from_series && entry.date.startsWith(`${month}-`));
-        const sumCents = entries => domain.sumEntryValues(entries);
-        const monthlyIncome = monthlyEntries.filter(entry => domain.entryFlowType(entry) === "income");
-        const monthlyExpenses = monthlyEntries.filter(entry => domain.entryFlowType(entry) === "expense");
-        document.querySelector("#projectionMonthIncome").textContent = money(sumCents(monthlyIncome));
-        document.querySelector("#projectionMonthExpense").textContent = money(sumCents(monthlyExpenses));
-        document.querySelector("#projectionMonthReceivable").textContent = `${money(sumCents(monthlyIncome.filter(entry => !entry.paid)))} ainda a receber`;
-        document.querySelector("#projectionMonthPayable").textContent = `${money(sumCents(monthlyExpenses.filter(entry => !entry.paid)))} ainda a pagar`;
-        let minimumBalance = Infinity;
-        let minimumBalanceDate = `${month}-01`;
+        const series = domain.monthBalanceSeries(month, state.settings, entryNet.net, entryNet.pending);
+        projectionSeries = series;
+        const formatDate = (date) => new Date(`${date}T12:00`).toLocaleDateString("pt-BR");
+        const monthlyEntries = getMonthlyEntries(month);
+        const income = monthlyEntries.filter((entry) => domain.entryFlowType(entry) === "income");
+        const expenses = monthlyEntries.filter((entry) => domain.entryFlowType(entry) === "expense");
+        const setAmount = (selector, value) => {
+          const element = document.querySelector(selector);
+          element.textContent = money(value);
+          element.dataset.negative = String(value < 0);
+        };
+        setAmount("#projectionOpening", series.opening);
+        setAmount("#projectionClosing", series.closing);
+        document.querySelector("#projectionOpeningDate").textContent = `Fim de ${formatDate(domain.addDays(`${month}-01`, -1))}`;
+        document.querySelector("#projectionClosingDate").textContent = `Em ${formatDate(series.days.at(-1).date)}`;
+        document.querySelector("#projectionMonthIncome").textContent = `+ ${money(domain.sumEntryValues(income))}`;
+        document.querySelector("#projectionMonthExpense").textContent = `− ${money(domain.sumEntryValues(expenses))}`;
+        document.querySelector("#projectionMonthReceivable").textContent = `${money(domain.sumEntryValues(income.filter((entry) => !entry.paid)))} a receber`;
+        document.querySelector("#projectionMonthPayable").textContent = `${money(domain.sumEntryValues(expenses.filter((entry) => !entry.paid)))} a pagar`;
 
-        if (!state.selectedCalendarDate?.startsWith(month)) {
-          state.selectedCalendarDate = todayISO().startsWith(month) ? todayISO() : `${month}-01`;
-        }
-
-        calendarCaption.textContent = firstDay.toLocaleDateString("pt-BR", {
-          month: "long",
-          year: "numeric",
-        });
-
-        const cells = Array.from({ length: firstDay.getDay() }, () =>
-          '<div class="calendar-day empty-day"></div>',
-        );
-        for (let day = 1; day <= daysInMonth; day++) {
-          const date = `${month}-${String(day).padStart(2, "0")}`;
-          const costs = entryTotals.get(date) || 0;
-          const income = entryIncomeTotals.get(date) || 0;
-          const projected = getProjectedBalance(date, entryNet);
-          if (projected < minimumBalance) {
-            minimumBalance = projected;
-            minimumBalanceDate = date;
-          }
-          cells.push(`
-            <button class="calendar-day ${date === state.selectedCalendarDate ? "selected" : ""} ${income ? "has-income" : ""} ${costs ? "has-cost" : ""} ${projected < 0 ? "balance-negative" : "balance-positive"}" data-calendar-date="${date}" type="button" aria-pressed="${date === state.selectedCalendarDate}" aria-label="Dia ${day}: saldo ${calendarMoney(projected)}, entrada ${calendarMoney(income)}, saída ${calendarMoney(costs)}${projected < 0 ? ", saldo negativo previsto" : ""}">
-              <span class="calendar-date">${day}</span>
-              <span class="calendar-metric calendar-projection"><span class="calendar-metric-label">Saldo</span><span class="calendar-metric-value">${calendarMoney(projected)}</span></span>
-              <span class="calendar-metric calendar-income"><span class="calendar-metric-label">Entrada</span><span class="calendar-metric-value">${calendarMoney(income)}</span></span>
-              <span class="calendar-metric calendar-cost"><span class="calendar-metric-label">Saída</span><span class="calendar-metric-value">${calendarMoney(costs)}</span></span>
-            </button>
-          `);
-        }
-        calendarGrid.innerHTML = cells.join("");
-
-        const selectedDate = state.selectedCalendarDate;
-        const balance = getProjectedBalance(selectedDate, entryNet);
-        const selectedEntries = state.entries.filter((entry) => !entry.excluded_from_series && entry.date === selectedDate);
-        document.querySelector("#calendarDayTitle").textContent = new Date(`${selectedDate}T12:00`).toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" });
-        document.querySelector("#calendarDayMetrics").innerHTML = [
-          ["Saldo previsto neste dia", balance], ["Entradas neste dia", entryIncomeTotals.get(selectedDate) || 0], ["Saídas neste dia", entryTotals.get(selectedDate) || 0],
-        ].map(([label, value]) => `<div><dt>${label}</dt><dd data-negative="${value < 0}">${money(value)}</dd></div>`).join("");
-        const nextIncomeDate = [...entryIncomeTotals.keys()].filter(date => date.startsWith(`${month}-`) && date > selectedDate && entryIncomeTotals.get(date) > 0).sort()[0];
-        document.querySelector("#calendarDayIncomeNote").textContent = entryIncomeTotals.get(selectedDate)
-          ? "Valores de entradas e saídas somente da data selecionada."
-          : nextIncomeDate
-            ? `Nenhuma entrada neste dia. Próxima entrada do mês em ${new Date(`${nextIncomeDate}T12:00`).toLocaleDateString("pt-BR")}: ${money(entryIncomeTotals.get(nextIncomeDate))}.`
-            : "Nenhuma entrada nesta data. Consulte o total do mês acima ou selecione outro dia.";
-        document.querySelector("#calendarDayCount").textContent = `${selectedEntries.length} lançamento${selectedEntries.length === 1 ? "" : "s"} neste dia.${balance < 0 ? " Atenção: saldo negativo previsto." : ""}`;
+        const { minimum } = series;
         const risk = document.querySelector("#projectionRisk");
-        risk.dataset.negative = String(minimumBalance < 0);
-        risk.textContent = `Menor saldo do mês: ${money(minimumBalance)}, em ${new Date(`${minimumBalanceDate}T12:00`).toLocaleDateString("pt-BR")}.${minimumBalance < 0 ? " Confira as receitas e despesas antes dessa data." : ""}`;
+        risk.dataset.negative = String(minimum.balance < 0);
+        risk.textContent = minimum.balance < 0
+          ? `Atenção: o saldo fica negativo. Menor saldo do mês: ${money(minimum.balance)}, em ${formatDate(minimum.date)}. Confira as receitas e despesas antes dessa data.`
+          : `Menor saldo do mês: ${money(minimum.balance)}, em ${formatDate(minimum.date)}.`;
+        monthlyMinimumLabel.textContent = `Em ${formatDate(minimum.date)}`;
+        monthlyMinimumBalance.textContent = money(minimum.balance);
+        document.querySelector("#monthlyMinimumCard").dataset.negative = String(minimum.balance < 0);
+        document.querySelector("#monthlyMinimumWarning").hidden = minimum.balance >= 0;
 
-        monthlyMinimumLabel.textContent = `Em ${new Date(`${minimumBalanceDate}T12:00`).toLocaleDateString("pt-BR")}`;
-        monthlyMinimumBalance.textContent = money(minimumBalance);
-        document.querySelector("#monthlyMinimumCard").dataset.negative = String(minimumBalance < 0);
-        document.querySelector("#monthlyMinimumWarning").hidden = minimumBalance >= 0;
-        calendarPanel.classList.toggle("compact", !state.calendarExpanded);
-        toggleCalendar.setAttribute("aria-expanded", String(state.calendarExpanded));
-        toggleCalendar.textContent = state.calendarExpanded
-          ? "Ocultar projeção"
-          : "Ver projeção";
+        if (activeAppView !== "projection") return;
+        projectionChart.innerHTML = projectionView.chartMarkup(series, { today: todayISO(), money });
+        projectionTimeline.innerHTML = projectionView.timelineMarkup(series, monthlyEntries, { today: todayISO(), money, esc });
+        const todayIndex = series.days.findIndex((day) => day.date === todayISO());
+        showProjectionDay(todayIndex >= 0 ? todayIndex : series.days.length - 1, { cursor: false });
+      }
+
+      function showProjectionDay(index, { cursor = true } = {}) {
+        const day = projectionSeries?.days[index];
+        if (!day) return;
+        const label = new Date(`${day.date}T12:00`).toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short" });
+        const readout = document.querySelector("#projectionChartReadout");
+        readout.textContent = `${day.date === todayISO() ? "Hoje" : label}: saldo previsto ${money(day.balance)}${day.balance < 0 ? " (negativo)" : ""}`;
+        readout.dataset.negative = String(day.balance < 0);
+        const marker = projectionChart.querySelector(".projection-chart-cursor");
+        if (!marker) return;
+        marker.hidden = !cursor;
+        marker.style.left = `${((index + 0.5) / projectionSeries.days.length) * 100}%`;
       }
 
       function updateCount(entries) {
@@ -2385,7 +2338,7 @@ const descriptionOptionsByType = {
 
         if (!filterMonth.value) filterMonth.value = current;
         const currentMonthAction = document.querySelector("#goToCurrentMonth");
-        if (currentMonthAction) currentMonthAction.disabled = filterMonth.value === current;
+        if (currentMonthAction) currentMonthAction.hidden = filterMonth.value === current;
 
         const month = filterMonth.value;
 
@@ -2410,7 +2363,7 @@ const descriptionOptionsByType = {
         );
 
         renderEntries(list);
-        renderCalendar();
+        renderProjection();
         renderUpcomingAccounts();
         if (activeAppView === "monthly") renderMonthlyCashFlow();
 
@@ -4417,34 +4370,27 @@ const descriptionOptionsByType = {
       window.addEventListener("resize", closeContextMenu);
       window.addEventListener("scroll", closeContextMenu, true);
 
-      calendarGrid.onclick = (event) => {
-        const day = event.target.closest("[data-calendar-date]");
-        if (!day) return;
-        state.selectedCalendarDate = day.dataset.calendarDate;
-        renderCalendar();
-        calendarGrid.querySelector(`[data-calendar-date="${state.selectedCalendarDate}"]`)?.focus({ preventScroll: true });
-      };
+      projectionTimeline.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-projection-entry]");
+        if (!button) return;
+        const entry = state.entries.find((item) => item.id === button.dataset.projectionEntry);
+        if (entry) editEntry(entry);
+      });
 
-      document.querySelector("#viewCalendarEntries").onclick = () => {
-        document.querySelector("#filterSearch").value = "";
-        state.filterDate = state.selectedCalendarDate;
-        state.selectedEntries.clear();
-        state.selectionMode = false;
-        filterType.value = "";
-        filterDescription.value = "";
-        filterStatus.value = "";
-        render();
-        navigateApp("records");
+      // Pointing at the chart reads out that day's balance; the day list below
+      // carries the same values for keyboard and screen reader users.
+      const pickProjectionDay = (event) => {
+        const plot = projectionChart.querySelector(".projection-chart-plot");
+        if (!plot || !projectionSeries) return;
+        const rect = plot.getBoundingClientRect();
+        showProjectionDay(projectionView.dayIndexAt(projectionSeries.days.length, (event.clientX - rect.left) / rect.width));
       };
+      projectionChart.addEventListener("pointermove", pickProjectionDay);
+      projectionChart.addEventListener("pointerdown", pickProjectionDay);
 
       clearDateFilter.onclick = () => {
         state.filterDate = null;
         render();
-      };
-
-      toggleCalendar.onclick = () => {
-        state.calendarExpanded = !state.calendarExpanded;
-        renderCalendar();
       };
 
       settingsForm.onsubmit = async (event) => {
@@ -4741,7 +4687,6 @@ const descriptionOptionsByType = {
       };
 
       async function startApp() {
-        document.querySelector("#periodToolbar").appendChild(document.querySelector(".calendar-controls"));
         navigateApp(viewFromLocation(), { history: false, focus: false });
         localStore.clearLegacyCache();
         render();

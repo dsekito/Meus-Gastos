@@ -44,13 +44,6 @@ const assert = require('node:assert/strict');
     await page.locator(`[data-upcoming-date="${today}"]`).first().click();
     await verify('pending', 1);
     }
-    if (!process.argv[2] || process.argv[2] === 'calendar') {
-    await search();
-    await nav('projection').click();
-    await page.locator(`[data-calendar-date="${today}"]`).click();
-    await page.locator('#viewCalendarEntries').click();
-    await verify('', 2);
-    }
     assert.deepEqual(errors, []);
     console.log('Shortcut search reset and intended filters: OK');
   } finally { await browser.close(); }
