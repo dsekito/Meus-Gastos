@@ -2,6 +2,7 @@ const profileDefaults = window.MGProfileDefaults;
       const { descriptionOptionsByType, defaultTypes, defaultDescriptions, profileOptions } = profileDefaults;
 
       const domain = window.MGDomain;
+      const entryFilters = window.MGEntryFilters;
       const projectionView = window.MGProjectionView;
       const monthlyView = window.MGMonthlyView;
       const formRules = window.MGEntryFormRules;
@@ -212,6 +213,8 @@ const profileDefaults = window.MGProfileDefaults;
         filterDescription = document.querySelector("#filterDescription"),
         filterMonth = document.querySelector("#filterMonth"),
         filterStatus = document.querySelector("#filterStatus"),
+        filterFlow = document.querySelector("#filterFlow"),
+        filterPayment = document.querySelector("#filterPayment"),
         currentBalanceTotal = document.querySelector("#currentBalanceTotal"),
         balanceReferenceSummary = document.querySelector("#balanceReferenceSummary"),
         monthEndBalanceTotal = document.querySelector("#monthEndBalanceTotal"),
@@ -245,7 +248,6 @@ const profileDefaults = window.MGProfileDefaults;
         useLocalProfileButton = document.querySelector("#useLocalProfile"),
         localMigrationDialog = document.querySelector("#localMigrationDialog"),
         localMigrationSummary = document.querySelector("#localMigrationSummary"),
-        filteredSubtotal = document.querySelector("#filteredSubtotal"),
         projectionChart = document.querySelector("#projectionChart"),
         projectionTimeline = document.querySelector("#projectionTimeline"),
         monthlyMinimumLabel = document.querySelector("#monthlyMinimumLabel"),
@@ -1654,6 +1656,7 @@ const profileDefaults = window.MGProfileDefaults;
                   <div class="entry-meta-line">
                     <span>${formatDay(e.date)} ${formatMonth(e.date)}</span>
                     <span class="entry-type">${esc(e.type)}</span>
+                    ${e.credit_card_id ? `<span class="entry-card"><span class="visually-hidden">Crédito: </span>${esc(entryFilters.cardLabel(e, state.settings.credit_cards || []))}</span>` : ""}
                     ${e.installment ? `<span class="entry-installment">${e.installment.current}/${e.installment.total}</span>` : ""}
                     ${state.selectionMode ? "" : `<button type="button" class="status-button ${e.paid ? "paid" : "pending"}" data-toggle-status="${esc(e.id)}" aria-label="Alterar status de ${esc(e.description)}. Status atual: ${statusLabel}" aria-pressed="${e.paid}" ${statusPending ? "disabled" : ""}><span class="status-button-label">${statusPending ? "Salvando" : statusLabel}</span></button>`}
                   </div>
@@ -1749,6 +1752,42 @@ const profileDefaults = window.MGProfileDefaults;
         filterType.value = selected;
       }
 
+      function renderFilterPayments() {
+        const selected = filterPayment.value;
+        const options = entryFilters.paymentOptions(state.settings.credit_cards || [], state.entries);
+        filterPayment.replaceChildren(
+          new Option("Todas as formas", ""),
+          ...options.map((option) => new Option(option.label, option.value)),
+        );
+        filterPayment.value = options.some((option) => option.value === selected) ? selected : "";
+        // Without any card there is nothing to choose between.
+        document.querySelector("#filterPaymentField").hidden = options.length < 2;
+      }
+
+      function currentEntryFilters(date = state.filterDate) {
+        return {
+          search: document.querySelector("#filterSearch").value,
+          flow: filterFlow.value,
+          payment: filterPayment.value,
+          type: filterType.value,
+          description: filterDescription.value,
+          status: filterStatus.value,
+          date,
+        };
+      }
+
+      // Every shortcut that opens the records starts from no filter at all, so
+      // no filter keeps hiding entries without being seen.
+      function resetEntryFilters({ status = "", date = null } = {}) {
+        document.querySelector("#filterSearch").value = "";
+        filterFlow.value = "";
+        filterPayment.value = "";
+        filterType.value = "";
+        filterDescription.value = "";
+        filterStatus.value = status;
+        state.filterDate = date;
+      }
+
       function renderFilterDescriptions() {
         const selected = filterDescription.value;
         const selectedType = filterType.value;
@@ -1769,16 +1808,9 @@ const profileDefaults = window.MGProfileDefaults;
         return state.entries.filter((e) => !e.excluded_from_series && e.date.slice(0, 7) === month);
       }
 
-      function getFilteredEntries(entries, type, description, status, date = state.filterDate) {
+      function getFilteredEntries(entries, filters = currentEntryFilters()) {
         return entries
-          .filter(
-            (e) =>
-              (!type || e.type === type) &&
-              (!description || e.description === description) &&
-              (!status || (status === "paid") === e.paid) &&
-              (!date || e.date === date) &&
-              domain.matchesEntrySearch(e, document.querySelector("#filterSearch").value),
-          )
+          .filter((e) => entryFilters.matchesEntry(e, filters))
           .sort(
             (a, b) =>
               a.date.localeCompare(b.date) ||
@@ -1927,6 +1959,37 @@ const profileDefaults = window.MGProfileDefaults;
         marker.style.left = `${((index + 0.5) / projectionSeries.days.length) * 100}%`;
       }
 
+      function renderActiveFilters() {
+        const selectedLabel = (select) => (select.value ? select.selectedOptions[0]?.textContent : null);
+        const search = document.querySelector("#filterSearch").value.trim();
+        const summary = entryFilters.activeFiltersSummary([
+          search ? `Busca: “${search}”` : null,
+          selectedLabel(filterFlow),
+          selectedLabel(filterPayment),
+          selectedLabel(filterType),
+          selectedLabel(filterDescription),
+          selectedLabel(filterStatus),
+          state.filterDate ? new Date(`${state.filterDate}T12:00`).toLocaleDateString("pt-BR") : null,
+        ]);
+        document.querySelector("#activeFiltersSummary").textContent = summary.text;
+        document.querySelector("#filtersToggleLabel").textContent = summary.count ? `Filtrar (${summary.count})` : "Filtrar";
+        const clearButton = document.querySelector("#clearEntryFilters");
+        clearButton.disabled = summary.count === 0;
+      }
+
+      function signedMoney(cents, sign) {
+        return `${sign} ${money(Math.abs(cents) / 100)}`;
+      }
+
+      function renderFilteredTotals(entries) {
+        const { incomeCents, expenseCents, balanceCents } = entryFilters.totals(entries);
+        document.querySelector("#filteredIncome").textContent = signedMoney(incomeCents, "+");
+        document.querySelector("#filteredExpense").textContent = signedMoney(expenseCents, expenseCents < 0 ? "+" : "−");
+        document.querySelector("#filteredBalance").textContent = balanceCents === 0
+          ? money(0)
+          : signedMoney(balanceCents, balanceCents > 0 ? "+" : "−");
+      }
+
       function updateCount(entries) {
         count.textContent = `${entries.length} lançamento${entries.length === 1 ? "" : "s"}`;
       }
@@ -1955,10 +2018,7 @@ const profileDefaults = window.MGProfileDefaults;
 
         renderFilterTypes();
         renderFilterDescriptions();
-
-        const ft = filterType.value,
-          fd = filterDescription.value,
-          fs = filterStatus.value;
+        renderFilterPayments();
 
         const current = todayISO().slice(0, 7);
 
@@ -1969,25 +2029,17 @@ const profileDefaults = window.MGProfileDefaults;
         const month = filterMonth.value;
 
         const monthly = getMonthlyEntries(month);
-        document.querySelector("#activeFiltersSummary").textContent = [
-          filterStatus.selectedOptions[0]?.textContent || "Todos os status",
-          filterType.selectedOptions[0]?.textContent || "Todos os tipos",
-          fd ? filterDescription.selectedOptions[0]?.textContent : null,
-          document.querySelector("#filterSearch").value.trim() ? `Busca: “${document.querySelector("#filterSearch").value.trim()}”` : null,
-          state.filterDate ? new Date(`${state.filterDate}T12:00`).toLocaleDateString("pt-BR") : null,
-        ].filter(Boolean).join(" · ");
+        renderActiveFilters();
 
         const entryNet = buildDailyEntryNet();
         updateDecisionOverview(month, entryNet);
         const referenceDate = state.settings.balance_reference_date || todayISO();
         balanceReferenceSummary.textContent = `${new Date(`${todayISO()}T12:00`).toLocaleDateString("pt-BR")} · inclui pendências. Base: ${new Date(`${referenceDate}T12:00`).toLocaleDateString("pt-BR")}`;
 
-        const list = getFilteredEntries(monthly, ft, fd, fs);
+        const list = getFilteredEntries(monthly);
 
         updateCount(list);
-        filteredSubtotal.textContent = money(
-          domain.sumEntryValues(list, { signed: true }),
-        );
+        renderFilteredTotals(list);
 
         renderEntries(list);
         renderProjection(entryNet, monthly);
@@ -2131,12 +2183,7 @@ const profileDefaults = window.MGProfileDefaults;
       function markSelectedAsPending() { return setSelectedPaymentStatus(false); }
 
       function selectAllFiltered() {
-        const list = getFilteredEntries(
-          getMonthlyEntries(filterMonth.value),
-          filterType.value,
-          filterDescription.value,
-          filterStatus.value,
-        );
+        const list = getFilteredEntries(getMonthlyEntries(filterMonth.value));
 
         const allSelected =
           list.length > 0 &&
@@ -3544,12 +3591,8 @@ const profileDefaults = window.MGProfileDefaults;
       document.querySelector("#monthlyCashFlowList").addEventListener("click", event => {
         const button = event.target.closest("[data-open-cash-flow-month]");
         if (!button || button.disabled) return;
-        document.querySelector("#filterSearch").value = "";
         filterMonth.value = button.dataset.openCashFlowMonth;
-        filterType.value = "";
-        filterDescription.value = "";
-        filterStatus.value = document.querySelector("#monthlyStatus").value;
-        state.filterDate = null;
+        resetEntryFilters({ status: document.querySelector("#monthlyStatus").value });
         state.selectedEntries.clear();
         state.selectionMode = false;
         render();
@@ -3581,21 +3624,13 @@ const profileDefaults = window.MGProfileDefaults;
       document.querySelector("#upcomingList").addEventListener("click", (event) => {
         const target = event.target.closest("[data-upcoming-date]");
         if (!target) return;
-        document.querySelector("#filterSearch").value = "";
         filterMonth.value = target.dataset.upcomingDate.slice(0, 7);
-        state.filterDate = target.dataset.upcomingDate;
-        filterType.value = "";
-        filterDescription.value = "";
-        filterStatus.value = "pending";
+        resetEntryFilters({ status: "pending", date: target.dataset.upcomingDate });
         render();
         navigateApp("records");
       });
       function clearEntryFilters() {
-        document.querySelector("#filterSearch").value = "";
-        filterType.value = "";
-        filterDescription.value = "";
-        filterStatus.value = "";
-        state.filterDate = null;
+        resetEntryFilters();
         state.selectedEntries.clear();
         state.selectionMode = false;
         render();
@@ -3838,7 +3873,7 @@ const profileDefaults = window.MGProfileDefaults;
         state.selectionMode = false;
         render();
       });
-      [filterMonth, filterType, filterDescription, filterStatus].forEach((control) => {
+      [filterMonth, filterFlow, filterPayment, filterType, filterDescription, filterStatus].forEach((control) => {
         control.onchange = () => {
           if (control === filterMonth) state.filterDate = null;
           state.selectedEntries.clear();

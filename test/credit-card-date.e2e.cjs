@@ -97,28 +97,28 @@ async function openNewEntry(page) {
     await openNewEntry(page);
     assert.ok(await page.isVisible('#creditCardField'));
     assert.equal(await page.inputValue('#date'), TODAY);
-    await page.getByLabel('Forma de pagamento').selectOption({ label: 'Crédito: Nubank' });
+    await page.locator('#entryForm').getByLabel('Forma de pagamento').selectOption({ label: 'Crédito: Nubank' });
     // 13/11 é depois do fechamento (dia 3): a compra vai para a fatura que vence em 10/12.
     assert.equal(await page.inputValue('#date'), '2026-12-10');
     assert.match(await page.textContent('#creditCardHelp'), /vencimento da fatura do Nubank: 10\/12\/2026/);
-    await page.getByLabel('Forma de pagamento').selectOption({ label: 'Crédito: Itaú' });
+    await page.locator('#entryForm').getByLabel('Forma de pagamento').selectOption({ label: 'Crédito: Itaú' });
     assert.equal(await page.inputValue('#date'), '2026-12-05');
-    await page.getByLabel('Forma de pagamento').selectOption({ label: 'Pix, débito ou dinheiro' });
+    await page.locator('#entryForm').getByLabel('Forma de pagamento').selectOption({ label: 'Pix, débito ou dinheiro' });
     assert.equal(await page.inputValue('#date'), TODAY, 'voltar para Pix devolve a data de hoje');
     assert.ok(await noHorizontalScroll(page), 'formulário cabe em 320 px');
 
     // Uma data alterada à mão não é trocada por voltar para Pix.
-    await page.getByLabel('Forma de pagamento').selectOption({ label: 'Crédito: Nubank' });
+    await page.locator('#entryForm').getByLabel('Forma de pagamento').selectOption({ label: 'Crédito: Nubank' });
     await page.fill('#date', '2026-12-15');
     assert.equal(await page.isVisible('#creditCardHelp'), false, 'o aviso some quando a data é editada');
-    await page.getByLabel('Forma de pagamento').selectOption({ label: 'Pix, débito ou dinheiro' });
+    await page.locator('#entryForm').getByLabel('Forma de pagamento').selectOption({ label: 'Pix, débito ou dinheiro' });
     assert.equal(await page.inputValue('#date'), '2026-12-15');
 
     // Salvar grava a data escolhida e o cartão no lançamento.
     const cardId = name => stored(page, profileId).then(data => data.settings.credit_cards.find(card => card.name === name).id);
     const nubankId = await cardId('Nubank');
     const itauId = await cardId('Itaú');
-    await page.getByLabel('Forma de pagamento').selectOption({ label: 'Crédito: Nubank' });
+    await page.locator('#entryForm').getByLabel('Forma de pagamento').selectOption({ label: 'Crédito: Nubank' });
     await page.fill('#value', '89.9');
     await page.selectOption('#type', 'ALIMENTAÇÃO');
     await page.selectOption('#description', 'RESTAURANTE');
@@ -159,7 +159,7 @@ async function openNewEntry(page) {
     await editSavedEntry();
     assert.ok(await page.isVisible('#creditCardField'), 'a edição oferece a forma de pagamento');
     assert.equal(await page.inputValue('#creditCard'), nubankId);
-    await page.getByLabel('Forma de pagamento').selectOption({ label: 'Crédito: Itaú' });
+    await page.locator('#entryForm').getByLabel('Forma de pagamento').selectOption({ label: 'Crédito: Itaú' });
     assert.equal(await page.inputValue('#date'), '2026-12-10', 'a data do lançamento existente não muda');
     assert.equal(await page.textContent('#creditCardHelp'), 'A data do lançamento não muda ao trocar a forma de pagamento.');
     assert.ok(await noHorizontalScroll(page), 'edição cabe em 320 px');
@@ -169,14 +169,14 @@ async function openNewEntry(page) {
 
     // Voltar para Pix tira o cartão do lançamento.
     await editSavedEntry();
-    await page.getByLabel('Forma de pagamento').selectOption({ label: 'Pix, débito ou dinheiro' });
+    await page.locator('#entryForm').getByLabel('Forma de pagamento').selectOption({ label: 'Pix, débito ou dinheiro' });
     await saveEdit();
     assert.equal('credit_card_id' in await storedEntry(), false);
 
     // Lançamento sem cartão: a edição começa em Pix e pode receber um cartão.
     await editSavedEntry();
     assert.equal(await page.inputValue('#creditCard'), '');
-    await page.getByLabel('Forma de pagamento').selectOption({ label: 'Crédito: Nubank' });
+    await page.locator('#entryForm').getByLabel('Forma de pagamento').selectOption({ label: 'Crédito: Nubank' });
     await saveEdit();
     assert.equal((await storedEntry()).credit_card_id, nubankId);
 
@@ -203,7 +203,7 @@ async function openNewEntry(page) {
 
     // Compra parcelada no cartão: todas as parcelas levam o cartão; a edição troca em todas.
     await openNewEntry(page);
-    await page.getByLabel('Forma de pagamento').selectOption({ label: 'Crédito: Itaú' });
+    await page.locator('#entryForm').getByLabel('Forma de pagamento').selectOption({ label: 'Crédito: Itaú' });
     await page.fill('#value', '300');
     await page.selectOption('#type', 'COMPRAS');
     await page.selectOption('#description', 'CASA');
@@ -219,14 +219,14 @@ async function openNewEntry(page) {
     await page.locator(`[data-entry="${firstInstallment.id}"]`).first().click();
     await page.waitForSelector('#entryDialog[open]');
     assert.equal(await page.inputValue('#creditCard'), itauId);
-    await page.getByLabel('Forma de pagamento').selectOption({ label: 'Pix, débito ou dinheiro' });
+    await page.locator('#entryForm').getByLabel('Forma de pagamento').selectOption({ label: 'Pix, débito ou dinheiro' });
     await saveEdit();
     assert.ok((await installments()).every(item => !('credit_card_id' in item)), 'a troca vale para todas as parcelas');
 
     // Recorrência mensal no cartão: a série e as ocorrências levam o cartão;
     // editar "Em toda a série" troca em todas.
     await openNewEntry(page);
-    await page.getByLabel('Forma de pagamento').selectOption({ label: 'Crédito: Itaú' });
+    await page.locator('#entryForm').getByLabel('Forma de pagamento').selectOption({ label: 'Crédito: Itaú' });
     await page.fill('#value', '39.9');
     await page.selectOption('#type', 'ASSINATURAS');
     await page.selectOption('#description', 'STREAMING');
@@ -245,7 +245,7 @@ async function openNewEntry(page) {
     await page.locator(`[data-entry="${firstOccurrence.id}"]`).first().click();
     await page.waitForSelector('#entryDialog[open]');
     assert.equal(await page.inputValue('#creditCard'), itauId);
-    await page.getByLabel('Forma de pagamento').selectOption({ label: 'Pix, débito ou dinheiro' });
+    await page.locator('#entryForm').getByLabel('Forma de pagamento').selectOption({ label: 'Pix, débito ou dinheiro' });
     await page.selectOption('#editScope', 'all');
     await saveEdit();
     subscription = await recurring();
@@ -260,7 +260,7 @@ async function openNewEntry(page) {
     assert.equal(await page.inputValue('#date'), '2026-12-05');
 
     // Um lançamento novo salvo com Pix faz o próximo começar em Pix e hoje.
-    await page.getByLabel('Forma de pagamento').selectOption({ label: 'Pix, débito ou dinheiro' });
+    await page.locator('#entryForm').getByLabel('Forma de pagamento').selectOption({ label: 'Pix, débito ou dinheiro' });
     assert.equal(await page.inputValue('#date'), TODAY);
     await page.fill('#value', '12');
     await page.selectOption('#type', 'ALIMENTAÇÃO');

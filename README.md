@@ -46,6 +46,7 @@ ficam em `domain.js`; a interface monta o restante a partir de módulos por assu
 - `sync-status-view.js`: o que o status e o aviso de sincronização dizem em cada situação.
 - `records-manager.js`: o diálogo “Gerenciar registros” e a edição em lote.
 - `credit-cards.js`: cadastro de cartões e a data sugerida pela forma de pagamento.
+- `entry-filters.js`: quais lançamentos passam nos filtros dos registros, as opções de forma de pagamento e os totais exibidos.
 - `app.js`: estado da sessão, navegação, formulário e a ligação entre os módulos.
 
 ## Estrutura de dados
@@ -188,6 +189,13 @@ muda: ela já é a data do pagamento, e a data da compra não é conhecida.
 - Dias que não existem no mês (por exemplo, 31 em fevereiro) usam o último dia.
 - Em compras parceladas, a 1ª parcela fica no vencimento sugerido e as demais
   nos meses seguintes.
+
+Em **Registros > Filtrar**, a lista pode ser filtrada por movimentação
+(despesas ou receitas) e por forma de pagamento: "Pix, débito ou dinheiro"
+(despesas sem cartão), "Qualquer cartão de crédito", um cartão ou "Cartão
+excluído". Cada registro pago com cartão mostra o nome dele. O resumo do botão
+mostra só os filtros ativos e quantos são, e abaixo dos filtros ficam as
+entradas, as saídas e o saldo do que está na lista, com sinal.
 
 Recorrências e parcelamentos guardam o cartão na série ou no plano, e todas as
 ocorrências e parcelas o recebem; editar "Em toda a série" ou o parcelamento

@@ -14,7 +14,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>Meus Gastos</title>
-    <link rel="stylesheet" href="./mobile.css?v=2026111309" />
+    <link rel="stylesheet" href="./mobile.css?v=2026111312" />
   </head>
   <body aria-busy="true">
     <section class="bootstrap-screen" id="bootstrapScreen" role="status" aria-live="polite">
@@ -143,9 +143,23 @@
           <div class="date-filter" id="dateFilterInfo"><span id="dateFilterLabel"></span><button id="clearDateFilter" type="button" aria-label="Limpar filtro da data">×</button></div>
         </div>
         <details class="filter-disclosure">
-          <summary aria-label="Filtrar lançamentos"><span id="activeFiltersSummary">Em aberto · Todos os tipos</span><strong>Filtrar</strong></summary>
-        <div class="filters" aria-label="Filtros dos lançamentos">
-          <div class="filter-field"><label for="filterSearch">Buscar lançamentos</label><input id="filterSearch" type="search" placeholder="Tipo, descrição ou observação" /></div>
+          <summary aria-label="Filtrar lançamentos" aria-describedby="activeFiltersSummary"><span id="activeFiltersSummary">Nenhum filtro ativo</span><strong id="filtersToggleLabel">Filtrar</strong></summary>
+        <div class="filters" role="group" aria-label="Filtros dos lançamentos">
+          <div class="filter-field filter-search"><label for="filterSearch">Buscar lançamentos</label><input id="filterSearch" type="search" placeholder="Tipo, descrição ou detalhe" autocomplete="off" /></div>
+          <div class="filter-field">
+            <label for="filterFlow">Movimentação</label>
+            <select id="filterFlow">
+              <option value="" selected>Despesas e receitas</option>
+              <option value="expense">Só despesas</option>
+              <option value="income">Só receitas</option>
+            </select>
+          </div>
+          <div class="filter-field" id="filterPaymentField">
+            <label for="filterPayment">Forma de pagamento</label>
+            <select id="filterPayment">
+              <option value="" selected>Todas as formas</option>
+            </select>
+          </div>
           <div class="filter-field">
             <label for="filterType">Tipo</label>
             <select id="filterType">
@@ -169,7 +183,11 @@
         </div>
         <button class="secondary" type="button" id="clearEntryFilters" aria-label="Limpar filtros dos lançamentos">Limpar filtros</button>
         </details>
-        <div class="filter-subtotal">Subtotal filtrado<strong id="filteredSubtotal">R$ 0,00</strong></div>
+        <dl class="filter-totals" aria-label="Totais dos lançamentos exibidos">
+          <div><dt>Entradas</dt><dd id="filteredIncome">+ R$ 0,00</dd></div>
+          <div><dt>Saídas</dt><dd id="filteredExpense">− R$ 0,00</dd></div>
+          <div><dt>Saldo</dt><dd id="filteredBalance">R$ 0,00</dd></div>
+        </dl>
 
         <div class="entries" id="rows"></div>
       </section>
@@ -699,10 +717,11 @@
     <script src="./js/sync-status-view.js?v=2026111306"></script>
     <script src="./js/records-manager.js?v=2026111306"></script>
     <script src="./js/credit-cards.js?v=2026111310"></script>
+    <script src="./js/entry-filters.js?v=2026111311"></script>
     <script src="./js/confirm-dialog.js?v=2026111301"></script>
     <script src="./js/app-update.js?v=2026111201"></script>
     <script src="./js/projection-view.js?v=2026111303"></script>
     <script src="./js/monthly-view.js?v=2026111306"></script>
-    <script src="./js/app.js?v=2026111310"></script>
+    <script src="./js/app.js?v=2026111312"></script>
   </body>
 </html>
