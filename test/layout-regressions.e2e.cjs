@@ -1,4 +1,5 @@
-// Larguras de layout: nada passa da tela no celular. App real em modo local, perfil sintético.
+// Larguras de layout: nada passa da tela no celular e as seções dos Ajustes
+// usam toda a largura do diálogo. App real em modo local, perfil sintético.
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 
@@ -52,6 +53,27 @@ const overflowing = page => page.evaluate(() => {
       await context.close();
     }
 
+    // Desktop: cada seção dos Ajustes ocupa as duas colunas do diálogo.
+    {
+      const { context, page, errors } = await openLocalProfile(browser, { width: 1280, height: 800 });
+      for (const topic of ['projection', 'options', 'data']) {
+        await page.evaluate(name => {
+          const dialog = document.querySelector('#settingsDialog');
+          if (dialog.open) dialog.close();
+          document.querySelector(`[data-settings-topic="${name}"]`).click();
+        }, topic);
+        const [group, grid] = await page.evaluate(() => {
+          const visible = [...document.querySelectorAll('#settingsDialog .settings-group')].find(element => !element.hidden);
+          const box = element => element.getBoundingClientRect();
+          const gridBox = box(visible.parentElement);
+          const style = getComputedStyle(visible.parentElement);
+          return [box(visible).width, gridBox.width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)];
+        });
+        assert.ok(Math.abs(group - grid) <= 1, `${topic}: seção com ${group} px numa grade de ${grid} px`);
+      }
+      assert.deepEqual(errors, []);
+      await context.close();
+    }
     console.log('layout regressions e2e: ok');
   } finally {
     await browser.close();

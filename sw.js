@@ -1,9 +1,9 @@
-const CACHE_NAME = "meus-gastos-v47";
+const CACHE_NAME = "meus-gastos-v48";
 const NAVIGATION_TIMEOUT_MS = 3000;
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./mobile.css?v=2026111307",
+  "./mobile.css?v=2026111308",
   "./manifest.webmanifest",
   "./icons/app-icon.svg",
   "./icons/app-icon-192.png",

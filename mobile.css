@@ -632,6 +632,7 @@ dialog .modal,#entryDialog .modal,#settingsDialog .modal,#recordsManagerDialog .
 .modal .form-grid,#entryForm > .form-grid,#settingsDialog .form-grid { display:grid; flex:1 1 auto; min-height:0; grid-template-columns:minmax(0,1fr); gap:12px; padding:16px; overflow-y:auto; overscroll-behavior:contain; }
 .modal .field,#entryForm .field { min-width:0; gap:6px; }
 .modal .field.wide { grid-column:1 / -1; }
+#settingsDialog .settings-group.wide { grid-column:1 / -1; min-width:0; }
 #entryForm .advanced-fields { display:grid; grid-template-columns:minmax(0,1fr); gap:12px; margin-top:12px; }
 #entryForm .entry-advanced { display:block; }
 #entryForm .recurrence-fields { display:contents; }
