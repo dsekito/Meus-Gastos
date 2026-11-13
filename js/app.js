@@ -1867,7 +1867,7 @@ const descriptionOptionsByType = {
           && entry.date >= todayISO()
           && entry.date <= nextSevenDaysEnd
         );
-        const upcomingTotal = upcomingEntries.reduce((total, entry) => total + Number(entry.value), 0);
+        const upcomingTotal = domain.sumEntryValues(upcomingEntries);
         const upcomingIncomeEntries = state.entries
           .filter((entry) =>
             !entry.excluded_from_series
@@ -1876,7 +1876,7 @@ const descriptionOptionsByType = {
             && entry.date >= todayISO()
             && entry.date <= nextSevenDaysEnd
           );
-        const upcomingIncomeTotal = upcomingIncomeEntries.reduce((total, entry) => total + Number(entry.value), 0);
+        const upcomingIncomeTotal = domain.sumEntryValues(upcomingIncomeEntries);
         document.querySelector("#nextSevenDaysIncomeTotal").textContent = money(upcomingIncomeTotal);
         document.querySelector("#nextSevenDaysIncomeSummary").textContent = upcomingIncomeEntries.length
           ? `${upcomingIncomeEntries.length} entrada${upcomingIncomeEntries.length === 1 ? "" : "s"} a receber`
@@ -1885,7 +1885,8 @@ const descriptionOptionsByType = {
           todayISO(),
           nextSevenDaysEnd,
           state.settings,
-          entryNet,
+          entryNet.net,
+          entryNet.pending,
         );
         const monthLabel = new Date(year, monthNumber - 1, 1, 12).toLocaleDateString("pt-BR", {
           month: "long",
@@ -1977,11 +1978,11 @@ const descriptionOptionsByType = {
       }
 
       function buildDailyEntryNet() {
-        return domain.dailyEntryNet(state.entries);
+        return { net: domain.dailyEntryNet(state.entries), pending: domain.dailyPendingNet(state.entries) };
       }
 
       function getProjectedBalance(date, entryNet) {
-        return domain.projectedBalance(date, state.settings, entryNet);
+        return domain.projectedBalance(date, state.settings, entryNet.net, entryNet.pending);
       }
 
       const appViews = {
@@ -2091,7 +2092,7 @@ const descriptionOptionsByType = {
         const entryNet = buildDailyEntryNet();
         const entryIncomeTotals = domain.dailyIncomeTotals(state.entries);
         const monthlyEntries = state.entries.filter(entry => !entry.excluded_from_series && entry.date.startsWith(`${month}-`));
-        const sumCents = entries => entries.reduce((total, entry) => total + Math.round(Number(entry.value) * 100), 0) / 100;
+        const sumCents = entries => domain.sumEntryValues(entries);
         const monthlyIncome = monthlyEntries.filter(entry => domain.entryFlowType(entry) === "income");
         const monthlyExpenses = monthlyEntries.filter(entry => domain.entryFlowType(entry) === "expense");
         document.querySelector("#projectionMonthIncome").textContent = money(sumCents(monthlyIncome));
@@ -2219,10 +2220,7 @@ const descriptionOptionsByType = {
 
         updateCount(list);
         filteredSubtotal.textContent = money(
-          list.reduce(
-            (total, entry) => total + (domain.entryFlowType(entry) === "income" ? Number(entry.value) : -Number(entry.value)),
-            0,
-          ),
+          domain.sumEntryValues(list, { signed: true }),
         );
 
         renderEntries(list);
@@ -2673,8 +2671,9 @@ const descriptionOptionsByType = {
           window.location.reload();
         } catch (error) {
           console.error(error);
-          resetButton();
           show("Não foi possível verificar a atualização agora. Tente novamente quando estiver conectado.");
+        } finally {
+          resetButton();
         }
       }
 
@@ -3702,7 +3701,7 @@ const descriptionOptionsByType = {
           : [];
         dateInput.value = installmentGroup[0]?.date || entry.date;
         valueInput.value = entry.installment
-          ? Number(entry.installment.original ?? installmentGroup.reduce((total, item) => total + Number(item.value), 0))
+          ? Number(entry.installment.original ?? domain.sumEntryValues(installmentGroup))
           : formValues.value;
         flowType.value = domain.entryFlowType(formValues);
         renderEntryOptions(formValues.type, formValues.description);

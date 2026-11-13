@@ -50,7 +50,7 @@ test("reconcilia a compra inteira ao alterar a quantidade de parcelas", () => {
   assert.match(app, /domain\.reconcileInstallmentEntries\(sourceEntries,/);
   assert.match(app, /reconciliation\.staleEntries\.forEach\(\(item\) => queueDelete\(item\.id, item\.updated_at\)\)/);
   assert.match(app, /else if \(editing && editingEntry\?\.installment\) \{[\s\S]*?recurrence\.value === "installments"[\s\S]*?updateInstallmentPlan\(editingEntry\)/);
-  assert.match(app, /entry\.installment\.original \?\? installmentGroup\.reduce/);
+  assert.match(app, /entry\.installment\.original \?\? domain\.sumEntryValues\(installmentGroup\)/);
 });
 
 test("reconcilia ocorrências ao editar toda a série sem perder status", () => {

@@ -115,32 +115,46 @@
       : entry.paid ? "Pago" : "Em aberto";
   }
 
+  // Daily maps are accumulated in integer cents and converted to reais once,
+  // so long lists never drift by floating-point error.
+  function dailyCentsMap(entries, impactOf) {
+    const cents = new Map();
+    for (const entry of entries) {
+      if (entry.excluded_from_series) continue;
+      const impact = impactOf(entry);
+      if (impact === null) continue;
+      const value = Math.round(Number(entry.value) * 100);
+      if (!Number.isFinite(value)) continue;
+      cents.set(entry.date, (cents.get(entry.date) || 0) + impact * value);
+    }
+    return new Map([...cents].map(([date, total]) => [date, total / 100]));
+  }
+
   function dailyEntryTotals(entries) {
-    return entries.reduce((totals, entry) => {
-      if (entry.excluded_from_series) return totals;
-      if (entryFlowType(entry) === "income") return totals;
-      totals.set(entry.date, (totals.get(entry.date) || 0) + Number(entry.value));
-      return totals;
-    }, new Map());
+    return dailyCentsMap(entries, entry => entryFlowType(entry) === "income" ? null : 1);
   }
 
   function dailyEntryNet(entries) {
-    return entries.reduce((totals, entry) => {
-      if (entry.excluded_from_series) return totals;
-      const value = Number(entry.value);
-      const impact = entryFlowType(entry) === "income" ? value : -value;
-      totals.set(entry.date, (totals.get(entry.date) || 0) + impact);
-      return totals;
-    }, new Map());
+    return dailyCentsMap(entries, entry => entryFlowType(entry) === "income" ? 1 : -1);
+  }
+
+  // Net of the entries still open (not paid/received) on each date.
+  function dailyPendingNet(entries) {
+    return dailyCentsMap(entries, entry => entry.paid ? null : entryFlowType(entry) === "income" ? 1 : -1);
   }
 
   function dailyIncomeTotals(entries) {
-    return entries.reduce((totals, entry) => {
-      if (entry.excluded_from_series) return totals;
-      if (entryFlowType(entry) !== "income") return totals;
-      totals.set(entry.date, (totals.get(entry.date) || 0) + Number(entry.value));
-      return totals;
-    }, new Map());
+    return dailyCentsMap(entries, entry => entryFlowType(entry) === "income" ? 1 : null);
+  }
+
+  function sumEntryValues(entries, { signed = false } = {}) {
+    let cents = 0;
+    for (const entry of entries) {
+      const value = Math.round(Number(entry.value) * 100);
+      if (!Number.isFinite(value)) continue;
+      cents += signed && entryFlowType(entry) !== "income" ? -value : value;
+    }
+    return cents / 100;
   }
 
   function recentEntries(entries) {
@@ -349,13 +363,16 @@
   const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
   const toCents = value => Math.round(Number(value) * 100);
 
-  // Balance on `date` = reference balance + net of the days in (reference, date],
-  // or minus the net of (date, reference] for past dates. The cost is
-  // proportional to the dates that have entries, not to the days elapsed since
-  // the reference date, and the sum is done in integer cents.
-  function projectedBalance(date, settings, entryTotals) {
+  // The informed balance is the account balance on the reference date: it
+  // already reflects what was paid that day, but not what is still open. So
+  // the open entries of the reference date are always added on top of it.
+  // Balance at the end of `date` = reference balance + open net of the
+  // reference date + net of (reference, date], or minus the net of
+  // (date, reference] for past dates. The cost is proportional to the dates
+  // that have entries, not to the days elapsed, and the sum is in cents.
+  function projectedBalance(date, settings, entryTotals, pendingTotals = new Map()) {
     const referenceDate = settings.balance_reference_date || todayISO();
-    let cents = toCents(settings.current_balance);
+    let cents = toCents(settings.current_balance) + toCents(pendingTotals.get(referenceDate) || 0);
     if (date === referenceDate) return cents / 100;
     const forward = date > referenceDate;
     const low = forward ? referenceDate : date;
@@ -368,8 +385,8 @@
   }
 
   // Consecutive days differ exactly by that day's net, in either direction.
-  function minimumProjectedBalance(fromDate, toDate, settings, entryTotals) {
-    let cents = toCents(projectedBalance(fromDate, settings, entryTotals));
+  function minimumProjectedBalance(fromDate, toDate, settings, entryTotals, pendingTotals = new Map()) {
+    let cents = toCents(projectedBalance(fromDate, settings, entryTotals, pendingTotals));
     let minimum = { date: fromDate, balance: cents / 100 };
     for (let cursor = addDays(fromDate, 1); cursor <= toDate; cursor = addDays(cursor, 1)) {
       cents += toCents(entryTotals.get(cursor) || 0);
@@ -443,7 +460,9 @@
     generateRecurringOccurrences,
     dailyEntryTotals,
     dailyEntryNet,
+    dailyPendingNet,
     dailyIncomeTotals,
+    sumEntryValues,
     recentEntries,
     recentEntryGroups,
     installmentGroupKey,

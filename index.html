@@ -2327,7 +2327,7 @@
         dialog .modal-foot { position: static; }
       }
     </style>
-    <link rel="stylesheet" href="./mobile.css?v=2026111201" />
+    <link rel="stylesheet" href="./mobile.css?v=2026111202" />
   </head>
   <body aria-busy="true">
     <section class="bootstrap-screen" id="bootstrapScreen" role="status" aria-live="polite">
@@ -2560,7 +2560,8 @@
           </div>
           <div class="field">
             <label for="onboardingReferenceDate">Data desse saldo</label>
-            <input id="onboardingReferenceDate" type="date" required />
+            <input id="onboardingReferenceDate" type="date" required aria-describedby="onboardingReferenceDateHelp" />
+            <small class="field-help" id="onboardingReferenceDateHelp">Lançamentos dessa data ainda em aberto serão descontados do saldo.</small>
           </div>
           <details class="onboarding-category-disclosure field wide"><summary aria-label="Personalizar categorias iniciais">Personalizar categorias (opcional)</summary><fieldset class="onboarding-category-field">
             <legend>Quais categorias deseja usar?</legend>
@@ -2767,7 +2768,7 @@
             </div>
             <div class="settings-fields">
               <div class="field"><label for="currentBalance">Saldo atual</label><input id="currentBalance" type="number" step="0.01" required></div>
-              <div class="field"><label for="balanceReferenceDate">Data-base do saldo</label><input id="balanceReferenceDate" type="date" required></div>
+              <div class="field"><label for="balanceReferenceDate">Data-base do saldo</label><input id="balanceReferenceDate" type="date" required aria-describedby="balanceReferenceDateHelp"><small class="field-help" id="balanceReferenceDateHelp">O saldo já inclui o que foi pago nessa data. Lançamentos dessa data ainda em aberto serão descontados.</small></div>
             </div>
           </section>
           <section class="settings-group wide" aria-labelledby="optionsSettingsTitle">
@@ -2946,7 +2947,7 @@
     <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="./js/config.js?v=2026081001"></script>
-    <script src="./js/domain.js?v=2026111201"></script>
+    <script src="./js/domain.js?v=2026111202"></script>
     <script src="./js/document-validator.js?v=2026111104"></script>
     <script src="./js/local-store.js?v=2026111201"></script>
     <script src="./js/backup-recovery.js?v=2026111102"></script>
