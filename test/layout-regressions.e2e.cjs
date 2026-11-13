@@ -1,11 +1,13 @@
-// Larguras de layout: nada passa da tela no celular e as seções dos Ajustes
-// usam toda a largura do diálogo. App real em modo local, perfil sintético.
+// Larguras de layout: nada passa da tela no celular, as seções dos Ajustes
+// usam toda a largura do diálogo e as linhas dos registros mantêm o menu no
+// canto superior direito e o status no inferior direito. App real em modo
+// local, perfil sintético.
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 
 const BASE_URL = process.env.MG_BASE_URL || 'http://localhost:8000';
 
-async function openLocalProfile(browser, viewport) {
+async function openLocalProfile(browser, viewport, entries = []) {
   const context = await browser.newContext({ viewport, serviceWorkers: 'block' });
   const page = await context.newPage();
   const errors = [];
@@ -14,15 +16,16 @@ async function openLocalProfile(browser, viewport) {
   await page.goto(BASE_URL);
   await page.getByRole('button', { name: 'Usar só neste aparelho' }).click();
   await page.waitForSelector('#syncStatus[data-state="local"]');
-  await page.evaluate(async () => {
+  await page.evaluate(async (entries) => {
     const { id } = JSON.parse(localStorage.getItem('meus-gastos-local-profile'));
     const current = await MGLocalStore.load(id, { observe: false });
     const today = new Date().toISOString().slice(0, 10);
     await MGLocalStore.compareAndSwap(id, current, {
       ...(current || {}),
+      entries: entries.map(entry => ({ ...entry, date: today })),
       settings: { current_balance: 0, balance_reference_date: today, onboarding_status: 'completed' },
     });
-  });
+  }, entries);
   await page.reload();
   await page.waitForSelector('#syncStatus[data-state="local"]');
   return { context, page, errors };
@@ -49,6 +52,41 @@ const overflowing = page => page.evaluate(() => {
       const connect = page.getByRole('button', { name: 'Conectar sua conta Google para sincronizar' });
       const box = await connect.boundingBox();
       assert.ok(box.width >= 48 && box.height >= 48, 'área de toque de 48 px');
+      assert.deepEqual(errors, []);
+      await context.close();
+    }
+
+    // Linhas dos registros: menu no canto superior direito, status no inferior
+    // direito, alvos de 48 px com 8 px entre eles, sem quebrar palavras do título.
+    const rowEntries = [
+      { id: '00000000-0000-4000-8000-000000000001', type: 'ALIMENTAÇÃO', description: 'SUPERMERCADO', detail: 'compra grande do mês com produtos de limpeza', value: 200, paid: false, flow_type: 'expense', created_at: '2026-11-01T10:00:00.000Z' },
+      { id: '00000000-0000-4000-8000-000000000002', type: 'RECEITAS', description: 'SALÁRIO', value: 4000, paid: false, flow_type: 'income', created_at: '2026-11-01T10:00:00.000Z' },
+    ];
+    for (const width of [320, 375, 1280]) {
+      const { context, page, errors } = await openLocalProfile(browser, { width, height: 800 }, rowEntries);
+      await page.locator('.app-navigation [data-app-destination="records"]').click();
+      const rows = await page.evaluate(() => [...document.querySelectorAll('#rows .dense-entry')].map(row => {
+        const box = element => element.getBoundingClientRect();
+        const r = box(row), menu = box(row.querySelector('.entry-menu')), status = box(row.querySelector('.status-button'));
+        const title = row.querySelector('.entry-title-text');
+        const words = title.textContent.split(/\s+/);
+        return {
+          menuTop: menu.top - r.top, menuRight: r.right - menu.right, menuSize: [menu.width, menu.height],
+          statusBottom: r.bottom - status.bottom, statusRight: r.right - status.right, statusHeight: status.height,
+          gap: status.top - menu.bottom, statusBelowMenu: status.top >= menu.bottom,
+          // A word broken in the middle makes the title wider than its longest word allows.
+          brokenWord: words.some(word => { const probe = document.createElement('span'); probe.style.cssText = 'position:absolute;white-space:nowrap;font:inherit'; probe.textContent = word; title.append(probe); const wide = probe.getBoundingClientRect().width > title.getBoundingClientRect().width + 1; probe.remove(); return wide; }),
+        };
+      }));
+      for (const row of rows) {
+        assert.ok(row.menuTop <= 8 && row.menuRight <= 8, `${width}: menu no canto superior direito`);
+        assert.ok(row.statusBottom <= 8 && row.statusRight <= 8, `${width}: status no canto inferior direito`);
+        assert.deepEqual(row.menuSize, [48, 48], `${width}: menu com 48 px`);
+        assert.ok(row.statusHeight >= 48, `${width}: status com 48 px de altura`);
+        assert.ok(row.statusBelowMenu && row.gap >= 8, `${width}: 8 px entre menu e status`);
+        assert.equal(row.brokenWord, false, `${width}: título sem palavra quebrada`);
+      }
+      assert.deepEqual(await overflowing(page), [], `${width}: nada passa da tela`);
       assert.deepEqual(errors, []);
       await context.close();
     }

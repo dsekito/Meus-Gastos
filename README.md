@@ -191,8 +191,10 @@ muda: ela já é a data do pagamento, e a data da compra não é conhecida.
   nos meses seguintes.
 
 Cada registro da lista mostra em destaque **tipo e descrição** (por exemplo,
-“ALIMENTAÇÃO - SUPERMERCADO”) e, abaixo, a data, o comentário (campo **Detalhe**
-do formulário), o cartão, a parcela e o status.
+“ALIMENTAÇÃO - SUPERMERCADO”), com o valor e o menu (⋮) no topo, à direita.
+Abaixo ficam a data, o comentário (campo **Detalhe** do formulário), o cartão e
+a parcela, com o status no canto inferior direito. Em telas com menos de 360 px,
+o valor desce para a base, à esquerda.
 
 A lista de **Registros** abre mostrando só o que está **a pagar ou a receber**;
 o resumo do botão de filtros diz isso. **Limpar filtros** volta a esse padrão, e

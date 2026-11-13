@@ -105,12 +105,10 @@ textarea { resize: vertical; }
 .entry:last-child { border-bottom-style: none; border-bottom-color: currentcolor; }
 .entry:active { background: rgb(248, 250, 252); }
 .entry.selected .entry-title::before { content: "✓"; color: var(--brand); font-weight: 700; margin-right: 6px; }
-.entry-content { flex-grow: 1; flex-basis: 0%; min-width: 0px; }
 .entry-header { justify-content: space-between; }
 .entry-title { display: flex; align-items: center; gap: 8px; font-weight: 700; }
 .entry-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--type-color, #475569); flex-shrink: 0; }
 .entry-value { font-weight: 700; }
-.entry-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
 .entry-menu { border-style: none; border-color: currentcolor; background-color: initial; color: rgb(100, 116, 139); font-size: 20px; padding: 0px; }
 .context-menu { position: fixed; width: 220px; background: rgb(255, 255, 255); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; z-index: 999; }
 .context-menu.hidden { display: none; }
@@ -148,7 +146,6 @@ button:active:not(:disabled) { transform: scale(0.98); }
 .entry.selected { border-left-color: var(--brand); background: rgb(221, 232, 216) !important; }
 .entry-menu { display: inline-grid; place-items: center; }
 .entry-menu:hover { background: var(--soft); }
-.entry-summary { min-width: 0px; }
 .entry-title-text { text-overflow: ellipsis; }
 .entry-meta-line { display: flex; min-width: 0px; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; white-space: nowrap; }
 .entry-detail { text-overflow: ellipsis; }
@@ -165,10 +162,7 @@ dialog::backdrop { background: rgba(24, 51, 42, 0.55); backdrop-filter: blur(3px
   .top { margin: 0px -16px 20px; padding: 12px 16px; border-color: var(--line); background: rgba(255, 254, 250, 0.97); box-shadow: rgba(20, 92, 68, 0.07) 0px 6px 22px; }
   .sync-status { min-height: 12px; }
   .entry.dense-entry { position: relative; min-height: 68px; gap: 0px; align-items: stretch; }
-  .dense-entry .entry-content { display: flex; flex-direction: column; justify-content: center; }
   .dense-entry .entry-title { gap: 7px; }
-  .dense-entry .entry-footer { min-height: 24px; margin-top: 0px; gap: 6px; }
-  .dense-entry .entry-menu { align-self: center; flex-shrink: 0; flex-basis: 48px; margin-right: -8px; }
   .dense-entry .status-button { white-space: nowrap; }
   .context-menu { right: 0px; bottom: 0px; left: 0px; width: 100%; top: auto !important; }
   .context-menu button { padding-right: 20px; padding-left: 20px; }
@@ -829,3 +823,18 @@ dialog .modal,#entryDialog .modal,#settingsDialog .modal,#recentRecordsDialog .m
 .delete-installment-scope legend { padding:0 4px; font-weight:700; }
 .delete-installment-scope .checkbox-label { min-height:48px; justify-content:flex-start; font-size:16px; }
 .delete-installment-scope input[type="radio"],.filter-all-months input[type="checkbox"] { flex:0 0 auto; width:22px; height:22px; min-height:22px; padding:0; accent-color:var(--brand); }
+/* Record rows: "TIPO - DESCRIÇÃO" and value with the menu at the top right;
+   date, comment, card and installment with the status at the bottom right. */
+.entry.dense-entry { display:grid; grid-template-columns:minmax(0,1fr) auto 48px; grid-template-areas:"title value menu" "meta status status"; gap:8px; align-items:center; padding:4px 4px 4px 12px; }
+.dense-entry .entry-header { display:contents; }
+.dense-entry .entry-title { grid-area:title; }
+.dense-entry .entry-value { grid-area:value; margin:0; white-space:nowrap; text-align:right; }
+.dense-entry .entry-menu { grid-area:menu; justify-self:end; align-self:start; width:48px; height:48px; margin:0; }
+.dense-entry .entry-meta-line { grid-area:meta; }
+.dense-entry .status-button { grid-area:status; justify-self:end; align-self:end; min-height:48px; }
+@media (max-width:359px) {
+  /* Too narrow for title and value side by side: the value moves to the
+     bottom left, keeping the menu top right and the status bottom right. */
+  .entry.dense-entry { grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"title menu" "meta meta" "value status"; }
+  .dense-entry .entry-value { justify-self:start; text-align:left; }
+}
