@@ -56,6 +56,20 @@
     if (settings.current_balance != null && !Number.isFinite(Number(settings.current_balance))) invalid(required ? "BACKUP_INVALID" : undefined);
     if (settings.balance_reference_date != null && !isDateOnly(settings.balance_reference_date)) invalid(required ? "BACKUP_INVALID" : undefined);
     if (settings.onboarding_status != null && !["pending", "completed"].includes(settings.onboarding_status)) invalid(required ? "BACKUP_INVALID" : undefined);
+    if (settings.credit_cards != null && !validCreditCards(settings.credit_cards)) invalid(required ? "BACKUP_INVALID" : undefined);
+  }
+
+  function validCreditCards(cards) {
+    if (!Array.isArray(cards)) return false;
+    const isDay = (value) => Number.isInteger(value) && value >= 1 && value <= 31;
+    const ids = new Set();
+    return cards.every((card) => {
+      const valid = isObject(card) && typeof card.id === "string" && !!card.id.trim() && !ids.has(card.id)
+        && typeof card.name === "string" && !!card.name.trim() && card.name.length <= 60
+        && isDay(card.closing_day) && isDay(card.due_day);
+      ids.add(card?.id);
+      return valid;
+    });
   }
 
   function validateDocument(value) {

@@ -14,7 +14,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>Meus Gastos</title>
-    <link rel="stylesheet" href="./mobile.css?v=2026111308" />
+    <link rel="stylesheet" href="./mobile.css?v=2026111309" />
   </head>
   <body aria-busy="true">
     <section class="bootstrap-screen" id="bootstrapScreen" role="status" aria-live="polite">
@@ -224,7 +224,7 @@
       <section class="panel settings-home" data-app-panel="settings" aria-label="Ajustes do aplicativo" hidden>
         <p>Ajuste sua projeção, organize as opções e proteja seus registros.</p>
         <button class="settings-shortcut secondary" type="button" data-settings-topic="projection" aria-label="Configurar projeção financeira"><strong>Projeção financeira</strong><span>Saldo e data de referência</span></button>
-        <button class="settings-shortcut secondary" type="button" data-settings-topic="options" aria-label="Gerenciar tipos e descrições"><strong>Tipos e descrições</strong><span>Opções para classificar seus lançamentos</span></button>
+        <button class="settings-shortcut secondary" type="button" data-settings-topic="options" aria-label="Gerenciar tipos, descrições e cartões de crédito"><strong>Tipos, descrições e cartões</strong><span>Opções para classificar seus lançamentos e datas das faturas</span></button>
         <button class="settings-shortcut secondary" type="button" data-settings-topic="data" aria-label="Abrir sincronização e backups"><strong>Sincronização e backups</strong><span>Cópias locais, Google Drive e restauração</span></button>
         <details class="install-help"><summary aria-label="Como instalar o aplicativo">Instalar no celular</summary><p><strong>Android:</strong> no menu do navegador, escolha Instalar app ou Adicionar à tela inicial.</p><p><strong>iPhone:</strong> no Safari, toque em Compartilhar e em Adicionar à Tela de Início.</p></details>
       </section>
@@ -301,6 +301,11 @@
           <div class="field entry-date-field">
             <label for="date">Data</label>
             <input id="date" type="date" required />
+          </div>
+          <div class="field wide entry-card-field" id="creditCardField" hidden>
+            <label for="creditCard">Forma de pagamento</label>
+            <select id="creditCard" aria-describedby="creditCardHelp"></select>
+            <p id="creditCardHelp" role="status" aria-live="polite" hidden></p>
           </div>
           <div class="field entry-type-field">
             <label for="type">Tipo</label>
@@ -448,7 +453,7 @@
         <div class="modal-head"><div><h2 id="settingsTitle">Configurações financeiras</h2><p>Ajuste a projeção e gerencie seus dados.</p></div><button class="close" type="button" data-close-settings aria-label="Fechar configurações">&times;</button></div>
         <nav class="settings-topic-nav" aria-label="Assuntos dos ajustes">
           <button class="secondary" type="button" data-settings-switch="projection" aria-pressed="true" aria-label="Ajustes da projeção">Projeção</button>
-          <button class="secondary" type="button" data-settings-switch="options" aria-pressed="false" aria-label="Ajustes de tipos e descrições">Opções</button>
+          <button class="secondary" type="button" data-settings-switch="options" aria-pressed="false" aria-label="Ajustes de tipos, descrições e cartões">Opções</button>
           <button class="secondary" type="button" data-settings-switch="data" aria-pressed="false" aria-label="Sincronização e backups">Backups</button>
         </nav>
         <div class="form-grid">
@@ -484,6 +489,18 @@
                   <button class="secondary danger" id="deleteDescriptionOptionButton" type="button" aria-label="Excluir descrição selecionada">Excluir descrição</button>
                 </div>
                 <button class="secondary" type="button" data-add-option="descriptions" aria-label="Adicionar descrição ao tipo selecionado">Adicionar descrição</button>
+              </section>
+              <section class="option-manager-card credit-card-manager" aria-labelledby="creditCardOptionsTitle">
+                <div class="option-manager-copy"><strong id="creditCardOptionsTitle">Cartões de crédito</strong><p id="creditCardRule">Num novo lançamento, escolha o cartão em “Forma de pagamento” e a data vira o vencimento da fatura. Compras feitas a partir do dia do fechamento vão para a fatura seguinte.</p></div>
+                <p id="creditCardEmpty">Nenhum cartão cadastrado.</p>
+                <ul class="credit-card-list" id="creditCardList" aria-label="Cartões cadastrados" hidden></ul>
+                <div class="credit-card-form">
+                  <div class="field credit-card-name"><label for="creditCardName">Nome do cartão</label><input id="creditCardName" type="text" maxlength="60" autocomplete="off" placeholder="Ex.: Nubank" aria-describedby="creditCardError" /></div>
+                  <div class="field"><label for="creditCardClosingDay">Dia do fechamento</label><input id="creditCardClosingDay" type="number" min="1" max="31" step="1" inputmode="numeric" aria-describedby="creditCardError" /></div>
+                  <div class="field"><label for="creditCardDueDay">Dia do vencimento</label><input id="creditCardDueDay" type="number" min="1" max="31" step="1" inputmode="numeric" aria-describedby="creditCardError" /></div>
+                </div>
+                <p class="field-error" id="creditCardError" role="alert" hidden></p>
+                <button class="secondary" id="addCreditCard" type="button" aria-describedby="creditCardRule">Adicionar cartão</button>
               </section>
             </div>
           </section>
@@ -669,10 +686,10 @@
     <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="./js/config.js?v=2026081001"></script>
-    <script src="./js/domain.js?v=2026111306"></script>
-    <script src="./js/profile-defaults.js?v=2026111306"></script>
+    <script src="./js/domain.js?v=2026111307"></script>
+    <script src="./js/profile-defaults.js?v=2026111307"></script>
     <script src="./js/entry-form-rules.js?v=2026111306"></script>
-    <script src="./js/document-validator.js?v=2026111104"></script>
+    <script src="./js/document-validator.js?v=2026111307"></script>
     <script src="./js/local-store.js?v=2026111304"></script>
     <script src="./js/local-profile.js?v=2026111201"></script>
     <script src="./js/backup-recovery.js?v=2026111102"></script>
@@ -681,10 +698,11 @@
     <script src="./js/sync-service.js?v=2026111102"></script>
     <script src="./js/sync-status-view.js?v=2026111306"></script>
     <script src="./js/records-manager.js?v=2026111306"></script>
+    <script src="./js/credit-cards.js?v=2026111307"></script>
     <script src="./js/confirm-dialog.js?v=2026111301"></script>
     <script src="./js/app-update.js?v=2026111201"></script>
     <script src="./js/projection-view.js?v=2026111303"></script>
     <script src="./js/monthly-view.js?v=2026111306"></script>
-    <script src="./js/app.js?v=2026111306"></script>
+    <script src="./js/app.js?v=2026111307"></script>
   </body>
 </html>

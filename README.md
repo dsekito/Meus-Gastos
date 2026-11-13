@@ -45,6 +45,7 @@ ficam em `domain.js`; a interface monta o restante a partir de módulos por assu
 - `projection-view.js` e `monthly-view.js`: marcação da Projeção e do consolidado Mensal.
 - `sync-status-view.js`: o que o status e o aviso de sincronização dizem em cada situação.
 - `records-manager.js`: o diálogo “Gerenciar registros” e a edição em lote.
+- `credit-cards.js`: cadastro de cartões e a data sugerida pela forma de pagamento.
 - `app.js`: estado da sessão, navegação, formulário e a ligação entre os módulos.
 
 ## Estrutura de dados
@@ -164,6 +165,31 @@ pessoa continua no modo local com os mesmos dados. Se o app for fechado no meio 
 conexão, o perfil local tem prioridade na próxima abertura.
 
 A lógica fica em `js/local-profile.js` (`window.MGLocalProfile`).
+
+## Cartões de crédito
+
+Em **Ajustes > Tipos, descrições e cartões**, cadastre cada cartão com o dia do
+fechamento e o dia do vencimento da fatura. Num novo lançamento de despesa, o
+campo **Forma de pagamento** oferece os cartões cadastrados; ao escolher um, a
+data do lançamento passa a ser o vencimento da fatura em que uma compra feita
+hoje cai. A data continua editável.
+
+- Compras feitas **a partir do dia do fechamento** vão para a fatura seguinte.
+- Se o vencimento é no mesmo dia ou antes do fechamento, a fatura vence no mês
+  seguinte ao fechamento.
+- Dias que não existem no mês (por exemplo, 31 em fevereiro) usam o último dia.
+- Em compras parceladas, a 1ª parcela fica no vencimento sugerido e as demais
+  nos meses seguintes.
+
+O cartão só sugere a data: ele não é gravado no lançamento, e editar ou excluir
+um cartão não altera lançamentos já feitos. Os cartões ficam em
+`settings.credit_cards` (`id`, `name`, `closing_day`, `due_day`), sincronizados
+com o Drive e incluídos nos backups; perfis sem cartão não têm o campo. A regra
+fica em `MGDomain.creditCardDueDate` e a interface em `js/credit-cards.js`.
+
+Versões anteriores do app ignoram esse campo. Se um aparelho ainda não
+atualizado salvar a projeção, a lista de cartões pode ser descartada no Drive;
+atualize a interface em todos os aparelhos ao começar a usar cartões.
 
 ## Instalação
 

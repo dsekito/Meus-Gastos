@@ -310,6 +310,10 @@ const profileDefaults = window.MGProfileDefaults;
       let returnToRecentAfterEdit = false;
       let optionDialogResolver = null;
       let pendingDeletionAction = null;
+      const creditCards = window.MGCreditCards.create({
+        state, domain, todayISO, generateId, confirmDialog, financialMutation, show, pendingSyncMessage,
+        dateInput, flowType, onDateChange: () => updateEntryFormValidity(),
+      });
 
       function todayISO() {
         return domain.todayISO();
@@ -1947,6 +1951,7 @@ const profileDefaults = window.MGProfileDefaults;
       function render() {
         renderEntryOptions();
         renderOptionManagement();
+        creditCards.renderSettings();
 
         renderFilterTypes();
         renderFilterDescriptions();
@@ -2228,6 +2233,7 @@ const profileDefaults = window.MGProfileDefaults;
         endDate.required = recurring && endMode.value === "on_date";
         occurrenceCount.required = recurring && endMode.value === "after_occurrences";
         paidLabel.textContent = flowType.value === "income" ? "Marcar como recebido" : "Marcar como pago";
+        creditCards.updateEntryField();
         const newInstallments = recurrence.value === "installments" && !state.editingId;
         paidField.hidden = recurring || newInstallments;
         paidInput.disabled = recurring || newInstallments;
@@ -2264,6 +2270,7 @@ const profileDefaults = window.MGProfileDefaults;
         businessDayAdjustment.value = "none";
         editScopeField.hidden = true;
         dateInput.value = todayISO();
+        creditCards.updateEntryField({ reset: true });
         updateEntryFormVisibility();
         render();
         dialog.showModal();
@@ -2279,7 +2286,7 @@ const profileDefaults = window.MGProfileDefaults;
       }
 
       function setSettingsTopic(topic) {
-        const names = { projection: "Projeção financeira", options: "Tipos e descrições", data: "Sincronização e backups" };
+        const names = { projection: "Projeção financeira", options: "Tipos, descrições e cartões", data: "Sincronização e backups" };
         if (!names[topic]) topic = "projection";
         document.querySelector("#settingsTitle").textContent = names[topic];
         const groupIds = { projection: "projectionSettingsTitle", options: "optionsSettingsTitle", data: "dataSettingsTitle" };
@@ -3497,6 +3504,7 @@ const profileDefaults = window.MGProfileDefaults;
         businessDayAdjustment.value = series?.business_day_adjustment || "none";
         editScopeField.hidden = !series;
         editScope.value = "this";
+        creditCards.updateEntryField({ reset: true });
         updateEntryFormVisibility();
       }
 

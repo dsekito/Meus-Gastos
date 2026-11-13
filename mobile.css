@@ -826,3 +826,18 @@ dialog .modal,#entryDialog .modal,#settingsDialog .modal,#recordsManagerDialog .
 #confirmDialog [data-confirm-cancel].secondary, #confirmDialog [data-confirm-accept] { min-height:48px; }
 /* Component boundaries need 3:1 against their background (WCAG 1.4.11); --line stays for decorative dividers. */
 .calendar-nav,.entry-actions summary,.filter-disclosure > summary,.monthly-method summary,:is(.entry-advanced,.onboarding-category-disclosure,.install-help) > summary,.settings-topic-nav button { border-color:var(--control-line); }
+/* Credit cards: settings list and form, and the hint under "Forma de pagamento". */
+.credit-card-list { display:grid; gap:8px; margin:0; padding:0; list-style:none; }
+.credit-card-list li { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 12px; padding:8px 12px; border:1px solid var(--control-line); border-radius:6px; background:var(--paper); font-size:16px; }
+.credit-card-list li span { flex:1 1 12em; min-width:0; overflow-wrap:anywhere; }
+.credit-card-list button { min-height:48px; }
+.credit-card-form { display:grid; grid-template-columns:minmax(0,1fr); gap:8px 12px; }
+#settingsDialog .credit-card-form .field { grid-column:auto; }
+@media (min-width:600px) {
+  .credit-card-form { grid-template-columns:minmax(0,2fr) repeat(2,minmax(0,1fr)); align-items:end; }
+  .credit-card-manager > #addCreditCard { justify-self:start; min-width:200px; }
+}
+#creditCardEmpty { margin:0; color:var(--muted); font-size:16px; }
+#settingsDialog .field-error { margin:0; color:var(--danger); font-size:16px; }
+#settingsDialog .credit-card-form [aria-invalid="true"] { border:2px solid var(--danger); }
+#creditCardHelp { color:var(--brand); }

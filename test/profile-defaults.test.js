@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 global.window = global;
 require("../js/profile-defaults.js");
 
-const { descriptionOptionsByType, defaultTypes, defaultDescriptions, createDefaultSettings, normalizeSettings, profileOptions } = global.MGProfileDefaults;
+const { descriptionOptionsByType, defaultTypes, defaultDescriptions, createDefaultSettings, normalizeSettings, normalizeCreditCards, profileOptions } = global.MGProfileDefaults;
 
 test("novo perfil começa com saldo zero, datado de hoje, e com onboarding pendente", () => {
   assert.deepEqual(createDefaultSettings("2026-11-13"), { current_balance: 0, balance_reference_date: "2026-11-13", onboarding_status: "pending" });
@@ -34,4 +34,20 @@ test("perfil com lista própria mantém só a sua lista; sem lista, recebe uma c
   assert.deepEqual(copy, [...defaultTypes]);
   copy.push("NOVA");
   assert.ok(!defaultTypes.includes("NOVA"));
+});
+
+test("mantém os cartões de crédito salvos e descarta os que dariam uma data errada", () => {
+  const nubank = { id: "c1", name: " Nubank ", closing_day: 3, due_day: 10 };
+  assert.deepEqual(normalizeSettings({ credit_cards: [nubank] }, "2026-01-31").credit_cards,
+    [{ id: "c1", name: "Nubank", closing_day: 3, due_day: 10 }]);
+  assert.deepEqual(normalizeCreditCards([
+    { id: "c2", name: "", closing_day: 3, due_day: 10 },
+    { id: "c3", name: "Itaú", closing_day: 0, due_day: 10 },
+    { id: "c4", name: "Inter", closing_day: 3, due_day: 32 },
+    { id: "c5", name: "C6", closing_day: "3", due_day: 10 },
+    { id: "c1", name: "Repetido", closing_day: 5, due_day: 12 },
+    null,
+  ].concat([nubank]).reverse()), [{ id: "c1", name: "Nubank", closing_day: 3, due_day: 10 }]);
+  assert.deepEqual(normalizeCreditCards("Nubank"), []);
+  assert.equal("credit_cards" in normalizeSettings({ credit_cards: [] }, "2026-01-31"), false, "sem cartões, o formato não muda");
 });

@@ -1,18 +1,18 @@
-const CACHE_NAME = "meus-gastos-v48";
+const CACHE_NAME = "meus-gastos-v49";
 const NAVIGATION_TIMEOUT_MS = 3000;
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./mobile.css?v=2026111308",
+  "./mobile.css?v=2026111309",
   "./manifest.webmanifest",
   "./icons/app-icon.svg",
   "./icons/app-icon-192.png",
   "./icons/app-icon-512.png",
   "./js/config.js?v=2026081001",
-  "./js/domain.js?v=2026111306",
-  "./js/profile-defaults.js?v=2026111306",
+  "./js/domain.js?v=2026111307",
+  "./js/profile-defaults.js?v=2026111307",
   "./js/entry-form-rules.js?v=2026111306",
-  "./js/document-validator.js?v=2026111104",
+  "./js/document-validator.js?v=2026111307",
   "./js/local-store.js?v=2026111304",
   "./js/local-profile.js?v=2026111201",
   "./js/backup-recovery.js?v=2026111102",
@@ -21,11 +21,12 @@ const APP_SHELL = [
   "./js/sync-service.js?v=2026111102",
   "./js/sync-status-view.js?v=2026111306",
   "./js/records-manager.js?v=2026111306",
+  "./js/credit-cards.js?v=2026111307",
   "./js/confirm-dialog.js?v=2026111301",
   "./js/app-update.js?v=2026111201",
   "./js/projection-view.js?v=2026111303",
   "./js/monthly-view.js?v=2026111306",
-  "./js/app.js?v=2026111306",
+  "./js/app.js?v=2026111307",
 ];
 
 self.addEventListener("install", (event) => {

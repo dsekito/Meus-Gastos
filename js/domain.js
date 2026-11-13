@@ -31,6 +31,28 @@
     return target.toISOString().slice(0, 10);
   }
 
+  // Day `day` of the month `monthOffset` months after `year`/`monthIndex`,
+  // clamped to the last day of that month (day 31 in February is the 28th/29th).
+  function clampedMonthDay(year, monthIndex, monthOffset, day) {
+    const target = utcDate(year, monthIndex + monthOffset, 1);
+    const lastDay = utcDate(target.getUTCFullYear(), target.getUTCMonth() + 1, 0).getUTCDate();
+    target.setUTCDate(Math.min(day, lastDay));
+    return target;
+  }
+
+  // Due date of the credit card invoice a purchase made on `purchaseDate`
+  // falls into. A purchase on the closing day or later goes to the next
+  // invoice. When the due day is not after the closing day, the invoice is
+  // due in the month after it closes.
+  function creditCardDueDate(purchaseDate, { closing_day: closingDay, due_day: dueDay } = {}) {
+    const [year, month, day] = dateParts(purchaseDate);
+    const monthIndex = month - 1;
+    const closesThisMonth = day < clampedMonthDay(year, monthIndex, 0, closingDay).getUTCDate();
+    const closingOffset = closesThisMonth ? 0 : 1;
+    const dueOffset = closingOffset + (dueDay > closingDay ? 0 : 1);
+    return clampedMonthDay(year, monthIndex, dueOffset, dueDay).toISOString().slice(0, 10);
+  }
+
   function weekday(date) {
     const [year, month, day] = dateParts(date);
     return utcDate(year, month - 1, day).getUTCDay();
@@ -499,6 +521,7 @@
     todayISO,
     addDays,
     addMonthsClamped,
+    creditCardDueDate,
     adjustBusinessDay,
     generateRecurringOccurrences,
     dailyEntryTotals,

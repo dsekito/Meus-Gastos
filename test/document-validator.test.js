@@ -48,3 +48,19 @@ assert.throws(
 );
 
 console.log("document validator tests: ok");
+
+// Cartões de crédito nas configurações: válidos são aceitos, inválidos recusam o documento.
+{
+  const withCards = (credit_cards) => ({ ...validDocument, settings: { ...validDocument.settings, credit_cards } });
+  assert.doesNotThrow(() => global.MGDocumentValidator.validateDocument(withCards([{ id: "c1", name: "Nubank", closing_day: 3, due_day: 10 }])));
+  for (const cards of [
+    "Nubank",
+    [{ id: "c1", name: "Nubank", closing_day: 3, due_day: 32 }],
+    [{ id: "c1", name: "Nubank", closing_day: 3.5, due_day: 10 }],
+    [{ id: "c1", name: " ", closing_day: 3, due_day: 10 }],
+    [{ id: "c1", name: "A", closing_day: 3, due_day: 10 }, { id: "c1", name: "B", closing_day: 3, due_day: 10 }],
+  ]) {
+    assert.throws(() => global.MGDocumentValidator.validateDocument(withCards(cards)), /GOOGLE_DRIVE_INVALID_DOCUMENT/);
+  }
+  assert.throws(() => global.MGDocumentValidator.validateBackup({ schemaVersion: 1, entries: [], recurrenceSeries: [], settings: { credit_cards: [null] } }), /BACKUP_INVALID/);
+}
