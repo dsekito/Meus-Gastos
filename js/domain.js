@@ -395,6 +395,27 @@
     return minimum;
   }
 
+  // End-of-day balances of a calendar month (YYYY-MM). It starts from the
+  // balance at the end of the previous day and adds each day's net in cents,
+  // so the cost is the month length plus the dates that have entries.
+  function monthBalanceSeries(month, settings, entryTotals, pendingTotals = new Map()) {
+    const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(String(month));
+    if (!match) throw new RangeError("Mês inválido para a projeção.");
+    const daysInMonth = utcDate(Number(match[1]), Number(match[2]), 0).getUTCDate();
+    let cents = toCents(projectedBalance(addDays(`${month}-01`, -1), settings, entryTotals, pendingTotals));
+    const opening = cents / 100;
+    const days = [];
+    let minimum = null;
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const date = `${month}-${String(day).padStart(2, "0")}`;
+      cents += toCents(entryTotals.get(date) || 0);
+      const balance = cents / 100;
+      days.push({ date, balance });
+      if (!minimum || balance < minimum.balance) minimum = { date, balance };
+    }
+    return { month, opening, closing: cents / 100, minimum, days };
+  }
+
   // An entry dated on the balance reference date counts in the projection
   // only while it is open. When it changes status, moving the informed
   // balance by its value keeps the projection unchanged and matches the bank.
@@ -487,6 +508,7 @@
     reconcileInstallmentEntries,
     projectedBalance,
     minimumProjectedBalance,
+    monthBalanceSeries,
     referenceBalanceAdjustment,
   };
 })(window);

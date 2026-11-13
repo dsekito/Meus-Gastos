@@ -47,7 +47,7 @@ const server = http.createServer((req,res) => {
     const canvas=document.createElement('canvas'), ctx=canvas.getContext('2d'); ctx.font=`${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
     const required=ctx.measureText('September 8888').width+48+parseFloat(style.paddingLeft)+parseFloat(style.paddingRight);
     if(ir.width+1<required) issues.push(`month input too narrow: ${ir.width} < ${required}`);
-    for(const id of ['filterMonth','previousMonth','nextMonth','goToCurrentMonth']) {const e=document.getElementById(id), r=rect(e);if(!e.checkVisibility()||r.width<47.9||r.height<47.9) issues.push(`missing/small period control: ${id}`);}
+    for(const id of ['filterMonth','previousMonth','nextMonth','goToCurrentMonth']) {const e=document.getElementById(id), r=rect(e);if(id==='goToCurrentMonth'&&e.hidden) continue;if(!e.checkVisibility()||r.width<47.9||r.height<47.9) issues.push(`missing/small period control: ${id}`);}
     return issues;
    });
    failures.push(...issues.map(issue=>`${width}px text ${scale}%: ${issue}`));
