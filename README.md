@@ -202,7 +202,9 @@ continua válida, inclusive ao converter um registro recuperado em parcelas.
 
 A interface tem cinco destinos: Início, Registros, Projeção, Mensal e Ajustes, com
 navegação pelo histórico do navegador. O mês escolhido é compartilhado entre as
-áreas. No formulário, repetição e detalhes ficam em uma seção opcional. Em compras
+áreas; **Voltar ao mês atual** só aparece quando outro mês está selecionado. O
+Início mostra apenas o resumo e as próximas movimentações; Projeção e Mensal ficam
+na barra de navegação. No formulário, repetição e detalhes ficam em uma seção opcional. Em compras
 parceladas, informe o **valor total da compra**: a prévia mostra a divisão e o
 ajuste dos centavos na última parcela, conforme a regra financeira existente.
 
@@ -214,18 +216,22 @@ são somadas por ocorrência registrada, na respectiva data; não há estimativa
 ocorrências ainda não geradas. Despesas negativas reduzem o total de saídas.
 **Ver lançamentos** abre os registros daquele mês com a mesma situação selecionada.
 
-Na aba Projeção, **Entradas do mês** e **Saídas do mês** mostram o período inteiro,
-com destaque para o que ainda está a receber e a pagar. O painel abaixo do
-calendário mostra somente a data selecionada: um dia sem receitas pode ter
-entradas zeradas mesmo quando há entradas em outros dias do mês. Dias com
-entradas têm o indicador `+`.
+Na aba Projeção, o resumo mostra o **saldo no início** (fim do dia anterior ao
+mês), as **entradas** e **saídas** do mês inteiro, com o que ainda está a receber
+e a pagar, e o **saldo no fim**. O gráfico **Evolução do saldo** desenha o saldo
+ao fim de cada dia, com a linha de hoje, o menor saldo marcado e o trecho abaixo
+de zero em vermelho; ao tocar ou passar o ponteiro sobre ele, o saldo do dia é
+exibido. Em **Dia a dia**, cada data com lançamentos traz o saldo ao fim do dia
+(com o aviso “negativo” quando for o caso) e os lançamentos daquela data; tocar em
+um lançamento abre a edição. No mês atual, os dias anteriores a hoje ficam
+recolhidos em **Dias anteriores**.
 
 “A receber” identifica uma entrada ainda não recebida. Essa distinção aparece no
-resumo de sete dias, no calendário, no histórico, no gerenciador e no consolidado.
+resumo de sete dias, na projeção, no histórico, no gerenciador e no consolidado.
 A classificação exata `A RECEBER` no tipo ou status de um registro antigo também
 é reconhecida como entrada na leitura, mesmo quando a movimentação foi gravada
 com o padrão de despesa. Os dados antigos não são regravados automaticamente.
-Há um atalho **Resumo mensal** em Registros, além da aba **Mensal**. Quando uma
+Quando uma
 nova interface fica disponível, o app oferece atualização preservando os dados
 locais e pede para concluir formulários abertos antes de recarregar. A nova versão
 só é ativada quando a pessoa toca em **Atualizar interface**; **Verificar
@@ -242,7 +248,7 @@ validar filtros, navegação e layout do consolidado em cinco tamanhos de tela.
 Para validar a interface em um perfil fictício e isolado, mantenha o servidor
 local na porta 8000 e execute `node test/mobile-navigation.e2e.cjs`. O teste usa
 Playwright com Edge, sem acessar serviços externos, e salva capturas e medidas em
-`outputs/mobile-improvements/`. Ele verifica navegação, calendário, ajustes,
+`outputs/mobile-improvements/`. Ele verifica navegação, projeção, ajustes,
 parcelamento, persistência local e acesso aos controles em telas pequenas e em
 paisagem. A integração real com o Google Drive depende de uma conta autorizada.
 
