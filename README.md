@@ -129,7 +129,16 @@ ser executada antes do corte da versão em produção.
 A tela inicial usa um painel compacto de saldo e projeções, com período selecionado
 separado dos próximos sete dias. **Saldo projetado hoje** inclui lançamentos pendentes:
 não é uma afirmação de saldo bancário realizado. Datas de referência e projeção são
-exibidas; o cálculo financeiro existente foi preservado.
+exibidas.
+
+O saldo informado é o saldo da conta na **data-base**: já inclui o que foi pago nessa
+data, mas não o que ainda está em aberto. Por isso, lançamentos da data-base marcados
+como pagos não alteram a projeção, e os que estão em aberto são descontados (ou somados,
+no caso de entradas a receber). Ao pagar uma conta, atualize também o saldo para manter
+a projeção fiel ao banco.
+
+A lista de **Registros** abre com todos os status. O filtro de status continua
+disponível, e o atalho das próximas movimentações mostra apenas os em aberto.
 
 O botão de novo lançamento fica no fluxo da página, sem cobrir cartões. A navegação
 mantém cinco destinos. O modo local sem alterações para enviar não exibe um aviso
@@ -174,11 +183,14 @@ A classificação exata `A RECEBER` no tipo ou status de um registro antigo tamb
 com o padrão de despesa. Os dados antigos não são regravados automaticamente.
 Há um atalho **Resumo mensal** em Registros, além da aba **Mensal**. Quando uma
 nova interface fica disponível, o app oferece atualização preservando os dados
-locais e pede para concluir formulários abertos antes de recarregar.
+locais e pede para concluir formulários abertos antes de recarregar. A nova versão
+só é ativada quando a pessoa toca em **Atualizar interface**; **Verificar
+atualização** apenas procura uma versão nova e nunca recarrega a página. Em conexão
+lenta, a abertura usa a cópia offline após 3 segundos.
 
-O consolidado mensal e o parcelamento usam centavos inteiros. As agregações e
-projeções diárias ainda usam `Number` do JavaScript; esta versão não afirma que
-todo cálculo financeiro foi convertido para centavos inteiros.
+O consolidado mensal, o parcelamento, as agregações diárias, as projeções e os
+subtotais da interface somam em centavos inteiros e convertem para reais apenas no
+resultado.
 Execute `node test/monthly-cash-flow.test.js` para os casos financeiros e
 `node test/monthly-cash-flow.e2e.cjs` com o servidor local na porta 8000 para
 validar filtros, navegação e layout do consolidado em cinco tamanhos de tela.
