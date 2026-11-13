@@ -103,6 +103,35 @@ const scenarios = {
     return { page, errors };
   },
 
+  async recordsManagerBulkEdit(browser) {
+    const { page, errors } = await open(browser, { settings: settled, entries: [
+      entry({ description: 'ALUGUEL' }), entry({ description: 'CONDOMÍNIO' }), entry({ type: 'LAZER', description: 'CINEMA' })] });
+    await page.locator('#entryActions > summary').click();
+    await page.locator('#openRecordsManagerMain').click();
+    await page.locator('#recordsManagerDialog[open]').waitFor();
+    assert.equal(await page.locator('[data-manager-select]').count(), 3);
+    await page.locator('.manager-filters > summary').click();
+    await page.locator('#managerFilterType').selectOption('MORADIA');
+    assert.equal(await page.locator('[data-manager-select]').count(), 2);
+    await page.locator('#managerSelectAll').click();
+    assert.match(await page.locator('#managerSelectionSummary').innerText(), /2 selecionados/);
+    await page.locator('#managerToggleBulk').click();
+    await page.locator('#managerMarkPaid').click();
+    await page.locator('#confirmDialog[open] [data-confirm-accept]').click();
+    await page.waitForFunction(() => /2 registro\(s\) atualizado/.test(document.querySelector('#toast').textContent));
+    let entries = (await stored(page)).entries;
+    assert.deepEqual(entries.map(e => e.paid), [true, true, false]);
+    // Selection is cleared after applying; select again to change the type.
+    await page.locator('#managerSelectAll').click();
+    await page.locator('#managerBulkType').selectOption('OUTROS');
+    await page.locator('#managerApplyChanges').click();
+    await page.locator('#confirmDialog[open] [data-confirm-accept]').click();
+    await page.waitForFunction(async () => (await MGLocalStore.load('behavior-test', { observe: false })).entries.filter(e => e.type === 'OUTROS').length === 2);
+    entries = (await stored(page)).entries;
+    assert.equal(entries.find(e => e.description === 'CINEMA').type, 'LAZER', 'records outside the selection are untouched');
+    return { page, errors };
+  },
+
   async saveAndAddAnother(browser) {
     const { page, errors } = await open(browser, { settings: settled, entries: [] });
     await newEntry(page, { value: 12.5, type: 'ALIMENTAÇÃO', description: 'SUPERMERCADO', detail: 'feira' });

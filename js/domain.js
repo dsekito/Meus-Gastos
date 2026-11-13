@@ -316,11 +316,18 @@
     };
   }
 
+  // Splits a purchase total into equal installments in cents; the remainder
+  // goes to the last one, so the parts always add up to the total.
+  function installmentSplit(total, quantity) {
+    const totalCents = Math.round(Number(total) * 100);
+    const regularCents = Math.trunc(totalCents / quantity);
+    return { regularCents, lastCents: totalCents - regularCents * (quantity - 1) };
+  }
+
   function reconcileInstallmentEntries(entries = [], plan = {}) {
     const quantity = Math.max(2, Number(plan.quantity) || 2);
     const totalValue = Number(plan.value);
-    const totalCents = Math.round(totalValue * 100);
-    const regularCents = Math.trunc(totalCents / quantity);
+    const { regularCents, lastCents } = installmentSplit(totalValue, quantity);
     const sortedEntries = [...entries].sort((a, b) =>
       Number(a.installment?.current || 0) - Number(b.installment?.current || 0)
       || String(a.date || "").localeCompare(String(b.date || "")),
@@ -340,9 +347,7 @@
     const installmentAt = (index) => ({
       ...sharedFields,
       date: addMonthsClamped(plan.start_date, index),
-      value: (index === quantity - 1
-        ? totalCents - regularCents * (quantity - 1)
-        : regularCents) / 100,
+      value: (index === quantity - 1 ? lastCents : regularCents) / 100,
       installment: {
         current: index + 1,
         total: quantity,
@@ -508,6 +513,7 @@
     typeColorMap,
     recurringEntryFormValues,
     reconcileSeriesEntries,
+    installmentSplit,
     reconcileInstallmentEntries,
     projectedBalance,
     minimumProjectedBalance,

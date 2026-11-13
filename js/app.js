@@ -1,23 +1,10 @@
-const descriptionOptionsByType = {
-        ALIMENTAÇÃO: ["DELIVERY", "RESTAURANTE", "SUPERMERCADO"],
-        ASSINATURAS: ["OUTRAS ASSINATURAS", "SOFTWARE", "STREAMING"],
-        COMPRAS: ["CASA", "ELETRÔNICOS", "PRESENTES", "ROUPAS"],
-        EDUCAÇÃO: ["CURSOS", "MATERIAL", "MENSALIDADE"],
-        FINANCEIRO: ["EMPRÉSTIMO", "FINANCIAMENTO", "IMPOSTOS", "TARIFAS"],
-        LAZER: ["ENTRETENIMENTO", "PASSEIOS", "VIAGENS"],
-        MORADIA: ["ÁGUA", "ALUGUEL", "CONDOMÍNIO", "ENERGIA", "GÁS", "INTERNET", "MANUTENÇÃO"],
-        OUTROS: ["OUTROS"],
-        RECEITAS: ["BENEFÍCIOS", "FREELANCE", "REEMBOLSO", "RENDIMENTOS", "SALÁRIO"],
-        SAÚDE: ["CONSULTAS", "FARMÁCIA", "PLANO DE SAÚDE"],
-        TRANSPORTE: ["APLICATIVOS", "COMBUSTÍVEL", "MANUTENÇÃO", "SEGURO", "TRANSPORTE PÚBLICO"],
-      };
-      const defaultTypes = Object.keys(descriptionOptionsByType);
-      const defaultDescriptions = [
-        ...new Set(Object.values(descriptionOptionsByType).flat()),
-      ].sort();
+const profileDefaults = window.MGProfileDefaults;
+      const { descriptionOptionsByType, defaultTypes, defaultDescriptions, profileOptions } = profileDefaults;
 
       const domain = window.MGDomain;
       const projectionView = window.MGProjectionView;
+      const monthlyView = window.MGMonthlyView;
+      const formRules = window.MGEntryFormRules;
       const localStore = window.MGLocalStore;
       const localProfile = window.MGLocalProfile;
       const googleAuth = window.MGGoogleAuth.create({
@@ -53,27 +40,11 @@ const descriptionOptionsByType = {
       });
 
       function createDefaultSettings() {
-        return {
-          current_balance: 0,
-          balance_reference_date: todayISO(),
-          onboarding_status: "pending",
-        };
+        return profileDefaults.createDefaultSettings(todayISO());
       }
 
       function normalizeSettings(settings = {}) {
-        return {
-          current_balance: Number(settings.current_balance ?? 0),
-          balance_reference_date: settings.balance_reference_date || todayISO(),
-          onboarding_status: ["pending", "completed"].includes(settings.onboarding_status)
-            ? settings.onboarding_status
-            : null,
-        };
-      }
-
-      function profileOptions(savedOptions, defaults) {
-        return Array.isArray(savedOptions)
-          ? [...new Set(savedOptions)].sort()
-          : [...defaults];
+        return profileDefaults.normalizeSettings(settings, todayISO());
       }
 
       function createSyncDiagnostics() {
@@ -304,21 +275,6 @@ const descriptionOptionsByType = {
         deleteDescriptionOptionButton = document.querySelector("#deleteDescriptionOptionButton"),
         openRecentRecordsMain = document.querySelector("#openRecentRecordsMain"),
         openRecordsManagerMain = document.querySelector("#openRecordsManagerMain"),
-        recordsManagerDialog = document.querySelector("#recordsManagerDialog"),
-        recordsManagerList = document.querySelector("#recordsManagerList"),
-        recordsManagerCount = document.querySelector("#recordsManagerCount"),
-        managerFilterType = document.querySelector("#managerFilterType"),
-        managerFilterDescription = document.querySelector("#managerFilterDescription"),
-        managerFilterStatus = document.querySelector("#managerFilterStatus"),
-        managerSelectAll = document.querySelector("#managerSelectAll"),
-        managerSelectionSummary = document.querySelector("#managerSelectionSummary"),
-        managerToggleBulk = document.querySelector("#managerToggleBulk"),
-        managerBulkEditor = document.querySelector("#managerBulkEditor"),
-        managerMarkPaid = document.querySelector("#managerMarkPaid"),
-        managerMarkPending = document.querySelector("#managerMarkPending"),
-        managerBulkType = document.querySelector("#managerBulkType"),
-        managerBulkDescription = document.querySelector("#managerBulkDescription"),
-        managerApplyChanges = document.querySelector("#managerApplyChanges"),
         recentRecordsDialog = document.querySelector("#recentRecordsDialog"),
         recentRecordsList = document.querySelector("#recentRecordsList"),
         recentRecordsCount = document.querySelector("#recentRecordsCount"),
@@ -352,7 +308,6 @@ const descriptionOptionsByType = {
       let recentRecordsVisible = 10;
       let recentRecordsReturnToSettings = false;
       let returnToRecentAfterEdit = false;
-      const managerSelectedEntries = new Set();
       let optionDialogResolver = null;
       let pendingDeletionAction = null;
 
@@ -402,266 +357,26 @@ const descriptionOptionsByType = {
         automaticRetryTimer = timer;
       }
 
-      function syncErrorLabel(code) {
-        if (code === "GOOGLE_DRIVE_INVALID_DOCUMENT") return "a cópia do Drive é inválida";
-        if (code === "GOOGLE_DRIVE_UNSUPPORTED_SCHEMA") return "a cópia foi criada por uma versão mais nova";
-        if (code === "GOOGLE_DRIVE_TIMEOUT") return "o Google Drive demorou para responder";
-        if (["GOOGLE_AUTH_EXPIRED", "GOOGLE_AUTH_REQUIRED"].includes(code)) return "é necessário autorizar o Google Drive";
-        if (code === "GOOGLE_DRIVE_CANCELLED") return "a sincronização foi cancelada";
-        return "não foi possível concluir a sincronização";
-      }
-
-      function formatFileSize(bytes) {
-        if (!Number.isFinite(bytes) || bytes <= 0) return null;
-        if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-        return `${(bytes / (1024 * 1024)).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`;
-      }
-
-      function isRemoteDocumentLarge() {
-        return Number(state.syncDiagnostics?.documentSizeBytes || 0) >= DOCUMENT_SIZE_WARNING_BYTES;
-      }
-
-      function formatLastSync() {
-        if (!state.lastSyncedAt) return "Ainda não sincronizado neste dispositivo";
-        const value = new Date(state.lastSyncedAt);
-        if (Number.isNaN(value.getTime())) return "Última sincronização indisponível";
-        const sameDay = value.toDateString() === new Date().toDateString();
-        const time = value.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-        return sameDay
-          ? `Google Drive atualizado hoje às ${time}`
-          : `Google Drive atualizado em ${value.toLocaleDateString("pt-BR")} às ${time}`;
-      }
-
       function isLocalSession() {
         return localProfile.isLocalUser(state.user);
       }
 
-      function updateSettingsSyncSummary(stateName) {
-        if (!settingsSyncSummary) return;
-        if (isLocalSession() && !hasLocalOnlyRecovery()) {
-          const title = document.createElement("strong");
-          title.textContent = "Modo local · sem sincronização";
-          const detail = document.createElement("span");
-          detail.textContent = "Os dados ficam só neste aparelho e nada é enviado para a internet. Use “Conectar Google” no topo da tela para guardar uma cópia no seu Google Drive. Se limpar os dados do navegador, os lançamentos deste aparelho serão apagados.";
-          settingsSyncSummary.replaceChildren(title, detail);
-          return;
-        }
-        if (hasLocalOnlyRecovery()) {
-          const title = document.createElement("strong");
-          title.textContent = "Recuperação local · envio pausado";
-          const detail = document.createElement("span");
-          detail.textContent = "Os lançamentos recuperados estão apenas neste aparelho. Todo envio ao Drive, inclusive alterações futuras, está pausado por segurança. Guarde uma cópia local e não limpe os dados do navegador.";
-          settingsSyncSummary.replaceChildren(title, detail);
-          return;
-        }
-        const pending = pendingSyncCount();
-        const pendingLabel = pending === 1 ? "1 alteração pendente de envio" : `${pending} alterações pendentes de envio`;
-        const title = stateName === "conflict"
-          ? "Conflito de sincronização"
-          : pending > 0
-            ? pendingLabel
-            : state.lastSyncedAt ? "Cópia do Drive atualizada" : "Salvo neste aparelho";
-        const titleElement = document.createElement("strong");
-        titleElement.textContent = title;
-        const detail = document.createElement("span");
-        const fileSize = formatFileSize(state.syncDiagnostics?.documentSizeBytes);
-        detail.textContent = `${formatLastSync()}. Os dados também ficam salvos neste dispositivo.${fileSize ? ` Documento no Drive: ${fileSize}.` : ""}`;
-        settingsSyncSummary.replaceChildren(titleElement, detail);
-        if (stateName !== "synced" && state.syncDiagnostics?.lastErrorCode) {
-          const attempt = state.syncDiagnostics.lastAttemptAt
-            ? new Date(state.syncDiagnostics.lastAttemptAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })
-            : null;
-          const errorDetail = document.createElement("span");
-          errorDetail.textContent = `Última tentativa${attempt ? ` em ${attempt}` : ""}: ${syncErrorLabel(state.syncDiagnostics.lastErrorCode)}.`;
-          errorDetail.title = `Código: ${state.syncDiagnostics.lastErrorCode}`;
-          settingsSyncSummary.append(errorDetail);
-        }
-        if (isRemoteDocumentLarge()) {
-          const warning = document.createElement("span");
-          warning.className = "sync-size-warning";
-          warning.textContent = "O arquivo está ficando grande. Crie um backup antes de adicionar muitos novos lançamentos.";
-          settingsSyncSummary.append(warning);
-        }
-      }
-
-      // Sem conta não há sincronização: o status é sempre "Modo local", com o
-      // caminho para conectar o Google no cabeçalho.
-      function showLocalModeStatus() {
-        syncStatus.dataset.state = "local";
-        syncNotice.dataset.state = "local";
-        syncStatus.textContent = "Modo local";
-        syncStatus.setAttribute("aria-label", "Modo local: dados salvos só neste aparelho, sem sincronização");
-        syncNotice.hidden = true;
-        syncNoticeTitle.textContent = "Modo local: dados só neste aparelho";
-        syncNoticeDetail.textContent = "Nada é enviado para a internet. Conecte o Google para guardar uma cópia no seu Drive.";
-        syncNoticeAction.hidden = false;
-        syncNoticeAction.textContent = "Conectar Google";
-        syncNoticeAction.dataset.action = "authorize";
-        syncNoticeAction.setAttribute("aria-label", "Conectar sua conta Google para sincronizar");
-        updateSettingsSyncSummary("local");
-      }
+      const syncStatusView = window.MGSyncStatusView.create({
+        state,
+        elements: { syncStatus, syncNotice, syncNoticeTitle, syncNoticeDetail, syncNoticeAction, settingsSyncSummary },
+        hasLocalOnlyRecovery,
+        isLocalSession,
+        pendingSyncCount,
+        hasAccessToken: () => googleAuth.hasAccessToken(),
+        documentSizeWarningBytes: DOCUMENT_SIZE_WARNING_BYTES,
+      });
 
       function setSyncStatus(stateName, message) {
-        const syncDetails = document.querySelector("#syncDetails");
-        const critical = hasLocalOnlyRecovery() || stateName === "conflict"
-          || ["GOOGLE_DRIVE_INVALID_DOCUMENT", "GOOGLE_DRIVE_UNSUPPORTED_SCHEMA"].includes(state.syncDiagnostics?.lastErrorCode);
-        if (syncDetails) {
-          if (critical) syncDetails.open = true;
-          else if (syncNotice.dataset.state !== stateName) syncDetails.open = false;
-        }
-        if (hasLocalOnlyRecovery()) {
-          syncStatus.dataset.state = "local-only";
-          syncNotice.dataset.state = "local-only";
-          syncStatus.textContent = "Recuperação local · envio pausado";
-          syncStatus.setAttribute("aria-label", "Recuperação salva apenas neste aparelho. Todo envio ao Google Drive está pausado por segurança.");
-          syncNotice.hidden = false;
-          syncNoticeTitle.textContent = "Recuperação salva apenas neste aparelho";
-          syncNoticeDetail.textContent = "Todo envio ao Google Drive está pausado por segurança, inclusive alterações futuras. Não limpe os dados deste aparelho: a recuperação ainda não tem cópia sincronizada.";
-          syncNoticeAction.hidden = true;
-          syncNoticeAction.dataset.action = "";
-          syncNoticeAction.removeAttribute("aria-label");
-          updateSettingsSyncSummary("local-only");
-          return;
-        }
-        if (isLocalSession()) {
-          showLocalModeStatus();
-          return;
-        }
-        const pending = pendingSyncCount();
-        const pendingLabel = pending === 1 ? "1 alteração pendente de envio" : `${pending} alterações pendentes de envio`;
-        syncStatus.dataset.state = stateName;
-        syncNotice.dataset.state = stateName;
-        updateSettingsSyncSummary(stateName);
-        syncNoticeAction.dataset.action = "";
-        syncNoticeAction.removeAttribute("aria-label");
+        syncStatusView.setStatus(stateName, message);
+      }
 
-        if (stateName === "synced") {
-          syncStatus.textContent = "Tudo sincronizado";
-          syncStatus.setAttribute("aria-label", `${formatLastSync()}; tudo sincronizado`);
-          syncNotice.hidden = !isRemoteDocumentLarge();
-          syncNoticeAction.hidden = true;
-          syncNoticeTitle.textContent = "Tudo sincronizado";
-          syncNoticeDetail.textContent = isRemoteDocumentLarge()
-            ? `${formatLastSync()}. O arquivo está ficando grande; recomendamos criar um backup.`
-            : `${formatLastSync()}. Seus dados também estão salvos neste dispositivo.`;
-          return;
-        }
-
-        if (stateName === "queued") {
-          syncStatus.textContent = "Salvo neste aparelho";
-          syncStatus.setAttribute("aria-label", `${pendingLabel}. Salvo neste aparelho e aguardando envio ao Google Drive.`);
-          syncNotice.hidden = false;
-          syncNoticeAction.hidden = true;
-          syncNoticeTitle.textContent = "Salvo neste aparelho";
-          syncNoticeDetail.textContent = `${pendingLabel.charAt(0).toUpperCase() + pendingLabel.slice(1)}. O envio ao Google Drive começará em instantes.`;
-          return;
-        }
-
-        if (stateName === "idle") {
-          syncStatus.textContent = message;
-          syncStatus.setAttribute("aria-label", message);
-          syncNotice.hidden = true;
-          return;
-        }
-
-        syncNotice.hidden = false;
-        syncNoticeAction.hidden = false;
-        syncNoticeAction.disabled = false;
-        syncNoticeAction.removeAttribute("aria-busy");
-
-        if (stateName === "syncing") {
-          syncStatus.textContent = "Sincronizando";
-          syncStatus.setAttribute("aria-label", message);
-          syncNoticeTitle.textContent = "Sincronizando com o Google Drive";
-          const progress = state.syncProgress;
-          const percentage = progress?.total ? Math.round((progress.completed / progress.total) * 100) : null;
-          syncNoticeDetail.textContent = percentage !== null
-            ? progress.phase === "checking"
-              ? `Conferindo ${progress.total} alteração${progress.total === 1 ? "" : "ões"} no Google Drive antes do envio.`
-              : progress.phase === "preparing"
-                ? `Preparando ${progress.completed} de ${progress.total} alterações (${percentage}%).`
-                : progress.total === 1
-                  ? "Enviando um lote consolidado ao Google Drive."
-                  : `Enviando ${progress.completed} de ${progress.total} alterações (${percentage}%).`
-            : pending > 0 ? `Enviando ${pendingLabel}.` : "Conferindo os dados deste dispositivo com o Google Drive.";
-          syncNoticeAction.disabled = false;
-          syncNoticeAction.textContent = "Cancelar sincronização";
-          syncNoticeAction.setAttribute("aria-label", "Cancelar sincronização em andamento");
-          syncNoticeAction.dataset.action = "cancel";
-          return;
-        }
-
-        if (stateName === "conflict") {
-          syncStatus.textContent = "Conflito de sincronização";
-          syncStatus.setAttribute("aria-label", "Conflito de sincronização precisa ser resolvido");
-          syncNoticeTitle.textContent = "Alterações em dois dispositivos";
-          syncNoticeDetail.textContent = "Escolha qual versão deve ser mantida antes de continuar a sincronização.";
-          syncNoticeAction.hidden = false;
-          syncNoticeAction.textContent = "Resolver conflito";
-          syncNoticeAction.dataset.action = "resolve-conflict";
-          return;
-        }
-
-        if (!navigator.onLine) {
-          syncStatus.textContent = "Sem conexão";
-          syncStatus.setAttribute("aria-label", "Sem conexão com a internet");
-          syncNoticeTitle.textContent = "Sem conexão com a internet";
-          syncNoticeDetail.textContent = pending > 0
-            ? `${pendingLabel.charAt(0).toUpperCase() + pendingLabel.slice(1)}. Tudo continua salvo neste dispositivo.`
-            : "Seus dados estão disponíveis neste dispositivo. A conexão será verificada automaticamente quando voltar.";
-          syncNoticeAction.hidden = true;
-          return;
-        }
-
-        if (state.user && !googleAuth.hasAccessToken()) {
-          syncStatus.textContent = pending > 0 ? "Envio pendente" : "Modo local";
-          syncStatus.dataset.state = pending > 0 ? "pending" : "local";
-          syncStatus.setAttribute("aria-label", "Sessão local ativa; autorize o Google Drive para sincronizar");
-          syncNotice.hidden = pending === 0 && !critical;
-          syncNoticeTitle.textContent = "Seus dados estão disponíveis neste dispositivo";
-          syncNoticeDetail.textContent = pending > 0
-            ? `${pendingLabel.charAt(0).toUpperCase() + pendingLabel.slice(1)}. Autorize o Drive para enviar quando desejar.`
-            : "Você continua conectado ao aplicativo. Autorize o Drive apenas quando quiser sincronizar.";
-          syncNoticeAction.hidden = false;
-          syncNoticeAction.textContent = "Autorizar Drive";
-          syncNoticeAction.dataset.action = "authorize";
-          return;
-        }
-
-        if (state.syncDiagnostics?.lastErrorCode === "GOOGLE_DRIVE_INVALID_DOCUMENT") {
-          syncStatus.textContent = "Cópia do Drive inválida";
-          syncStatus.setAttribute("aria-label", "A cópia do Google Drive precisa de recuperação. Os dados deste aparelho foram preservados.");
-          syncNoticeTitle.textContent = "A cópia do Drive precisa de recuperação";
-          syncNoticeDetail.textContent = "Seus dados deste aparelho foram preservados. Escolha um backup válido para recuperar a sincronização.";
-          syncNoticeAction.textContent = "Restaurar backup";
-          syncNoticeAction.setAttribute("aria-label", "Abrir as opções para restaurar um backup válido");
-          syncNoticeAction.dataset.action = "restore-backup";
-          return;
-        }
-
-        if (state.syncDiagnostics?.lastErrorCode === "GOOGLE_DRIVE_UNSUPPORTED_SCHEMA") {
-          syncStatus.textContent = "Atualização necessária";
-          syncStatus.setAttribute("aria-label", "Atualize o aplicativo antes de sincronizar com o Google Drive.");
-          syncNoticeTitle.textContent = "Atualize o aplicativo para continuar";
-          syncNoticeDetail.textContent = "A cópia do Drive foi criada por uma versão mais nova. Seus dados deste aparelho continuam preservados.";
-          syncNoticeAction.textContent = "Verificar atualização";
-          syncNoticeAction.setAttribute("aria-label", "Verificar se há uma atualização do aplicativo");
-          syncNoticeAction.dataset.action = "update-app";
-          return;
-        }
-
-        syncStatus.textContent = "Sincronização pendente";
-        syncStatus.setAttribute("aria-label", `${pendingLabel}; tente novamente`);
-        syncNoticeTitle.textContent = "Não foi possível sincronizar agora";
-        syncNoticeDetail.textContent = state.syncDiagnostics?.lastErrorCode === "GOOGLE_DRIVE_TIMEOUT"
-          ? "O Google Drive demorou para responder. Seus dados continuam salvos neste aparelho."
-          : pending > 0
-            ? `${pendingLabel.charAt(0).toUpperCase() + pendingLabel.slice(1)}. Tudo continua salvo neste dispositivo.`
-            : "Os dados continuam salvos neste dispositivo. Tente conferir o Google Drive novamente.";
-        syncNoticeAction.hidden = false;
-        syncNoticeAction.textContent = "Tentar novamente";
-        syncNoticeAction.setAttribute("aria-label", "Tentar sincronizar novamente com o Google Drive");
-        syncNoticeAction.dataset.action = "retry";
+      function updateSettingsSyncSummary(stateName) {
+        syncStatusView.updateSettingsSummary(stateName);
       }
 
       selectionActions.onclick = (e) => {
@@ -1897,110 +1612,6 @@ const descriptionOptionsByType = {
         show(`Descrição “${option}” removida das opções de ${selectedType}.`);
       }
 
-      function managerFilteredEntries() {
-        return state.entries
-          .filter((entry) => !entry.excluded_from_series)
-          .filter((entry) => !managerFilterType.value || entry.type === managerFilterType.value)
-          .filter((entry) => !managerFilterDescription.value || entry.description === managerFilterDescription.value)
-          .filter((entry) => !managerFilterStatus.value || (managerFilterStatus.value === "paid" ? entry.paid : !entry.paid))
-          .sort((a, b) => b.date.localeCompare(a.date));
-      }
-
-      function renderRecordsManager() {
-        const selectedType = managerFilterType.value;
-        const selectedDescription = managerFilterDescription.value;
-        const selectedBulkType = managerBulkType.value;
-        const selectedBulkDescription = managerBulkDescription.value;
-        fill(managerFilterType, sortedOptions(state.entries.map((entry) => entry.type)), "Todos os tipos");
-        managerFilterType.value = selectedType;
-        fill(managerFilterDescription, sortedOptions(state.entries
-          .filter((entry) => !selectedType || entry.type === selectedType)
-          .map((entry) => entry.description)), "Todas as descrições");
-        managerFilterDescription.value = selectedDescription;
-        fill(managerBulkType, entryTypeOptions(), "Não alterar");
-        managerBulkType.value = selectedBulkType;
-        fill(managerBulkDescription, selectedBulkType ? entryDescriptionOptions(selectedBulkType) : [], "Não alterar");
-        managerBulkDescription.value = selectedBulkDescription;
-        managerBulkDescription.disabled = !selectedBulkType;
-
-        const entries = managerFilteredEntries();
-        const allSelected = entries.length > 0 && entries.every((entry) => managerSelectedEntries.has(entry.id));
-        managerSelectAll.textContent = allSelected ? "Desmarcar filtrados" : "Selecionar filtrados";
-        recordsManagerCount.textContent = `${entries.length} registro${entries.length === 1 ? "" : "s"} encontrado${entries.length === 1 ? "" : "s"} · ${managerSelectedEntries.size} selecionado${managerSelectedEntries.size === 1 ? "" : "s"}`;
-        managerSelectionSummary.textContent = managerSelectedEntries.size
-          ? `${managerSelectedEntries.size} selecionado${managerSelectedEntries.size === 1 ? "" : "s"}`
-          : "Selecione registros para editar em lote.";
-        managerToggleBulk.disabled = managerSelectedEntries.size === 0;
-        managerBulkEditor.hidden = !managerBulkEditor.classList.contains("visible");
-        recordsManagerList.innerHTML = entries.length
-          ? entries.map((entry) => `<article class="managed-record">
-              <input type="checkbox" data-manager-select="${esc(entry.id)}" ${managerSelectedEntries.has(entry.id) ? "checked" : ""} aria-label="Selecionar ${esc(entry.description)}" />
-              <div><strong>${esc(entry.description)}</strong><small>${new Date(`${entry.date}T12:00`).toLocaleDateString("pt-BR")} · ${esc(entry.type)} · ${domain.entryStatusLabel(entry)} · ${money(entry.value)}</small></div>
-              <button class="secondary" type="button" data-manager-edit="${esc(entry.id)}" aria-label="Editar ${esc(entry.description)}"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
-            </article>`).join("")
-          : '<div class="recent-records-empty">Nenhum registro encontrado com estes filtros.</div>';
-      }
-
-      function openRecordsManagerDialog() {
-        managerSelectedEntries.clear();
-        managerFilterType.value = "";
-        managerFilterDescription.value = "";
-        managerFilterStatus.value = "";
-        managerBulkType.value = "";
-        managerBulkDescription.value = "";
-        managerBulkEditor.classList.remove("visible");
-        managerBulkEditor.hidden = true;
-        renderRecordsManager();
-        if (settingsDialog.open) settingsDialog.close();
-        requestAnimationFrame(() => {
-          if (!recordsManagerDialog.open) recordsManagerDialog.showModal();
-        });
-      }
-
-      async function applyManagerChanges({ paid = null, includeFields = false } = {}) {
-        if (!managerSelectedEntries.size) {
-          show("Selecione ao menos um registro.");
-          return;
-        }
-        const nextType = includeFields ? managerBulkType.value : "";
-        const nextDescription = includeFields ? managerBulkDescription.value : "";
-        const changes = [paid === null ? null : paid ? "marcar como pago/recebido" : "marcar em aberto", nextType ? `tipo: ${nextType}` : null, nextDescription ? `descrição: ${nextDescription}` : null].filter(Boolean);
-        if (changes.length && !await confirmDialog.ask({
-          title: `Alterar ${managerSelectedEntries.size} registro(s)?`,
-          description: "Somente os registros selecionados serão alterados.",
-          details: changes.map((change) => change.charAt(0).toUpperCase() + change.slice(1)),
-          confirmLabel: "Aplicar alterações",
-        })) return;
-        const selectedIds = new Set(managerSelectedEntries);
-        managerApplyChanges.disabled = true;
-        managerApplyChanges.setAttribute("aria-busy", "true");
-        try {
-          const result = await financialMutation(() => {
-            let changed = 0;
-            state.entries.forEach((entry) => {
-              if (!selectedIds.has(entry.id)) return;
-              let changedEntry = false;
-              if (paid !== null && entry.paid !== paid) { entry.paid = paid; changedEntry = true; }
-              if (nextType && entry.type !== nextType) { entry.type = nextType; changedEntry = true; }
-              if (nextDescription && entry.description !== nextDescription) { entry.description = nextDescription; changedEntry = true; }
-              if (changedEntry) {
-                if (entry.series_id) entry.detached_from_series = true;
-                queueUpsert(entry);
-                changed++;
-              }
-            });
-            return changed;
-          });
-          if (!result.ok) { renderRecordsManager(); return; }
-          managerSelectedEntries.clear();
-          renderRecordsManager();
-          render();
-          show(result.value ? `${result.value} registro(s) atualizado(s). ${pendingSyncMessage()}` : "Nenhuma alteração necessária nos registros selecionados.");
-        } finally {
-          managerApplyChanges.disabled = false;
-          managerApplyChanges.removeAttribute("aria-busy");
-        }
-      }
       function formatDay(date) {
         return new Date(date + "T12:00").toLocaleDateString("pt-BR", {
           day: "2-digit",
@@ -2243,34 +1854,17 @@ const descriptionOptionsByType = {
           const year = Number(entry.date?.slice(0, 4));
           if (year >= 1900 && year <= 9999) years.add(year);
         });
-        document.querySelector("#monthlyYear").innerHTML = [...years].sort((a, b) => b - a)
-          .map(year => `<option value="${year}" ${year === cashFlowYear ? "selected" : ""}>${year}</option>`).join("");
+        document.querySelector("#monthlyYear").innerHTML = monthlyView.yearOptions(years, cashFlowYear);
         document.querySelector("#previousCashFlowYear").disabled = cashFlowYear <= 1900;
         document.querySelector("#nextCashFlowYear").disabled = cashFlowYear >= 9999;
         const status = document.querySelector("#monthlyStatus").value;
         const summary = domain.monthlyCashFlow(state.entries, cashFlowYear, { status });
-        const mode = { "": "realizados e previstos", paid: "realizados", pending: "em aberto" }[status];
-        const annualSummary = document.querySelector("#monthlyAnnualSummary");
-        annualSummary.innerHTML = [["Entradas no ano", summary.totals.income, "income"], ["Saídas no ano", summary.totals.expense, "expense"], ["Saldo do ano", summary.totals.balance, "balance"]]
-          .map(([label, value, kind]) => `<article class="monthly-total ${kind}"><span>${label}</span><strong data-negative="${value < 0}">${money(value)}</strong></article>`).join("");
-        document.querySelector("#monthlySummaryStatus").textContent = `${cashFlowYear} · ${summary.totals.count} lançamento${summary.totals.count === 1 ? "" : "s"} ${mode}.${summary.totals.count ? "" : " Nenhum lançamento neste ano com a situação selecionada."}`;
-        document.querySelector("#monthlyCashFlowList").innerHTML = summary.months.map(month => {
-          const name = new Date(`${month.month}-01T12:00`).toLocaleDateString("pt-BR", { month: "long" });
-          const comparison = cashFlowYear > 1900 || month.month !== "1900-01" ? domain.comparePreviousMonth(state.entries, month.month, { status }) : null;
-          const previousName = comparison ? new Date(`${comparison.previous.month}-01T12:00`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" }) : "";
-          const delta = value => `${value > 0 ? "+" : value < 0 ? "−" : ""}${money(Math.abs(value))}`;
-          const titleId = `cashFlowMonth-${month.month}`;
-          return `<article class="panel monthly-cash-flow-card" aria-labelledby="${titleId}" data-cash-flow-month="${month.month}">
-            <div class="monthly-card-heading"><h3 id="${titleId}">${name}</h3><span>${month.count ? `${month.count} lançamento${month.count === 1 ? "" : "s"}` : "Sem lançamentos"}</span></div>
-            <dl><div><dt>Entradas</dt><dd class="monthly-income">${money(month.income)}</dd></div>
-              <div><dt>Saídas</dt><dd>${money(month.expense)}</dd></div>
-              <div class="monthly-net"><dt>Saldo do mês</dt><dd data-negative="${month.balance < 0}">${money(month.balance)}</dd></div>
-              <div><dt>Acumulado no ano</dt><dd data-negative="${month.accumulated < 0}">${money(month.accumulated)}</dd></div></dl>
-              ${comparison ? `<p>Comparação com ${previousName} (${comparison.previous.count ? `${comparison.previous.count} lançamentos` : "sem lançamentos"}): entradas ${delta(comparison.difference.income)}, saídas ${delta(comparison.difference.expense)}, saldo ${delta(comparison.difference.balance)}.</p>` : ""}
-            <p>${month.balance < 0 ? "Saídas acima das entradas." : month.balance > 0 ? "Entradas acima das saídas." : ""}</p>
-            <button class="secondary" type="button" data-open-cash-flow-month="${month.month}" aria-label="Ver lançamentos de ${name} de ${cashFlowYear}, ${mode}" ${month.count ? "" : "disabled"}>Ver lançamentos</button>
-          </article>`;
-        }).join("");
+        const previousDecember = cashFlowYear > 1900
+          ? domain.monthlyCashFlow(state.entries, cashFlowYear - 1, { status }).months[11]
+          : null;
+        document.querySelector("#monthlyAnnualSummary").innerHTML = monthlyView.annualMarkup(summary, { money });
+        document.querySelector("#monthlySummaryStatus").textContent = monthlyView.statusText(summary);
+        document.querySelector("#monthlyCashFlowList").innerHTML = monthlyView.monthsMarkup(summary, previousDecember, { money });
       }
 
       let projectionSeries = null;
@@ -2562,28 +2156,22 @@ const descriptionOptionsByType = {
       }
 
       function isRecurringValue(value = recurrence.value) {
-        return ["weekly", "monthly", "annual", "custom"].includes(value);
+        return formRules.isRecurring(value);
       }
 
       function updateEntryFormValidity() {
-        const totalValue = Number(valueInput.value);
-        const invalidValue = valueInput.value !== ""
-          && (totalValue === 0 || ((isRecurringValue() || flowType.value === "income") && totalValue < 0));
-        valueInput.setCustomValidity(invalidValue ? "Informe um valor maior que zero." : "");
+        const valueMessage = formRules.valueError(valueInput.value, { recurring: isRecurringValue(), income: flowType.value === "income" });
+        const invalidValue = Boolean(valueMessage);
+        valueInput.setCustomValidity(valueMessage);
         const valueError = document.querySelector("#entryValueError");
         valueError.hidden = !invalidValue;
         valueError.textContent = invalidValue ? valueInput.validationMessage : "";
         if (invalidValue) valueInput.setAttribute("aria-invalid", "true");
         else valueInput.removeAttribute("aria-invalid");
 
-        const invalidEndDate = isRecurringValue()
-          && endMode.value === "on_date"
-          && endDate.value !== ""
-          && dateInput.value !== ""
-          && endDate.value < dateInput.value;
-        endDate.setCustomValidity(
-          invalidEndDate ? "A data final deve ser igual ou posterior à data inicial." : "",
-        );
+        endDate.setCustomValidity(formRules.endDateError({
+          recurring: isRecurringValue(), endMode: endMode.value, endDate: endDate.value, startDate: dateInput.value,
+        }));
       }
 
       function openBulkDateDialog() {
@@ -2616,36 +2204,12 @@ const descriptionOptionsByType = {
         );
       }
 
-      function recurrenceUnitLabel() {
-        const unit = recurrence.value === "custom" ? customUnit.value : {
-          weekly: "week",
-          monthly: "month",
-          annual: "year",
-        }[recurrence.value];
-        return {
-          day: ["dia", "dias"],
-          week: ["semana", "semanas"],
-          month: ["mês", "meses"],
-          year: ["ano", "anos"],
-        }[unit] || ["período", "períodos"];
-      }
-
       function updateRecurrenceSummary() {
         if (!isRecurringValue()) return;
-        const interval = Math.max(1, Number(recurrenceInterval.value) || 1);
-        const labels = recurrenceUnitLabel();
-        let text = interval === 1 ? `A cada ${labels[0]}` : `A cada ${interval} ${labels[1]}`;
-        if (endMode.value === "on_date" && endDate.value) {
-          text += `, até ${new Date(`${endDate.value}T12:00`).toLocaleDateString("pt-BR")}`;
-        } else if (endMode.value === "after_occurrences") {
-          const total = Math.max(1, Number(occurrenceCount.value) || 1);
-          text += `, por ${total} ocorrência${total === 1 ? "" : "s"}`;
-        } else {
-          text += ", sem data final";
-        }
-        if (businessDayAdjustment.value === "previous") text += ", movendo fins de semana para o dia útil anterior";
-        if (businessDayAdjustment.value === "next") text += ", movendo fins de semana para o próximo dia útil";
-        recurrenceSummary.textContent = `${text}.`;
+        recurrenceSummary.textContent = formRules.recurrenceSummary({
+          frequency: recurrence.value, customUnit: customUnit.value, interval: recurrenceInterval.value, endMode: endMode.value,
+          endDate: endDate.value, occurrenceCount: occurrenceCount.value, businessDayAdjustment: businessDayAdjustment.value,
+        });
       }
 
       function updateEntryFormVisibility() {
@@ -2675,21 +2239,11 @@ const descriptionOptionsByType = {
       function updateInstallmentPreview() {
         const isInstallment = recurrence.value === "installments";
         document.querySelector("#entryValueLabel").textContent = isInstallment ? "Valor total da compra" : "Valor";
-        const quantity = Number(installments.value);
-        const amount = Number(valueInput.value);
-        const preview = document.querySelector("#installmentPreview");
-        if (isInstallment && quantity >= 2 && quantity <= 5000 && Number.isInteger(quantity) && Number.isFinite(amount) && valueInput.value !== "") {
-          const cents = Math.round(amount * 100);
-          const regular = Math.trunc(cents / quantity);
-          const last = cents - regular * (quantity - 1);
-          preview.textContent = last === regular
-            ? `${quantity} parcelas de ${money(regular / 100)} · Total da compra: ${money(amount)}.`
-            : `${quantity - 1} parcelas de ${money(regular / 100)} e a última de ${money(last / 100)} · Total da compra: ${money(amount)}.`;
-        } else {
-          preview.textContent = "Informe o valor total da compra e a quantidade para conferir as parcelas.";
-        }
+        document.querySelector("#installmentPreview").textContent = formRules.installmentPreview({
+          rawAmount: isInstallment ? valueInput.value : "", rawQuantity: installments.value,
+          isNew: isInstallment && !state.editingId, money,
+        });
         installments.required = isInstallment;
-        if (isInstallment && !state.editingId) preview.textContent += " As parcelas começam em aberto; marque o pagamento de cada uma nos registros.";
       }
 
       function openNew() {
@@ -4129,42 +3683,13 @@ const descriptionOptionsByType = {
       };
       openRecordsManagerMain.onclick = () => {
         document.querySelector("#entryActions").open = false;
-        openRecordsManagerDialog();
+        recordsManager.open();
       };
-      [managerFilterType, managerFilterDescription, managerFilterStatus].forEach((control) => {
-        control.onchange = renderRecordsManager;
+      const recordsManager = window.MGRecordsManager.create({
+        state, domain, esc, money, fill, sortedOptions, entryTypeOptions, entryDescriptionOptions, confirmDialog,
+        financialMutation, queueUpsert, render, show, pendingSyncMessage, editEntry,
+        closeSettings: () => { if (settingsDialog.open) settingsDialog.close(); },
       });
-      managerBulkType.onchange = () => {
-        managerBulkDescription.value = "";
-        renderRecordsManager();
-      };
-      managerSelectAll.onclick = () => {
-        const entries = managerFilteredEntries();
-        const allSelected = entries.length > 0 && entries.every((entry) => managerSelectedEntries.has(entry.id));
-        entries.forEach((entry) => allSelected ? managerSelectedEntries.delete(entry.id) : managerSelectedEntries.add(entry.id));
-        renderRecordsManager();
-      };
-      managerToggleBulk.onclick = () => {
-        managerBulkEditor.classList.toggle("visible");
-        managerBulkEditor.hidden = !managerBulkEditor.classList.contains("visible");
-      };
-      managerMarkPaid.onclick = () => applyManagerChanges({ paid: true });
-      managerMarkPending.onclick = () => applyManagerChanges({ paid: false });
-      managerApplyChanges.onclick = () => applyManagerChanges({ includeFields: true });
-      recordsManagerList.onchange = (event) => {
-        const id = event.target.dataset.managerSelect;
-        if (!id) return;
-        if (event.target.checked) managerSelectedEntries.add(id);
-        else managerSelectedEntries.delete(id);
-        renderRecordsManager();
-      };
-      recordsManagerList.onclick = (event) => {
-        const button = event.target.closest("[data-manager-edit]");
-        if (!button) return;
-        const entry = state.entries.find((item) => item.id === button.dataset.managerEdit);
-        recordsManagerDialog.close();
-        editEntry(entry);
-      };
       loadMoreRecentRecords.onclick = async () => {
         loadMoreRecentRecords.disabled = true;
         loadMoreRecentRecords.setAttribute("aria-busy", "true");
@@ -4225,9 +3750,6 @@ const descriptionOptionsByType = {
       document
         .querySelectorAll("[data-close-bulk-date]")
         .forEach((button) => (button.onclick = () => bulkDateDialog.close()));
-      document
-        .querySelectorAll("[data-close-records-manager]")
-        .forEach((button) => (button.onclick = () => recordsManagerDialog.close()));
       bulkDateForm.onsubmit = async (event) => {
         event.preventDefault();
         if (!bulkDateForm.reportValidity()) return;

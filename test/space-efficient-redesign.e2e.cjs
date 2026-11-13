@@ -118,7 +118,7 @@ async function contextFor(browser, origin, width, signedIn = true) {
           await close();
         }
         await nav('records'); await page.evaluate(() => openRecentRecordsDialog()); await capture(page, 'recentRecordsDialog', width); await close();
-        await page.evaluate(() => openRecordsManagerDialog()); await capture(page, 'recordsManagerDialog', width);
+        await page.locator('#entryActions > summary').click(); await page.locator('#openRecordsManagerMain').click(); await page.locator('#recordsManagerDialog[open]').waitFor(); await capture(page, 'recordsManagerDialog', width);
         await page.locator('#recordsManagerDialog .manager-filters > summary').click(); await capture(page, 'recordsManager-filters', width); await close();
         await page.evaluate(() => { renderOnboardingCategories(); document.querySelector('#onboardingBalance').value = '4700'; document.querySelector('#onboardingReferenceDate').value = '2026-11-11'; onboardingDialog.showModal(); }); await capture(page, 'onboardingDialog', width); await close();
         for (const id of ['seriesScopeDialog', 'bulkDateDialog', 'syncConflictDialog', 'deleteConfirmDialog']) {

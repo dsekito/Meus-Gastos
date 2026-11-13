@@ -35,6 +35,18 @@ python -m http.server 8000
 
 Depois, abra `http://localhost:8000`.
 
+## Organização do código
+
+Cada arquivo em `js/` expõe um único objeto `window.MG*`. Regras financeiras puras
+ficam em `domain.js`; a interface monta o restante a partir de módulos por assunto:
+
+- `profile-defaults.js`: categorias e configurações iniciais de um perfil.
+- `entry-form-rules.js`: validação, resumo da recorrência e prévia das parcelas do formulário.
+- `projection-view.js` e `monthly-view.js`: marcação da Projeção e do consolidado Mensal.
+- `sync-status-view.js`: o que o status e o aviso de sincronização dizem em cada situação.
+- `records-manager.js`: o diálogo “Gerenciar registros” e a edição em lote.
+- `app.js`: estado da sessão, navegação, formulário e a ligação entre os módulos.
+
 ## Estrutura de dados
 
 - IndexedDB `meus-gastos`: cache local e fila de alterações pendentes por usuário.

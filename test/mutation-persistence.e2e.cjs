@@ -67,8 +67,10 @@ const cases={
     const after=await snapshot(page);assert.deepEqual(after.entries,before.entries);assert.deepEqual(after.syncQueue,before.syncQueue);assert.match(after.toast,/não salva/i);assert.equal(await page.evaluate(()=>bulkDateDialog.open),true);
   },
   async 'manager-abort'(page){
-    await page.evaluate(id=>{managerSelectedEntries.add(id);},id);const before=await snapshot(page);await abortNextPut(page);await page.evaluate(()=>{window.__managerApply=applyManagerChanges({paid:true});});await page.locator('#confirmDialog[open] [data-confirm-accept]').click();await page.evaluate(()=>window.__managerApply);
-    const after=await snapshot(page);assert.deepEqual(after.entries,before.entries);assert.deepEqual(after.syncQueue,before.syncQueue);assert.match(after.toast,/não salva/i);assert.equal(await page.evaluate(id=>managerSelectedEntries.has(id),id),true);
+    await page.locator('.app-navigation [data-app-destination="records"]').click();await page.locator('#entryActions > summary').click();await page.locator('#openRecordsManagerMain').click();await page.locator('#recordsManagerDialog[open]').waitFor();
+    const checkbox=page.locator(`[data-manager-select="${id}"]`);await checkbox.check();await page.locator('#managerToggleBulk').click();
+    const before=await snapshot(page);await abortNextPut(page);await page.locator('#managerMarkPaid').click();await page.locator('#confirmDialog[open] [data-confirm-accept]').click();await page.waitForFunction(()=>/não salva/i.test(document.querySelector('#toast').textContent));
+    const after=await snapshot(page);assert.deepEqual(after.entries,before.entries);assert.deepEqual(after.syncQueue,before.syncQueue);assert.match(after.toast,/não salva/i);assert.equal(await checkbox.isChecked(),true,'selection survives a failed save');
   },
   async 'recovery-conversion-keeps-local-only'(page){
     await page.evaluate(async id=>{const entry=state.entries[0];entry.import_local_only=true;queueUpsert(entry);await saveLocal();state.activeEntry=id;editEntry();recurrence.value='installments';installments.value='3';updateEntryFormVisibility();},id);
