@@ -5,7 +5,6 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'mobile.css'), 'utf8');
-const app = fs.readFileSync(path.join(root, 'js/app.js'), 'utf8');
 
 test('explica a dependência junto ao tipo e associa a explicação à descrição', () => {
   assert.match(html, /id="description"[^>]*aria-describedby="descriptionHelp"/);
@@ -23,7 +22,3 @@ test('ações móveis preservam botões e contratos da camada visual compartilha
   // verified in space-efficient-redesign.e2e.cjs, not by CSS-selector spelling.
 });
 
-test('aviso de sucesso não ocupa espaço sem alerta e nome de ação não fica obsoleto', () => {
-  assert.match(app, /syncNoticeAction\.removeAttribute\("aria-label"\)/);
-  assert.match(app, /if \(stateName === "synced"\)[\s\S]*?syncNotice\.hidden = !isRemoteDocumentLarge\(\)/);
-});

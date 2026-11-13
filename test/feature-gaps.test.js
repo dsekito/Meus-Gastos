@@ -8,12 +8,8 @@ test('importação JSON usa recuperação transacional local sem restauração d
   const fs = require('node:fs');
   const path = require('node:path');
   const html = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
-  const app = fs.readFileSync(path.join(__dirname, '../js/app.js'), 'utf8');
   assert.match(html, /backup-recovery\.js/);
-  assert.match(app, /backupRecovery\.commit\(userId, previewId, \{ confirmed: true \}\)/);
-  assert.match(app, /o envio ao Google Drive fica pausado, inclusive para alterações futuras/);
-  const recovery = app.slice(app.indexOf('async function recoverBackupAdditively'), app.indexOf('async function addOption'));
-  assert.doesNotMatch(recovery, /queueDelete\(|state\.entries = structuredClone\(backup/);
+  // The import itself is exercised in backup-recovery-ui.e2e.cjs.
 });
 
 test('busca encontra o detalhe de um lançamento ignorando acentos', () => {

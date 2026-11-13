@@ -56,7 +56,8 @@ for (const referenceDate of ["2027-02-28", "2028-02-29", "2026-11-30", "2026-12-
 }
 
 // Interface: no native confirm() left, and control borders reach 3:1.
-const app = fs.readFileSync(path.join(root, "js/app.js"), "utf8");
+const app = fs.readdirSync(path.join(root, "js")).filter((file) => file.endsWith(".js"))
+  .map((file) => fs.readFileSync(path.join(root, "js", file), "utf8")).join(" ");
 assert.doesNotMatch(app, /(^|[^.\w])confirm\(/m, "window.confirm must not be used");
 const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 assert.match(html, /<dialog id="confirmDialog" aria-labelledby="confirmDialogTitle" aria-describedby="confirmDialogDescription">/);

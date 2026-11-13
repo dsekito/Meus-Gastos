@@ -1,3 +1,6 @@
+// Static markup contracts of the dashboard. Behaviour (filters, editing,
+// undo, risk alerts, series and installments) is exercised in
+// app-behavior.e2e.cjs against the running app.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -5,7 +8,6 @@ const path = require("node:path");
 
 const projectRoot = path.resolve(__dirname, "..");
 const html = fs.readFileSync(path.join(projectRoot, "index.html"), "utf8");
-const app = fs.readFileSync(path.join(projectRoot, "js", "app.js"), "utf8");
 
 test("prioriza resumo e lançamentos antes da projeção", () => {
   const decisionIndex = html.indexOf('class="decision-overview"');
@@ -24,7 +26,6 @@ test("mantém filtros e confirmação de exclusão nomeados", () => {
   assert.match(html, /<label for="filterType">Tipo<\/label>/);
   assert.match(html, /<label for="filterDescription">Descrição<\/label>/);
   assert.match(html, /<label for="filterStatus">Status<\/label>/);
-  assert.match(app, /\(!description \|\| e\.description === description\)/);
   assert.match(
     html,
     /id="deleteConfirmDialog"[^>]*aria-labelledby="deleteConfirmTitle"[^>]*aria-describedby="deleteConfirmDescription"/,
@@ -34,82 +35,4 @@ test("mantém filtros e confirmação de exclusão nomeados", () => {
 test("registros abrem com todos os status, sem esconder pagos", () => {
   assert.match(html, /<select id="filterStatus">\s*<option value="" selected>Todos os status<\/option>/);
   assert.doesNotMatch(html, /<option value="pending" selected>/);
-  const start = app.slice(app.indexOf("async function startApp()"));
-  assert.doesNotMatch(start.slice(0, start.indexOf("render();")), /filterStatus\.value = "pending"/);
-});
-
-test("abre edição pelo card e restringe mudança de status ao botão dedicado", () => {
-  assert.match(app, /if \(status\) \{[\s\S]*?toggleEntryStatus\(\);[\s\S]*?return;[\s\S]*?const menu/);
-  assert.match(app, /const entry = state\.entries\.find\(\(item\) => item\.id === card\.dataset\.entry\);\s*if \(entry\) editEntry\(entry\);/);
-  assert.doesNotMatch(app, /state\.activeEntry = card\.dataset\.entry;\s*toggleEntryStatus\(\);/);
-});
-
-test("identifica o modal e usa os valores atuais da série ao editar", () => {
-  assert.match(app, /modalTitle = document\.querySelector\("#entryDialogTitle"\)/);
-  assert.match(app, /modalTitle\.textContent = entry\.installment \? "Editar compra parcelada" : "Editar lançamento";\s*fillForm\(entry\);/);
-  assert.match(app, /formValues = domain\.recurringEntryFormValues\(entry, series\)/);
-  assert.match(app, /renderEntryOptions\(formValues\.type, formValues\.description\);/);
-  assert.match(app, /function recurrenceSeriesFromForm[\s\S]*?description: desc\.value/);
-});
-
-test("reconcilia a compra inteira ao alterar a quantidade de parcelas", () => {
-  assert.match(app, /function updateInstallmentPlan\(entry\)/);
-  assert.match(app, /domain\.reconcileInstallmentEntries\(sourceEntries,/);
-  assert.match(app, /reconciliation\.staleEntries\.forEach\(\(item\) => queueDelete\(item\.id, item\.updated_at\)\)/);
-  assert.match(app, /else if \(editing && editingEntry\?\.installment\) \{[\s\S]*?recurrence\.value === "installments"[\s\S]*?updateInstallmentPlan\(editingEntry\)/);
-  assert.match(app, /entry\.installment\.original \?\? domain\.sumEntryValues\(installmentGroup\)/);
-});
-
-test("reconcilia ocorrências ao editar toda a série sem perder status", () => {
-  assert.match(app, /function reconcileGeneratedSeriesEntries\(/);
-  assert.match(app, /domain\.reconcileSeriesEntries\(sourceEntries, occurrences, series\)/);
-  assert.match(app, /reconciliation\.upserts\.forEach[\s\S]*?queueUpsert\(updatedEntry\)/);
-  assert.match(
-    app,
-    /editScope\.value === "future"[\s\S]*?reconcileGeneratedSeriesEntries\(nextSeries, \{[\s\S]*?sourceSeriesId: original\.id,[\s\S]*?fromScheduledDate: cutDate/,
-  );
-  assert.match(app, /reconcileGeneratedSeriesEntries\(updated\);/);
-  assert.doesNotMatch(app, /removeGeneratedSeriesEntries/);
-});
-
-test("oferece no formulário as descrições já registradas para o tipo selecionado", () => {
-  assert.match(app, /function entryDescriptionOptions\(selectedType, selectedDescription = ""\)/);
-  assert.match(app, /domain\.descriptionOptionsForType\(\{/);
-  assert.match(app, /selectedType,[\s\S]*?selectedDescription,[\s\S]*?entries: state\.entries/);
-});
-
-test("atribui uma cor distinta aos tipos registrados sem depender só da cor", () => {
-  assert.match(app, /domain\.typeColorMap\(\[/);
-  assert.match(app, /\.\.\.state\.types,[\s\S]*?state\.entries\.map\(\(entry\) => entry\.type\)/);
-  assert.match(app, /aria-label="\$\{state\.selectionMode \? `Selecionar \$\{esc\(e\.description\)\}, tipo \$\{esc\(e\.type\)\}/);
-});
-
-test("oferece desfazer para status e exclusões", () => {
-  assert.match(app, /successMessage, \{\s*label: "Desfazer"/);
-  assert.match(app, /show\("Lançamento excluído\.", \{\s*label: "Desfazer"/);
-  assert.match(app, /"Exclusão da recorrência desfeita\."/);
-  assert.match(app, /"Exclusão desfeita\."/);
-});
-
-test("mantém alertas de risco e oculta o aviso redundante de contas próximas", () => {
-  assert.match(app, /domain\.minimumProjectedBalance\(/);
-  assert.match(app, /upcomingIncomeTotal/);
-  assert.match(app, /financialGuidance\.hidden = false;/);
-  assert.match(app, /else if \(upcomingEntries\.length\) \{\s*financialGuidance\.hidden = true;/);
-  assert.doesNotMatch(app, /upcomingTotal > Math\.max\(currentBalance, 0\)/);
-});
-
-test("revalida a data final da recorrência depois que o usuário corrige o campo", () => {
-  assert.match(
-    app,
-    /function updateEntryFormValidity\(\)[\s\S]*?endDate\.setCustomValidity\([\s\S]*?invalidEndDate[\s\S]*?\);/,
-  );
-  assert.match(
-    app,
-    /\[dateInput, valueInput\]\.forEach\(\(control\) => \{\s*control\.onchange = updateEntryFormValidity;\s*control\.oninput = updateEntryFormValidity;/,
-  );
-  assert.match(
-    app,
-    /\[flowType, recurrence, recurrenceInterval, customUnit, endMode, endDate, occurrenceCount, businessDayAdjustment\][\s\S]*?control\.oninput = updateEntryFormVisibility;/,
-  );
 });

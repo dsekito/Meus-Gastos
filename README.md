@@ -288,3 +288,10 @@ Google simulados, incluindo edição de configuração durante o upload. Nenhum
 dado de usuário é enviado ao Google nesses testes. O envio combinado é validado
 como uma única gravação por lote; um segundo upload só é necessário quando há
 uma edição adicional durante o primeiro.
+
+Os testes descrevem comportamento, não a escrita do código. `node test/app-behavior.e2e.cjs`
+cobre filtros, edição, desfazer, salvar e adicionar outro, parcelas, recorrências,
+alertas de saldo, onboarding e categorias padrão; `node test/sync-notice.e2e.cjs` cobre
+o que o status e o aviso de sincronização dizem em cada situação, com o Google Drive
+simulado. Os testes unitários que leem arquivos verificam apenas a marcação do
+`index.html`, as versões do cache e textos proibidos no código, como `confirm(`.
