@@ -63,6 +63,26 @@
     return { types, descriptions, description: keptDescription };
   }
 
+  // Order of the records list: by date; within a date, by payment method
+  // (no card first, then cards by name, then deleted cards); then by the time
+  // the record was created, oldest first.
+  function listComparator(cards = []) {
+    const names = new Map(cards.map((card) => [card.id, card.name]));
+    const paymentKey = (entry) => {
+      if (!entry.credit_card_id) return [0, ""];
+      return names.has(entry.credit_card_id) ? [1, names.get(entry.credit_card_id)] : [2, entry.credit_card_id];
+    };
+    return (a, b) => {
+      const [groupA, nameA] = paymentKey(a);
+      const [groupB, nameB] = paymentKey(b);
+      return String(a.date || "").localeCompare(String(b.date || ""))
+        || groupA - groupB
+        || nameA.localeCompare(nameB, "pt-BR")
+        || String(a.created_at || "").localeCompare(String(b.created_at || ""))
+        || String(a.id || "").localeCompare(String(b.id || ""));
+    };
+  }
+
   // `labels` holds the visible text of each active filter, in screen order.
   function activeFiltersSummary(labels) {
     const active = labels.filter(Boolean);
@@ -88,6 +108,7 @@
     matchesEntry,
     paymentOptions,
     typeAndDescriptionOptions,
+    listComparator,
     cardLabel,
     activeFiltersSummary,
     totals,

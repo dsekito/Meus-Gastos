@@ -1796,12 +1796,7 @@ const profileDefaults = window.MGProfileDefaults;
       function getFilteredEntries(entries, filters = currentEntryFilters()) {
         return entries
           .filter((e) => entryFilters.matchesEntry(e, filters))
-          .sort(
-            (a, b) =>
-              a.date.localeCompare(b.date) ||
-              a.type.localeCompare(b.type, "pt-BR") ||
-              String(b.created_at || "").localeCompare(String(a.created_at || "")),
-          );
+          .sort(entryFilters.listComparator(state.settings.credit_cards || []));
       }
 
       function buildDailyEntryNet() {

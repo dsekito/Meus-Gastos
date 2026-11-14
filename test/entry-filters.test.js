@@ -99,3 +99,27 @@ test("um filtro já escolhido continua na lista mesmo sem registros no período"
   assert.equal(mismatched.description, "", "descrição de outro tipo é limpa");
   assert.deepEqual(mismatched.descriptions, ["ALUGUEL"]);
 });
+
+test("na mesma data, ordena por forma de pagamento e depois pela data de registro", () => {
+  const cards = [{ id: "nubank", name: "Nubank" }, { id: "itau", name: "Itaú" }];
+  const at = (hour) => `2026-11-05T${String(hour).padStart(2, "0")}:00:00.000Z`;
+  const list = [
+    entry({ id: "nubank-tarde", date: "2026-11-05", credit_card_id: "nubank", created_at: at(15) }),
+    entry({ id: "pix-tarde", date: "2026-11-05", created_at: at(14) }),
+    entry({ id: "excluido", date: "2026-11-05", credit_card_id: "antigo", created_at: at(8) }),
+    entry({ id: "itau", date: "2026-11-05", credit_card_id: "itau", created_at: at(20) }),
+    entry({ id: "nubank-manha", date: "2026-11-05", credit_card_id: "nubank", created_at: at(9) }),
+    entry({ id: "salario", date: "2026-11-05", flow_type: "income", created_at: at(10) }),
+    entry({ id: "dia-anterior", date: "2026-11-04", credit_card_id: "nubank", created_at: at(23) }),
+    entry({ id: "sem-registro", date: "2026-11-05" }),
+  ];
+  assert.deepEqual(ids([...list].sort(filters.listComparator(cards))), [
+    "dia-anterior",
+    "sem-registro", "salario", "pix-tarde",
+    "itau",
+    "nubank-manha", "nubank-tarde",
+    "excluido",
+  ]);
+  assert.deepEqual(ids([...list].reverse().sort(filters.listComparator(cards))),
+    ids([...list].sort(filters.listComparator(cards))), "a ordem não depende da ordem de entrada");
+});

@@ -203,6 +203,11 @@ o resumo do botão de filtros diz isso. **Limpar filtros** volta a esse padrão,
 "Todos os status" mostra também os pagos e recebidos. Quando os filtros escondem
 tudo do período, a lista vazia oferece **Mostrar todos**.
 
+A lista é ordenada por data. Na mesma data, vêm primeiro os lançamentos sem
+cartão (Pix, débito, dinheiro e as receitas), depois os de cada cartão em ordem
+alfabética e, por último, os de cartões excluídos; dentro de cada forma de
+pagamento, na ordem em que foram registrados.
+
 As opções dos filtros **Tipo** e **Descrição** mostram só o que existe no mês
 exibido (ou em todos os meses, com **Todos os meses**); um valor já escolhido
 continua na lista ao trocar de mês, para o filtro não sumir sem aviso.

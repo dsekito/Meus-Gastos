@@ -188,6 +188,21 @@ const noHorizontalScroll = page => page.evaluate(() => document.documentElement.
       assert.deepEqual(errors, []);
       await context.close();
     }
+    // Mesma data: primeiro sem cartão, depois cartões por nome; dentro de cada forma, pela ordem de registro.
+    {
+      const sameDay = (n, description, card, createdAt, type = 'ALIMENTAÇÃO') => ({
+        ...entry(n, '2026-11-10', type, description, 10 * n, false, card), created_at: createdAt });
+      const { context, page, errors } = await openRecords(browser, { cards: CARDS, entries: [
+        sameDay(1, 'RESTAURANTE', 'nubank', '2026-11-10T15:00:00.000Z'),
+        sameDay(2, 'SUPERMERCADO', null, '2026-11-10T14:00:00.000Z'),
+        sameDay(3, 'DELIVERY', 'itau', '2026-11-10T20:00:00.000Z'),
+        sameDay(4, 'FEIRA', 'nubank', '2026-11-10T09:00:00.000Z'),
+        sameDay(5, 'PADARIA', null, '2026-11-10T08:00:00.000Z'),
+      ] });
+      assert.deepEqual(await rows(page), ['PADARIA', 'SUPERMERCADO', 'DELIVERY', 'FEIRA', 'RESTAURANTE']);
+      assert.deepEqual(errors, []);
+      await context.close();
+    }
     console.log('records filters e2e: ok');
   } finally {
     await browser.close();
