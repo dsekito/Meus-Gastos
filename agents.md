@@ -100,10 +100,12 @@ acessibilidade > desempenho > estética.**
 7. Mensagens de erro dizem o que aconteceu e o que fazer, em português claro, sem
    códigos internos.
 8. Formatação com `Intl` em `pt-BR` (moeda BRL, datas, números).
-9. Linhas da lista de registros: “TIPO - DESCRIÇÃO” em destaque, com o valor e
-   o menu (⋮) no topo à direita; abaixo, data, comentário, cartão e parcela, com
-   o status no canto inferior direito. Abaixo de 360 px o valor desce para a
-   base, à esquerda. Menu e status mantêm 48 px e 8 px de distância.
+9. Linhas da lista de registros: “TIPO - DESCRIÇÃO” em destaque, com o valor à
+   direita; abaixo, data, comentário, cartão e parcela, com o status no canto
+   inferior direito. Abaixo de 360 px o valor desce para a base, à esquerda. Sem
+   menu (⋮) na linha, para economizar altura: um botão transparente do tamanho da
+   linha abre a edição (nome acessível “Editar …”), e excluir fica no formulário
+   de edição e na seleção em lote. O status mantém 48 px.
 
 ## 6. PWA e desempenho
 
