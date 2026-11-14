@@ -1727,15 +1727,17 @@ const profileDefaults = window.MGProfileDefaults;
         }
       }
 
-      function renderFilterTypes() {
-        const selected = filterType.value;
-
-        filterType.innerHTML =
-          '<option value="">Todos os tipos</option>' +
-          sortedOptions([...entryTypeOptions(), ...state.entries.map((entry) => entry.type)])
-            .map((x) => `<option>${esc(x)}</option>`).join("");
-
-        filterType.value = selected;
+      // Type and description filters only offer what the period on screen has.
+      function renderFilterTypesAndDescriptions() {
+        const options = entryFilters.typeAndDescriptionOptions(listedEntries(), state.entries, {
+          type: filterType.value,
+          description: filterDescription.value,
+        });
+        const selectedType = filterType.value;
+        filterType.replaceChildren(new Option("Todos os tipos", ""), ...options.types.map((value) => new Option(value, value)));
+        filterType.value = selectedType;
+        filterDescription.replaceChildren(new Option("Todas as descrições", ""), ...options.descriptions.map((value) => new Option(value, value)));
+        filterDescription.value = options.description;
       }
 
       function renderFilterPayments() {
@@ -1777,22 +1779,6 @@ const profileDefaults = window.MGProfileDefaults;
         filterDescription.value = "";
         filterStatus.value = status;
         state.filterDate = date;
-      }
-
-      function renderFilterDescriptions() {
-        const selected = filterDescription.value;
-        const selectedType = filterType.value;
-        const descriptions = state.entries
-          .filter((entry) => !selectedType || entry.type === selectedType)
-          .map((entry) => entry.description);
-
-        filterDescription.innerHTML =
-          '<option value="">Todas as descrições</option>' +
-          sortedOptions(descriptions)
-            .map((description) => `<option>${esc(description)}</option>`)
-            .join("");
-
-        filterDescription.value = descriptions.includes(selected) ? selected : "";
       }
 
       // The records list shows the selected month or, with "Todos os meses",
@@ -2019,8 +2005,7 @@ const profileDefaults = window.MGProfileDefaults;
         renderOptionManagement();
         creditCards.renderSettings();
 
-        renderFilterTypes();
-        renderFilterDescriptions();
+        renderFilterTypesAndDescriptions();
         renderFilterPayments();
 
         const current = todayISO().slice(0, 7);

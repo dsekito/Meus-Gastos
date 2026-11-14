@@ -203,6 +203,10 @@ o resumo do botão de filtros diz isso. **Limpar filtros** volta a esse padrão,
 "Todos os status" mostra também os pagos e recebidos. Quando os filtros escondem
 tudo do período, a lista vazia oferece **Mostrar todos**.
 
+As opções dos filtros **Tipo** e **Descrição** mostram só o que existe no mês
+exibido (ou em todos os meses, com **Todos os meses**); um valor já escolhido
+continua na lista ao trocar de mês, para o filtro não sumir sem aviso.
+
 Em **Registros > Filtrar**, a lista pode ser filtrada por movimentação
 (despesas ou receitas) e por forma de pagamento: "Pix, débito ou dinheiro"
 (despesas sem cartão), "Qualquer cartão de crédito", um cartão ou "Cartão

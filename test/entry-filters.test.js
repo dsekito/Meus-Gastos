@@ -71,3 +71,31 @@ test("totais em centavos: entradas, saídas (estorno subtrai) e saldo", () => {
   assert.deepEqual(filters.totals(list), { incomeCents: 100001, expenseCents: 25, balanceCents: 99976 });
   assert.deepEqual(filters.totals([entry({ value: 50 })]), { incomeCents: 0, expenseCents: 5000, balanceCents: -5000 });
 });
+
+test("tipo e descrição oferecem só o que existe no período exibido", () => {
+  const november = [
+    entry({ type: "MORADIA", description: "ALUGUEL" }),
+    entry({ type: "ALIMENTAÇÃO", description: "RESTAURANTE" }),
+    entry({ type: "ALIMENTAÇÃO", description: "SUPERMERCADO" }),
+  ];
+  const december = [entry({ type: "LAZER", description: "CINEMA" })];
+  const everything = [...november, ...december];
+  assert.deepEqual(filters.typeAndDescriptionOptions(november, everything), {
+    types: ["ALIMENTAÇÃO", "MORADIA"],
+    descriptions: ["ALUGUEL", "RESTAURANTE", "SUPERMERCADO"],
+    description: "",
+  });
+  assert.deepEqual(filters.typeAndDescriptionOptions(november, everything, { type: "ALIMENTAÇÃO" }).descriptions,
+    ["RESTAURANTE", "SUPERMERCADO"], "a descrição segue o tipo escolhido");
+  assert.deepEqual(filters.typeAndDescriptionOptions([], []), { types: [], descriptions: [], description: "" });
+});
+
+test("um filtro já escolhido continua na lista mesmo sem registros no período", () => {
+  const november = [entry({ type: "MORADIA", description: "ALUGUEL" })];
+  const everything = [...november, entry({ type: "LAZER", description: "CINEMA" })];
+  const kept = filters.typeAndDescriptionOptions(november, everything, { type: "LAZER", description: "CINEMA" });
+  assert.deepEqual(kept, { types: ["LAZER", "MORADIA"], descriptions: ["CINEMA"], description: "CINEMA" });
+  const mismatched = filters.typeAndDescriptionOptions(november, everything, { type: "MORADIA", description: "CINEMA" });
+  assert.equal(mismatched.description, "", "descrição de outro tipo é limpa");
+  assert.deepEqual(mismatched.descriptions, ["ALUGUEL"]);
+});

@@ -45,6 +45,24 @@
     return cards.find((card) => card.id === entry.credit_card_id)?.name || "Cartão excluído";
   }
 
+  // Type and description options come from the records of the period on
+  // screen. A value already chosen stays listed even when the period has none
+  // of it, so a filter never disappears unnoticed; a description that does not
+  // belong to the chosen type (in any record) is dropped.
+  function typeAndDescriptionOptions(periodEntries = [], allEntries = [], { type = "", description = "" } = {}) {
+    const sorted = (values) => [...new Set(values.filter(Boolean))]
+      .sort((a, b) => String(a).localeCompare(String(b), "pt-BR"));
+    const types = sorted([...periodEntries.map((entry) => entry.type), type]);
+    const descriptionMatchesType = !description || !type
+      || allEntries.some((entry) => entry.type === type && entry.description === description);
+    const keptDescription = descriptionMatchesType ? description : "";
+    const descriptions = sorted([
+      ...periodEntries.filter((entry) => !type || entry.type === type).map((entry) => entry.description),
+      keptDescription,
+    ]);
+    return { types, descriptions, description: keptDescription };
+  }
+
   // `labels` holds the visible text of each active filter, in screen order.
   function activeFiltersSummary(labels) {
     const active = labels.filter(Boolean);
@@ -69,6 +87,7 @@
     PAYMENT_ANY_CARD,
     matchesEntry,
     paymentOptions,
+    typeAndDescriptionOptions,
     cardLabel,
     activeFiltersSummary,
     totals,

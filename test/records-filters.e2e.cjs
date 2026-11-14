@@ -19,6 +19,7 @@ const ENTRIES = [
   entry(4, '2026-11-15', 'TRANSPORTE', 'COMBUSTÍVEL', 250, false, 'itau'),
   entry(5, '2026-11-20', 'RECEITAS', 'SALÁRIO', 6000, false),
   entry(6, '2026-11-22', 'LAZER', 'PASSEIOS', 120, false, 'antigo'),
+  entry(7, '2026-12-05', 'EDUCAÇÃO', 'CURSOS', 300, false),
 ];
 const CARDS = [{ id: 'nubank', name: 'Nubank', closing_day: 3, due_day: 10 }, { id: 'itau', name: 'Itaú', closing_day: 25, due_day: 5 }];
 
@@ -83,6 +84,25 @@ const noHorizontalScroll = page => page.evaluate(() => document.documentElement.
       assert.ok(await noHorizontalScroll(page), 'filtros cabem em 320 px');
       const paymentOptions = await page.locator('#filterPayment option').allTextContents();
       assert.deepEqual(paymentOptions, ['Todas as formas', 'Pix, débito ou dinheiro', 'Qualquer cartão de crédito', 'Crédito: Nubank', 'Crédito: Itaú', 'Cartão excluído']);
+
+      // Tipo e descrição oferecem só o que existe no mês exibido.
+      const optionTexts = selector => page.locator(`${selector} option`).allTextContents();
+      assert.deepEqual(await optionTexts('#filterType'), ['Todos os tipos', 'ALIMENTAÇÃO', 'LAZER', 'MORADIA', 'RECEITAS', 'TRANSPORTE']);
+      assert.deepEqual(await optionTexts('#filterDescription'),
+        ['Todas as descrições', 'ALUGUEL', 'COMBUSTÍVEL', 'PASSEIOS', 'RESTAURANTE', 'SALÁRIO', 'SUPERMERCADO']);
+      await page.locator('#filterType').selectOption('ALIMENTAÇÃO');
+      assert.deepEqual(await optionTexts('#filterDescription'), ['Todas as descrições', 'RESTAURANTE', 'SUPERMERCADO']);
+      // Em outro mês, as opções mudam; o tipo escolhido continua visível para não sumir sem aviso.
+      await page.locator('#nextMonth').click();
+      assert.deepEqual(await optionTexts('#filterType'), ['Todos os tipos', 'ALIMENTAÇÃO', 'EDUCAÇÃO']);
+      assert.equal(await page.inputValue('#filterType'), 'ALIMENTAÇÃO');
+      await page.locator('#filterType').selectOption('');
+      assert.deepEqual(await optionTexts('#filterDescription'), ['Todas as descrições', 'CURSOS']);
+      // Todos os meses junta as opções de todos os períodos.
+      await page.locator('#filterAllMonths').check();
+      assert.deepEqual(await optionTexts('#filterType'), ['Todos os tipos', 'ALIMENTAÇÃO', 'EDUCAÇÃO', 'LAZER', 'MORADIA', 'RECEITAS', 'TRANSPORTE']);
+      await page.locator('#filterAllMonths').uncheck();
+      await page.locator('#previousMonth').click();
 
       // Um cartão.
       await page.locator('#filterPayment').selectOption({ label: 'Crédito: Nubank' });
