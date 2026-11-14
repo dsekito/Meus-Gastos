@@ -109,11 +109,6 @@ textarea { resize: vertical; }
 .entry-title { display: flex; align-items: center; gap: 8px; font-weight: 700; }
 .entry-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--type-color, #475569); flex-shrink: 0; }
 .entry-value { font-weight: 700; }
-.entry-menu { border-style: none; border-color: currentcolor; background-color: initial; color: rgb(100, 116, 139); font-size: 20px; padding: 0px; }
-.context-menu { position: fixed; width: 220px; background: rgb(255, 255, 255); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; z-index: 999; }
-.context-menu.hidden { display: none; }
-.context-menu button { width: 100%; border-style: none; border-color: currentcolor; padding: 14px 16px; text-align: left; }
-.context-menu button:hover { background: rgb(248, 250, 252); }
 @media (max-width: 992px) {
   .top { flex-wrap: wrap; }
   .filters > * { flex-basis: 240px; }
@@ -144,8 +139,6 @@ button:active:not(:disabled) { transform: scale(0.98); }
 .entry { padding: 16px; border-color: var(--line); }
 .entry:hover, .entry:active { background: var(--soft); }
 .entry.selected { border-left-color: var(--brand); background: rgb(221, 232, 216) !important; }
-.entry-menu { display: inline-grid; place-items: center; }
-.entry-menu:hover { background: var(--soft); }
 .entry-title-text { text-overflow: ellipsis; }
 .entry-meta-line { display: flex; min-width: 0px; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; white-space: nowrap; }
 .entry-detail { text-overflow: ellipsis; }
@@ -153,8 +146,6 @@ button:active:not(:disabled) { transform: scale(0.98); }
 dialog::backdrop { background: rgba(24, 51, 42, 0.55); backdrop-filter: blur(3px); }
 .close:hover { background: var(--soft); }
 .modal-foot { position: sticky; bottom: 0px; padding-top: 12px; background: var(--paper); }
-.context-menu button { min-height: 48px; background: var(--paper); font-size: 16px; }
-.context-menu button:hover { background: var(--soft); }
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
 }
@@ -164,14 +155,11 @@ dialog::backdrop { background: rgba(24, 51, 42, 0.55); backdrop-filter: blur(3px
   .entry.dense-entry { position: relative; min-height: 68px; gap: 0px; align-items: stretch; }
   .dense-entry .entry-title { gap: 7px; }
   .dense-entry .status-button { white-space: nowrap; }
-  .context-menu { right: 0px; bottom: 0px; left: 0px; width: 100%; top: auto !important; }
-  .context-menu button { padding-right: 20px; padding-left: 20px; }
 }
 @media (min-width: 390px) and (max-width: 480px) {
   .filters > select { min-width: 0px; flex: 1 1 calc(50% - 4px); padding-right: 30px; font-size: 16px; text-overflow: ellipsis; }
   .auth-card { max-width: 360px; }
   .toast { padding: 10px 13px; }
-  .context-menu button { padding: 10px 16px; }
 }
 @media (max-width: 768px) {
   .modal-head { position: relative; z-index: 2; flex: 0 0 auto; margin: 0px; padding: 12px 14px 10px; border-bottom: 1px solid var(--line); background: var(--paper); }
@@ -279,7 +267,6 @@ body { min-height: 100svh; }
   .option-manager-row button, .backup-actions button { width: 100%; }
   .recent-record-head { align-items: flex-start; flex-direction: column; }
   .recent-record-value { overflow-wrap: anywhere; }
-  .context-menu { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
   .toast { right: max(16px, env(safe-area-inset-right)); left: max(16px, env(safe-area-inset-left)); }
 }
 @media (max-width: 359px) {
@@ -438,7 +425,6 @@ h1,h2,h3 { font-weight:650; letter-spacing:-.025em; }
 .dense-entry .entry-meta-line { flex-wrap:wrap; white-space:normal; font-size:14px; }
 .dense-entry .entry-detail { overflow:visible; overflow-wrap:anywhere; }
 .dense-entry .status-button { margin:0; font-size:14px; padding:8px; }
-.entry-menu { margin:0; border-radius:6px; }
 
 /* Projection: summary, balance chart and the days ahead. */
 .projection-view { min-width:0; }
@@ -629,8 +615,6 @@ dialog .modal,#entryDialog .modal,#settingsDialog .modal,#recentRecordsDialog .m
 .recent-record-meta span:last-child { text-align:left; }
 .recent-record-actions button { width:auto; }
 .recent-record-group-count { border-radius:4px; font-size:14px; }
-.context-menu { border-radius:8px; box-shadow:var(--shadow); }
-.context-menu button { display:flex; align-items:center; gap:12px; font-size:16px; min-height:48px; }
 .toast { bottom:calc(84px + env(safe-area-inset-bottom)); max-width:calc(100vw - 32px); border-radius:6px; font-size:16px; background:var(--ink); }
 
 /* Product entry gates, not marketing heroes. */
@@ -823,18 +807,22 @@ dialog .modal,#entryDialog .modal,#settingsDialog .modal,#recentRecordsDialog .m
 .delete-installment-scope legend { padding:0 4px; font-weight:700; }
 .delete-installment-scope .checkbox-label { min-height:48px; justify-content:flex-start; font-size:16px; }
 .delete-installment-scope input[type="radio"],.filter-all-months input[type="checkbox"] { flex:0 0 auto; width:22px; height:22px; min-height:22px; padding:0; accent-color:var(--brand); }
-/* Record rows: "TIPO - DESCRIÇÃO" and value with the menu at the top right;
-   date, comment, card and installment with the status at the bottom right. */
-.entry.dense-entry { display:grid; grid-template-columns:minmax(0,1fr) auto 48px; grid-template-areas:"title value menu" "meta status status"; gap:8px; align-items:center; padding:4px 4px 4px 12px; }
+/* Record rows: "TIPO - DESCRIÇÃO" and value on top; date, comment, card and
+   installment below, with the status at the bottom right. A transparent
+   button covering the row opens the record; the status button sits on top. */
+.entry.dense-entry { position:relative; display:grid; grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"title value" "meta status"; gap:4px 8px; align-items:center; padding:4px 4px 4px 12px; }
 .dense-entry .entry-header { display:contents; }
 .dense-entry .entry-title { grid-area:title; }
 .dense-entry .entry-value { grid-area:value; margin:0; white-space:nowrap; text-align:right; }
-.dense-entry .entry-menu { grid-area:menu; justify-self:end; align-self:start; width:48px; height:48px; margin:0; }
 .dense-entry .entry-meta-line { grid-area:meta; }
-.dense-entry .status-button { grid-area:status; justify-self:end; align-self:end; min-height:48px; }
+.dense-entry .status-button { grid-area:status; justify-self:end; align-self:end; min-height:48px; position:relative; z-index:1; }
+.entry-open { position:absolute; inset:0; z-index:0; width:100%; height:100%; min-height:0; margin:0; padding:0; border:0; border-radius:0; background:transparent; cursor:pointer; }
+.entry-open:focus-visible { outline:3px solid var(--brand); outline-offset:-3px; }
 @media (max-width:359px) {
   /* Too narrow for title and value side by side: the value moves to the
-     bottom left, keeping the menu top right and the status bottom right. */
-  .entry.dense-entry { grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"title menu" "meta meta" "value status"; }
+     bottom left, keeping the status at the bottom right. */
+  .entry.dense-entry { grid-template-areas:"title title" "meta meta" "value status"; }
   .dense-entry .entry-value { justify-self:start; text-align:left; }
 }
+/* Editing shows Excluir: the three footer buttons share one row. */
+#entryForm > .modal-foot:has(#deleteEntryFromForm:not([hidden])) > #saveEntry { flex:1 1 72px; }

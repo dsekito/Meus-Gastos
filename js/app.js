@@ -235,7 +235,7 @@ const profileDefaults = window.MGProfileDefaults;
         openModal = document.querySelector("#openModal"),
         openModalMobile = document.querySelector("#openModalMobile"),
         rows = document.querySelector("#rows"),
-        contextMenu = document.querySelector("#contextMenu"),
+        deleteEntryFromForm = document.querySelector("#deleteEntryFromForm"),
         deleteConfirmDialog = document.querySelector("#deleteConfirmDialog"),
         deleteConfirmForm = document.querySelector("#deleteConfirmForm"),
         deleteConfirmTitle = document.querySelector("#deleteConfirmTitle"),
@@ -1635,6 +1635,7 @@ const profileDefaults = window.MGProfileDefaults;
         const spokenName = `${title}${e.detail ? `, comentário: ${e.detail}` : ""}, ${isIncome ? "receita" : "despesa"}`;
         return `
           <article class="entry dense-entry ${selected ? "selected" : ""} ${statusPending ? "status-pending" : ""} ${statusChanged ? "status-changed" : ""}" data-entry="${esc(e.id)}" role="${state.selectionMode ? "button" : "group"}" ${state.selectionMode ? `tabindex="0" aria-pressed="${selected}"` : ""} aria-busy="${statusPending}" aria-label="${state.selectionMode ? `Selecionar ${esc(spokenName)}` : `${esc(spokenName)}, ${money(e.value)}, ${statusLabel}. Toque para editar.`}" style="--type-color:${typeColor}">
+            ${state.selectionMode ? "" : `<button type="button" class="entry-open" data-open-entry="${esc(e.id)}" aria-label="Editar ${esc(title)}"></button>`}
             <div class="entry-header">
               <div class="entry-title" title="${esc(title)}">
                 <span class="entry-dot" aria-hidden="true"></span>
@@ -1649,7 +1650,6 @@ const profileDefaults = window.MGProfileDefaults;
               ${e.installment ? `<span class="entry-installment">${e.installment.current}/${e.installment.total}</span>` : ""}
             </div>
             ${state.selectionMode ? "" : `<button type="button" class="status-button ${e.paid ? "paid" : "pending"}" data-toggle-status="${esc(e.id)}" aria-label="Alterar status de ${esc(e.description)}. Status atual: ${statusLabel}" aria-pressed="${e.paid}" ${statusPending ? "disabled" : ""}><span class="status-button-label">${statusPending ? "Salvando" : statusLabel}</span></button>`}
-            ${state.selectionMode ? "" : `<button class="entry-menu" data-edit="${esc(e.id)}" aria-label="Mais opções para ${esc(e.description)}" aria-haspopup="menu" aria-controls="contextMenu" aria-expanded="false">⋮</button>`}
           </article>`;
       }
 
@@ -1844,7 +1844,6 @@ const profileDefaults = window.MGProfileDefaults;
           render();
         }
         activeAppView = view;
-        closeContextMenu();
         document.querySelector("#appShell").dataset.view = view;
         document.querySelectorAll("[data-app-panel]").forEach((panel) => {
           panel.hidden = panel.dataset.appPanel !== view;
@@ -2177,6 +2176,7 @@ const profileDefaults = window.MGProfileDefaults;
         state.editingId = null;
         modalTitle.textContent = "Novo lançamento";
         saveAndAddAnother.hidden = false;
+        deleteEntryFromForm.hidden = true;
         entryFormStatus.hidden = true;
         entryFormStatus.textContent = "";
         form.reset();
@@ -2673,82 +2673,6 @@ const profileDefaults = window.MGProfileDefaults;
         render();
       }
 
-      let contextMenuTrigger = null;
-
-      function openContextMenu(button, id, last = false) {
-        const isSameOpenEntry =
-          state.activeEntry === id && !contextMenu.classList.contains("hidden");
-        if (isSameOpenEntry) {
-          closeContextMenu({ restoreFocus: true });
-          return;
-        }
-
-        closeContextMenu();
-        contextMenuTrigger = button;
-        button.setAttribute("aria-expanded", "true");
-        state.activeEntry = id;
-        const rect = button.getBoundingClientRect();
-        const viewportMargin = 8;
-        const menuGap = 6;
-
-        // Exibe de forma invisível para medir o tamanho real antes de posicionar.
-        contextMenu.style.visibility = "hidden";
-        contextMenu.classList.remove("hidden");
-        const menuRect = contextMenu.getBoundingClientRect();
-        const maxLeft = Math.max(
-          viewportMargin,
-          window.innerWidth - menuRect.width - viewportMargin,
-        );
-        const left = Math.max(
-          viewportMargin,
-          Math.min(rect.right - menuRect.width, maxLeft),
-        );
-        const fitsBelow =
-          rect.bottom + menuGap + menuRect.height + viewportMargin <=
-          window.innerHeight;
-        const preferredTop = fitsBelow
-          ? rect.bottom + menuGap
-          : rect.top - menuRect.height - menuGap;
-        const maxTop = Math.max(
-          viewportMargin,
-          window.innerHeight - menuRect.height - viewportMargin,
-        );
-        const top = Math.max(
-          viewportMargin,
-          Math.min(preferredTop, maxTop),
-        );
-
-        contextMenu.style.left = `${left}px`;
-        contextMenu.style.top = `${top}px`;
-        contextMenu.style.visibility = "";
-        const items = contextMenu.querySelectorAll('[role="menuitem"]:not(:disabled)');
-        (last ? items[items.length - 1] : items[0])?.focus({ preventScroll: true });
-      }
-
-      function closeContextMenu({ restoreFocus = false } = {}) {
-        const trigger = contextMenuTrigger;
-        const focusInMenu = contextMenu.contains(document.activeElement);
-        contextMenu.classList.add("hidden");
-        contextMenu.style.visibility = "";
-        trigger?.setAttribute("aria-expanded", "false");
-        contextMenuTrigger = null;
-        if ((restoreFocus || focusInMenu) && trigger?.isConnected) {
-          trigger.focus({ preventScroll: true });
-        }
-      }
-
-      function handleMenuAction(action) {
-        closeContextMenu();
-        switch (action) {
-          case "edit":
-            editEntry();
-            break;
-          case "delete":
-            deleteEntry();
-            break;
-        }
-      }
-
       function getActiveEntry() {
         return state.entries.find((e) => e.id === state.activeEntry);
       }
@@ -2760,6 +2684,7 @@ const profileDefaults = window.MGProfileDefaults;
         if (recentRecordsDialog.open) recentRecordsDialog.close();
         state.editingId = entry.id;
         saveAndAddAnother.hidden = true;
+        deleteEntryFromForm.hidden = false;
         entryFormStatus.hidden = true;
         entryFormStatus.textContent = "";
         modalTitle.textContent = entry.installment ? "Editar compra parcelada" : "Editar lançamento";
@@ -3105,7 +3030,6 @@ const profileDefaults = window.MGProfileDefaults;
         const session = state.user;
         let saved = null;
         state.pendingStatusEntries.add(id);
-        closeContextMenu();
         render();
         try {
           const result = await financialMutation(() => {
@@ -3219,8 +3143,8 @@ const profileDefaults = window.MGProfileDefaults;
           state.entries = state.entries.filter((item) => item.id !== entry.id);
           queueDelete(entry.id, entry.updated_at);
         });
-        closeContextMenu();
         if (!result.ok) return;
+        if (dialog.open) closeEntryDialog();
         render();
         show("Lançamento excluído.", {
           label: "Desfazer",
@@ -3242,11 +3166,9 @@ const profileDefaults = window.MGProfileDefaults;
         const entry = getActiveEntry();
         if (!entry) return;
         if (entry.series_id) {
-          closeContextMenu();
           seriesScopeDialog.showModal();
           return;
         }
-        closeContextMenu();
         requestDeleteConfirmation({
           title: "Excluir lançamento?",
           description: "O lançamento será removido da sua lista e sincronizado com o Google Drive.",
@@ -3292,6 +3214,7 @@ const profileDefaults = window.MGProfileDefaults;
         if (!result.ok) return;
         const deletedState = JSON.stringify({ entries: state.entries.filter((item) => item.series_id === entry.series_id), series: state.recurrenceSeries.find((item) => item.id === entry.series_id) });
         seriesScopeDialog.close();
+        if (dialog.open) closeEntryDialog();
         render();
         const successMessage = scope === "this"
           ? "Ocorrência excluída."
@@ -3608,6 +3531,11 @@ const profileDefaults = window.MGProfileDefaults;
         if (added) show(`Descrição “${added}” adicionada às opções de ${selectedType}.`);
       };
       openRecentRecordsMain.onclick = () => openRecentRecordsDialog(false);
+      deleteEntryFromForm.onclick = () => {
+        if (!state.editingId) return;
+        state.activeEntry = state.editingId;
+        deleteEntry();
+      };
       startSelection.onclick = () => enterSelectionMode();
       const bulkEditDialog = window.MGBulkEditDialog.create({
         state, domain, bulkEdit, fill, entryTypeOptions, entryDescriptionOptions, confirmDialog,
@@ -3765,12 +3693,6 @@ const profileDefaults = window.MGProfileDefaults;
       }
       if (goToCurrentMonth) goToCurrentMonth.onclick = resetCalendarToCurrentMonth;
 
-      contextMenu.onclick = (e) => {
-        const button = e.target.closest("[data-action]");
-        if (!button) return;
-        handleMenuAction(button.dataset.action);
-      };
-
       deleteConfirmForm.onsubmit = async (event) => {
         event.preventDefault();
         const action = pendingDeletionAction;
@@ -3794,42 +3716,6 @@ const profileDefaults = window.MGProfileDefaults;
       deleteConfirmDialog.addEventListener("cancel", () => {
         pendingDeletionAction = null;
       });
-
-      document.addEventListener("pointerdown", (event) => {
-        if (contextMenu.classList.contains("hidden")) return;
-        if (contextMenu.contains(event.target)) return;
-        if (event.target.closest(".entry-menu")) return;
-        closeContextMenu();
-      });
-
-      document.addEventListener("keydown", (event) => {
-        if (contextMenu.classList.contains("hidden")) return;
-        if (event.key === "Escape") {
-          event.preventDefault();
-          closeContextMenu({ restoreFocus: true });
-        } else if (event.key === "Tab") {
-          // Resume native tab order from the owning row, not the portaled popup.
-          closeContextMenu({ restoreFocus: true });
-        } else if (contextMenu.contains(event.target) &&
-          ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
-          event.preventDefault();
-          const items = [...contextMenu.querySelectorAll('[role="menuitem"]:not(:disabled)')];
-          const current = items.indexOf(document.activeElement);
-          const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 :
-            (current + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
-          items[next]?.focus({ preventScroll: true });
-        }
-      });
-
-      document.addEventListener("focusin", (event) => {
-        if (!contextMenu.classList.contains("hidden") &&
-          !contextMenu.contains(event.target) && event.target !== contextMenuTrigger) {
-          closeContextMenu();
-        }
-      });
-
-      window.addEventListener("resize", closeContextMenu);
-      window.addEventListener("scroll", closeContextMenu, true);
 
       projectionTimeline.addEventListener("click", (event) => {
         const button = event.target.closest("[data-projection-entry]");
@@ -3904,8 +3790,6 @@ const profileDefaults = window.MGProfileDefaults;
 
         if (!e.isPrimary || e.button !== 0) return;
 
-        if (e.target.closest(".entry-menu")) return;
-
         if (e.target.closest(".status-button")) return;
 
         if (state.selectionMode) return;
@@ -3974,24 +3858,11 @@ const profileDefaults = window.MGProfileDefaults;
           return;
         }
 
-        const menu = e.target.closest("[data-edit]");
-
-        if (menu) {
-          openContextMenu(menu, menu.dataset.edit);
-          return;
-        }
-
         const entry = state.entries.find((item) => item.id === card.dataset.entry);
         if (entry) editEntry(entry);
       });
 
       rows.addEventListener("keydown", (e) => {
-        const menu = e.target.closest(".entry-menu[data-edit]");
-        if (menu && ["ArrowDown", "ArrowUp"].includes(e.key)) {
-          e.preventDefault();
-          openContextMenu(menu, menu.dataset.edit, e.key === "ArrowUp");
-          return;
-        }
         if (e.key !== "Enter" && e.key !== " ") return;
         if (e.target !== e.target.closest("[data-entry]")) return;
 

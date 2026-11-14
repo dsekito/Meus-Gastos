@@ -85,7 +85,7 @@ const scenarios = {
     await page.waitForFunction(async () => !(await MGLocalStore.load('behavior-test', { observe: false })).entries.find(e => e.description === 'RESTAURANTE').paid);
 
     // A tap on the row opens it for editing.
-    await card(page, 'SUPERMERCADO').locator('.entry-title').click();
+    await card(page, 'SUPERMERCADO').locator('[data-open-entry]').click();
     await page.locator('#entryDialog[open]').waitFor();
     assert.equal(await page.locator('#entryDialogTitle').innerText(), 'Editar lançamento');
     assert.equal(await page.locator('#saveAndAddAnother').isVisible(), false, 'repeat is only for new entries');
@@ -104,14 +104,13 @@ const scenarios = {
 
   async deleteCanBeUndone(browser) {
     const { page, errors } = await open(browser, { settings: settled, entries: [entry({ description: 'ALUGUEL' }), entry({ description: 'CONDOMÍNIO' })] });
-    // Scroll first, as a person does: the app closes the menu when the page scrolls.
-    const menuButton = card(page, 'CONDOMÍNIO').locator('.entry-menu');
-    await menuButton.scrollIntoViewIfNeeded();
-    await page.evaluate(() => new Promise(requestAnimationFrame));
-    await menuButton.click();
-    await page.locator('#contextMenu [data-action="delete"]').click();
+    // Delete lives in the edit form; the confirmation opens over it.
+    await card(page, 'CONDOMÍNIO').locator('[data-open-entry]').click();
+    await page.locator('#entryDialog[open]').waitFor();
+    await page.locator('#deleteEntryFromForm').click();
     await page.locator('#confirmDelete').click();
     await page.waitForFunction(() => /Lançamento excluído/.test(document.querySelector('#toast').textContent));
+    assert.equal(await page.locator('#entryDialog').evaluate(d => d.open), false, 'the form closes after deleting');
     assert.equal(await card(page, 'CONDOMÍNIO').count(), 0);
     await toast(page).getByRole('button', { name: 'Desfazer' }).click();
     await page.waitForFunction(() => /Lançamento restaurado/.test(document.querySelector('#toast').textContent));
@@ -268,7 +267,7 @@ const scenarios = {
     await page.locator('#entryDialog').waitFor({ state: 'hidden' });
     let entries = (await stored(page)).entries;
     assert.deepEqual(entries.map(e => e.value), [100, 100, 100]);
-    await card(page, 'ALUGUEL').first().locator('.entry-title').click();
+    await card(page, 'ALUGUEL').first().locator('[data-open-entry]').click();
     assert.equal(await page.locator('#entryDialogTitle').innerText(), 'Editar compra parcelada');
     assert.equal(Number(await page.locator('#value').inputValue()), 300, 'the purchase total is edited, not one installment');
     await page.locator('#installments').fill('2');
@@ -295,7 +294,7 @@ const scenarios = {
     await page.locator('#filterStatus').evaluate(select => { select.value = ''; select.dispatchEvent(new Event('change')); });
     await card(page, 'ALUGUEL').first().locator('[data-toggle-status]').click();
     await page.waitForFunction(() => /Status salvo/.test(document.querySelector('#toast').textContent));
-    await card(page, 'ALUGUEL').first().locator('.entry-title').click();
+    await card(page, 'ALUGUEL').first().locator('[data-open-entry]').click();
     await page.locator('#value').fill('95');
     await page.locator('#editScope').selectOption('all');
     await page.locator('#saveEntry').click();
@@ -306,13 +305,13 @@ const scenarios = {
     assert.equal(entries.filter(e => e.paid).length, 1, 'the paid occurrence stays paid');
     // Another occurrence opens with the series' current values.
     await page.locator('#nextMonth').click();
-    await card(page, 'ALUGUEL').first().locator('.entry-title').click();
+    await card(page, 'ALUGUEL').first().locator('[data-open-entry]').click();
     assert.equal(Number(await page.locator('#value').inputValue()), 95);
     await page.keyboard.press('Escape');
 
     // Deleting the whole series can be undone.
-    await card(page, 'ALUGUEL').first().locator('.entry-menu').click();
-    await page.locator('#contextMenu [data-action="delete"]').click();
+    await card(page, 'ALUGUEL').first().locator('[data-open-entry]').click();
+    await page.locator('#deleteEntryFromForm').click();
     await page.locator('[data-series-delete-scope="all"]').click();
     await page.locator('#confirmDialog[open] [data-confirm-accept]').click();
     await page.waitForFunction(() => /Série recorrente excluída/.test(document.querySelector('#toast').textContent));

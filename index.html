@@ -14,7 +14,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>Meus Gastos</title>
-    <link rel="stylesheet" href="./mobile.css?v=2026111316" />
+    <link rel="stylesheet" href="./mobile.css?v=2026111317" />
   </head>
   <body aria-busy="true">
     <section class="bootstrap-screen" id="bootstrapScreen" role="status" aria-live="polite">
@@ -427,6 +427,7 @@
             type="submit"
             aria-label="Salvar lançamento e adicionar outro mantendo os demais dados"
           >Salvar e adicionar outro</button
+          ><button class="secondary danger" id="deleteEntryFromForm" type="button" hidden>Excluir</button
           ><button class="secondary" type="button" data-close>Cancelar</button
           ><button class="primary" id="saveEntry" type="submit" aria-label="Salvar lançamento">Salvar</button>
         </div>
@@ -690,10 +691,6 @@
       </form>
     </dialog>
 
-    <div id="contextMenu" class="context-menu hidden" role="menu" aria-label="Ações do registro">
-      <button type="button" role="menuitem" tabindex="-1" data-action="edit"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Editar</button>
-      <button type="button" role="menuitem" tabindex="-1" data-action="delete" class="danger"><svg class="ui-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2m-9 0 1 15h8l1-15M10 10v7m4-7v7"/></svg>Excluir</button>
-    </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -717,6 +714,6 @@
     <script src="./js/app-update.js?v=2026111201"></script>
     <script src="./js/projection-view.js?v=2026111303"></script>
     <script src="./js/monthly-view.js?v=2026111306"></script>
-    <script src="./js/app.js?v=2026111316"></script>
+    <script src="./js/app.js?v=2026111317"></script>
   </body>
 </html>

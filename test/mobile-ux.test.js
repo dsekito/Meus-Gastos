@@ -28,7 +28,7 @@ test("mantém formulários em uma coluna e controles com 48px no celular", () =>
 });
 
 test("usa ícones vetoriais nas ações dos lançamentos", () => {
-  assert.match(html, /class="ui-icon" aria-hidden="true"/);
+  assert.match(html, /<svg class="ui-icon"[^>]*aria-hidden="true"/);
   assert.doesNotMatch(html, /[⚙✏🗑📅↻⎋]/u);
 });
 

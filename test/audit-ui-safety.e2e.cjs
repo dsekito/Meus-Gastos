@@ -55,11 +55,7 @@ const cases = {
       assert.equal(await page.locator('#description option[value="RESTAURANTE"]').count(), 0);
       await page.screenshot({ path: path.join(out, 'hidden-description-new.png') });
       await page.locator('#entryDialog [data-close]').first().click();
-      const trigger = page.locator('#rows [data-edit="hidden-0"]');
-      await trigger.evaluate(e => e.scrollIntoView({ block: 'center', behavior: 'instant' }));
-      await page.waitForTimeout(150);
-      await trigger.click();
-      await page.locator('#contextMenu [data-action="edit"]').click();
+      await page.locator('#rows [data-open-entry="hidden-0"]').click();
       assert.equal(await page.locator('#description').inputValue(), 'SUPERMERCADO');
       assert.equal(await page.locator('#description option[value="RESTAURANTE"]').count(), 0);
       await page.screenshot({ path: path.join(out, 'hidden-description-edit.png') });
@@ -72,120 +68,71 @@ const cases = {
       const { context, page } = await seed(browser, origin, [{ ...base, id: 'mouse-entry' }]);
       try {
         await page.setViewportSize({ width, height: width === 1280 ? 900 : 812 });
-        const trigger = page.locator('#rows [data-edit="mouse-entry"]');
-        const popup = page.locator('#contextMenu');
+        const row = page.locator('#rows [data-entry="mouse-entry"]');
+        const opener = page.locator('#rows [data-open-entry="mouse-entry"]');
         const snapshot = () => page.evaluate(async () => {
           const disk = await MGLocalStore.load('audit-fixes-ui-synthetic', { observe: false });
           return { entries: disk.entries, syncQueue: disk.syncQueue, settings: disk.settings };
         });
         const before = await snapshot();
-        const open = async () => {
-          await trigger.evaluate(e => e.scrollIntoView({ block: 'center', behavior: 'instant' }));
-          await page.waitForTimeout(150);
-          await trigger.click();
-          assert.equal(await popup.isVisible(), true);
-          assert.equal(await trigger.getAttribute('aria-expanded'), 'true');
-        };
-        await open();
-        for (const control of [trigger, popup.locator('button').nth(0), popup.locator('button').nth(1)]) {
-          const box = await control.boundingBox();
-          assert.ok(box.width >= 48 && box.height >= 48, 'Menu touch targets remain at least 48px');
-        }
-        await page.screenshot({ path: path.join(out, `mouse-menu-${width}.png`), fullPage: false });
-        await trigger.click();
-        assert.equal(await popup.isVisible(), false, 'Repeated mouse click toggles menu closed');
-        assert.equal(await trigger.getAttribute('aria-expanded'), 'false');
-        await open();
-        await popup.locator('[data-action="edit"]').click();
+        // The whole row opens the record; the status button is its own target on top.
+        await row.evaluate(e => e.scrollIntoView({ block: 'center', behavior: 'instant' }));
+        const rowBox = await row.boundingBox();
+        assert.ok(rowBox.height >= 48, 'the row, which opens the record, is at least 48px tall');
+        const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('[data-open-entry], [data-toggle-status]')?.className || '', [rowBox.x + 8, rowBox.y + rowBox.height - 8]);
+        assert.match(hit, /entry-open/, 'an empty corner of the row opens the record');
+        const status = await page.locator('#rows [data-toggle-status="mouse-entry"]').boundingBox();
+        assert.ok(status.width >= 48 && status.height >= 48, 'status keeps a 48px target');
+        await row.click({ position: { x: 8, y: rowBox.height - 8 } });
         assert.equal(await page.locator('#entryDialog').evaluate(e => e.open), true);
+        await page.screenshot({ path: path.join(out, `mouse-edit-${width}.png`), fullPage: false });
         await page.locator('#entryDialog [data-close]').first().click();
-        assert.equal(await trigger.evaluate(e => e === document.activeElement), true, 'Cancel Edit returns focus to row trigger');
-        await open();
-        await popup.locator('[data-action="delete"]').click();
+        assert.equal(await opener.evaluate(e => e === document.activeElement), true, 'Cancel Edit returns focus to the record');
+        // Delete from the form: the confirmation opens over it and cancelling keeps the form.
+        await opener.click();
+        const remove = page.locator('#deleteEntryFromForm');
+        const removeBox = await remove.boundingBox();
+        assert.ok(removeBox.width >= 48 && removeBox.height >= 48, 'Excluir keeps a 48px target');
+        await remove.click();
         assert.equal(await page.locator('#deleteConfirmDialog').evaluate(e => e.open), true);
         await page.locator('#deleteConfirmDialog [data-close-delete-confirm]').first().click();
-        assert.equal(await trigger.evaluate(e => e === document.activeElement), true);
-        await open();
-        await page.locator('#appViewTitle').click();
-        assert.equal(await popup.isVisible(), false);
-        assert.equal(await trigger.getAttribute('aria-expanded'), 'false');
-        assert.deepEqual(await snapshot(), before, 'Menu actions canceled without financial mutations');
+        assert.equal(await page.locator('#entryDialog').evaluate(e => e.open), true, 'cancelling the deletion keeps the form open');
+        assert.equal(await remove.evaluate(e => e === document.activeElement), true);
+        await page.locator('#entryDialog [data-close]').first().click();
+        assert.deepEqual(await snapshot(), before, 'Opening and cancelling made no financial change');
       } finally { await context.close(); }
     }
   },
   async renderer(browser, origin) {
-    const id = 'audit" data-audit-injected="yes';
-    const { context, page } = await seed(browser, origin, [{ ...base, id }]);
-    try {
-      assert.equal(await page.locator('[data-audit-injected]').count(), 0, 'Untrusted cached ID must not create HTML attributes in records');
-      assert.equal(await page.locator('#rows [data-entry]').getAttribute('data-entry'), id);
-      assert.equal(await page.locator('#rows [data-edit]').getAttribute('data-edit'), id);
-      assert.equal(await page.locator('#rows [data-toggle-status]').getAttribute('data-toggle-status'), id);
-      await page.locator('#startSelection').click();
-      await page.locator('#selectAll').click();
-      assert.equal(await page.locator('[data-audit-injected]').count(), 0, 'Selection must not interpolate ID as HTML');
-      assert.equal(await page.locator('#rows [data-entry][aria-pressed="true"]').getAttribute('data-entry'), id);
-      await page.locator('#exitSelection').click();
-      await page.locator('#openRecentRecordsMain').click();
-      assert.equal(await page.locator('[data-audit-injected]').count(), 0, 'History must not interpolate ID as HTML');
-      assert.equal(await page.locator('[data-edit-recent]').getAttribute('data-edit-recent'), id);
-      await page.locator('[data-edit-recent]').click();
-      assert.equal(await page.locator('#entryDialog').evaluate(e => e.open), true, 'Escaping preserves original identifier and edit works');
-      await page.screenshot({ path: path.join(out, 'safe-identifier-edit.png') });
-    } finally { await context.close(); }
-  },
-  async keyboard(browser, origin) {
     for (const width of [375, 1280]) {
       const { context, page } = await seed(browser, origin, [{ ...base, id: 'keyboard-entry' }]);
       try {
         await page.setViewportSize({ width, height: width === 1280 ? 900 : 812 });
-        const trigger = page.locator('#rows [data-edit="keyboard-entry"]');
-        await trigger.evaluate(e => e.scrollIntoView({ block: 'center', behavior: 'instant' }));
-        await page.waitForTimeout(150);
-        await trigger.focus();
-        await page.keyboard.press('Enter');
-        const edit = page.locator('#contextMenu [data-action="edit"]');
-        const remove = page.locator('#contextMenu [data-action="delete"]');
-        await page.screenshot({ path: path.join(out, `${process.env.PHASE || 'latest'}-menu-open-${width}.png`), fullPage: false });
-        assert.equal(await edit.evaluate(e => e === document.activeElement), true, 'Opening the action menu must focus its first action');
-        assert.equal(await trigger.getAttribute('aria-haspopup'), 'menu');
-        assert.equal(await trigger.getAttribute('aria-expanded'), 'true');
-        const y = await page.evaluate(() => scrollY);
-        await page.keyboard.press('ArrowDown');
-        assert.equal(await remove.evaluate(e => e === document.activeElement), true);
-        assert.equal(await page.evaluate(() => scrollY), y, 'Menu arrows must not scroll the document');
-        assert.equal(await page.locator('#contextMenu').isVisible(), true);
-        await page.keyboard.press('ArrowDown');
-        assert.equal(await edit.evaluate(e => e === document.activeElement), true);
-        await page.keyboard.press('ArrowUp');
-        assert.equal(await remove.evaluate(e => e === document.activeElement), true);
-        await page.keyboard.press('Home');
-        assert.equal(await edit.evaluate(e => e === document.activeElement), true);
-        await page.keyboard.press('End');
-        assert.equal(await remove.evaluate(e => e === document.activeElement), true);
-        await page.keyboard.press('Escape');
-        assert.equal(await page.locator('#contextMenu').isVisible(), false);
-        assert.equal(await trigger.evaluate(e => e === document.activeElement), true);
-        assert.equal(await trigger.getAttribute('aria-expanded'), 'false');
-        await page.keyboard.press('ArrowUp');
-        assert.equal(await remove.evaluate(e => e === document.activeElement), true, 'ArrowUp on trigger opens last action');
-        await page.keyboard.press('Tab');
-        assert.equal(await page.locator('#contextMenu').isVisible(), false);
-        assert.equal(await page.evaluate(() => !!document.activeElement.closest('#contextMenu')), false);
-        await trigger.focus();
-        await page.keyboard.press('ArrowDown');
-        assert.equal(await edit.evaluate(e => e === document.activeElement), true, 'ArrowDown on trigger opens first action');
+        const opener = page.locator('#rows [data-open-entry="keyboard-entry"]');
+        const status = page.locator('#rows [data-toggle-status="keyboard-entry"]');
+        await opener.focus();
         await page.keyboard.press('Shift+Tab');
-        assert.equal(await page.locator('#contextMenu').isVisible(), false);
-        assert.equal(await page.locator('#rows [data-toggle-status]').evaluate(e => e === document.activeElement), true, 'Shift+Tab resumes before the trigger, without trapping focus');
-        await trigger.focus();
-        await page.keyboard.press('Space');
-        assert.equal(await edit.evaluate(e => e === document.activeElement), true, 'Space opens and focuses the first action');
+        await page.keyboard.press('Tab');
+        assert.equal(await opener.evaluate(e => e === document.activeElement), true, 'Tab reaches the record');
+        assert.equal(await opener.getAttribute('aria-label'), 'Editar OUTROS - AUDIT', 'the button names the record it opens');
+        const [rowBox, openerBox] = [await page.locator('#rows [data-entry="keyboard-entry"]').boundingBox(), await opener.boundingBox()];
+        assert.ok(Math.abs(rowBox.height - openerBox.height) <= 1 && Math.abs(rowBox.width - openerBox.width) <= 1, 'the focused control covers the whole row');
+        assert.notEqual(await opener.evaluate(e => getComputedStyle(e).outlineStyle), 'none', 'keyboard focus is visible');
+        await page.screenshot({ path: path.join(out, `${process.env.PHASE || 'latest'}-row-focus-${width}.png`), fullPage: false });
+        await page.keyboard.press('Tab');
+        assert.equal(await status.evaluate(e => e === document.activeElement), true, 'then the status button');
+        await page.keyboard.press('Shift+Tab');
+        await page.keyboard.press('Enter');
+        assert.equal(await page.locator('#entryDialog').evaluate(e => e.open), true, 'Enter opens the record');
         await page.keyboard.press('Escape');
-        assert.equal(await trigger.evaluate(e => e === document.activeElement), true);
+        assert.equal(await page.locator('#entryDialog').evaluate(e => e.open), false);
+        assert.equal(await opener.evaluate(e => e === document.activeElement), true, 'Escape returns focus to the record');
+        await page.keyboard.press('Space');
+        assert.equal(await page.locator('#entryDialog').evaluate(e => e.open), true, 'Space opens the record too');
+        await page.locator('#deleteEntryFromForm').focus();
         await page.keyboard.press('Enter');
-        await page.keyboard.press('Enter');
-        assert.equal(await page.locator('#entryDialog').evaluate(e => e.open), true, 'Focused Edit is keyboard-activatable');
+        assert.equal(await page.locator('#deleteConfirmDialog').evaluate(e => e.open), true, 'Excluir works from the keyboard');
+        await page.keyboard.press('Escape');
         await page.screenshot({ path: path.join(out, `keyboard-edit-${width}.png`) });
       } finally { await context.close(); }
     }

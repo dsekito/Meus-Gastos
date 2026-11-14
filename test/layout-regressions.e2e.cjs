@@ -1,6 +1,6 @@
 // Larguras de layout: nada passa da tela no celular, as seções dos Ajustes
 // usam toda a largura do diálogo e as linhas dos registros mantêm o menu no
-// canto superior direito e o status no inferior direito. App real em modo
+// status no canto inferior direito e a linha toda abre o registro. App real em modo
 // local, perfil sintético.
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
@@ -56,8 +56,8 @@ const overflowing = page => page.evaluate(() => {
       await context.close();
     }
 
-    // Linhas dos registros: menu no canto superior direito, status no inferior
-    // direito, alvos de 48 px com 8 px entre eles, sem quebrar palavras do título.
+    // Linhas dos registros: status no canto inferior direito com 48 px, a linha
+    // inteira abre o registro, altura compacta e título sem palavra quebrada.
     const rowEntries = [
       { id: '00000000-0000-4000-8000-000000000001', type: 'ALIMENTAÇÃO', description: 'SUPERMERCADO', detail: 'compra grande do mês com produtos de limpeza', value: 200, paid: false, flow_type: 'expense', created_at: '2026-11-01T10:00:00.000Z' },
       { id: '00000000-0000-4000-8000-000000000002', type: 'RECEITAS', description: 'SALÁRIO', value: 4000, paid: false, flow_type: 'income', created_at: '2026-11-01T10:00:00.000Z' },
@@ -67,24 +67,25 @@ const overflowing = page => page.evaluate(() => {
       await page.locator('.app-navigation [data-app-destination="records"]').click();
       const rows = await page.evaluate(() => [...document.querySelectorAll('#rows .dense-entry')].map(row => {
         const box = element => element.getBoundingClientRect();
-        const r = box(row), menu = box(row.querySelector('.entry-menu')), status = box(row.querySelector('.status-button'));
+        row.scrollIntoView({ block: 'center', behavior: 'instant' });
+        const r = box(row), status = box(row.querySelector('.status-button'));
         const title = row.querySelector('.entry-title-text');
         const words = title.textContent.split(/\s+/);
+        const corner = document.elementFromPoint(r.left + 6, r.top + 6);
         return {
-          menuTop: menu.top - r.top, menuRight: r.right - menu.right, menuSize: [menu.width, menu.height],
+          height: r.height, titleLines: Math.round(title.getBoundingClientRect().height / parseFloat(getComputedStyle(title).lineHeight)),
           statusBottom: r.bottom - status.bottom, statusRight: r.right - status.right, statusHeight: status.height,
-          gap: status.top - menu.bottom, statusBelowMenu: status.top >= menu.bottom,
+          cornerOpens: Boolean(corner?.closest('[data-open-entry]')),
           // A word broken in the middle makes the title wider than its longest word allows.
           brokenWord: words.some(word => { const probe = document.createElement('span'); probe.style.cssText = 'position:absolute;white-space:nowrap;font:inherit'; probe.textContent = word; title.append(probe); const wide = probe.getBoundingClientRect().width > title.getBoundingClientRect().width + 1; probe.remove(); return wide; }),
         };
       }));
       for (const row of rows) {
-        assert.ok(row.menuTop <= 8 && row.menuRight <= 8, `${width}: menu no canto superior direito`);
         assert.ok(row.statusBottom <= 8 && row.statusRight <= 8, `${width}: status no canto inferior direito`);
-        assert.deepEqual(row.menuSize, [48, 48], `${width}: menu com 48 px`);
         assert.ok(row.statusHeight >= 48, `${width}: status com 48 px de altura`);
-        assert.ok(row.statusBelowMenu && row.gap >= 8, `${width}: 8 px entre menu e status`);
+        assert.equal(row.cornerOpens, true, `${width}: a linha toda abre o registro`);
         assert.equal(row.brokenWord, false, `${width}: título sem palavra quebrada`);
+        if (width >= 360 && row.titleLines === 1) assert.ok(row.height <= 90, `${width}: linha compacta (${row.height}px)`);
       }
       assert.deepEqual(await overflowing(page), [], `${width}: nada passa da tela`);
       assert.deepEqual(errors, []);
