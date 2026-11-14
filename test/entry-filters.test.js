@@ -100,7 +100,7 @@ test("um filtro já escolhido continua na lista mesmo sem registros no período"
   assert.deepEqual(mismatched.descriptions, ["ALUGUEL"]);
 });
 
-test("na mesma data, ordena por forma de pagamento e depois pela data de registro", () => {
+test("na mesma data, ordena por forma de pagamento e, dentro dela, o último registrado primeiro", () => {
   const cards = [{ id: "nubank", name: "Nubank" }, { id: "itau", name: "Itaú" }];
   const at = (hour) => `2026-11-05T${String(hour).padStart(2, "0")}:00:00.000Z`;
   const list = [
@@ -115,9 +115,9 @@ test("na mesma data, ordena por forma de pagamento e depois pela data de registr
   ];
   assert.deepEqual(ids([...list].sort(filters.listComparator(cards))), [
     "dia-anterior",
-    "sem-registro", "salario", "pix-tarde",
+    "pix-tarde", "salario", "sem-registro",
     "itau",
-    "nubank-manha", "nubank-tarde",
+    "nubank-tarde", "nubank-manha",
     "excluido",
   ]);
   assert.deepEqual(ids([...list].reverse().sort(filters.listComparator(cards))),

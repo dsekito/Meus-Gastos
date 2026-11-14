@@ -188,7 +188,7 @@ const noHorizontalScroll = page => page.evaluate(() => document.documentElement.
       assert.deepEqual(errors, []);
       await context.close();
     }
-    // Mesma data: primeiro sem cartão, depois cartões por nome; dentro de cada forma, pela ordem de registro.
+    // Mesma data: primeiro sem cartão, depois cartões por nome; dentro de cada forma, o último registrado primeiro.
     {
       const sameDay = (n, description, card, createdAt, type = 'ALIMENTAÇÃO') => ({
         ...entry(n, '2026-11-10', type, description, 10 * n, false, card), created_at: createdAt });
@@ -199,7 +199,7 @@ const noHorizontalScroll = page => page.evaluate(() => document.documentElement.
         sameDay(4, 'FEIRA', 'nubank', '2026-11-10T09:00:00.000Z'),
         sameDay(5, 'PADARIA', null, '2026-11-10T08:00:00.000Z'),
       ] });
-      assert.deepEqual(await rows(page), ['PADARIA', 'SUPERMERCADO', 'DELIVERY', 'FEIRA', 'RESTAURANTE']);
+      assert.deepEqual(await rows(page), ['SUPERMERCADO', 'PADARIA', 'DELIVERY', 'RESTAURANTE', 'FEIRA']);
       assert.deepEqual(errors, []);
       await context.close();
     }

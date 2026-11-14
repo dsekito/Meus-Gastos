@@ -206,7 +206,7 @@ tudo do período, a lista vazia oferece **Mostrar todos**.
 A lista é ordenada por data. Na mesma data, vêm primeiro os lançamentos sem
 cartão (Pix, débito, dinheiro e as receitas), depois os de cada cartão em ordem
 alfabética e, por último, os de cartões excluídos; dentro de cada forma de
-pagamento, na ordem em que foram registrados.
+pagamento, o último registrado aparece primeiro.
 
 As opções dos filtros **Tipo** e **Descrição** mostram só o que existe no mês
 exibido (ou em todos os meses, com **Todos os meses**); um valor já escolhido

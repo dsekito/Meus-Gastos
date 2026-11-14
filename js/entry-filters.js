@@ -65,7 +65,7 @@
 
   // Order of the records list: by date; within a date, by payment method
   // (no card first, then cards by name, then deleted cards); then by the time
-  // the record was created, oldest first.
+  // the record was created, newest first.
   function listComparator(cards = []) {
     const names = new Map(cards.map((card) => [card.id, card.name]));
     const paymentKey = (entry) => {
@@ -78,7 +78,7 @@
       return String(a.date || "").localeCompare(String(b.date || ""))
         || groupA - groupB
         || nameA.localeCompare(nameB, "pt-BR")
-        || String(a.created_at || "").localeCompare(String(b.created_at || ""))
+        || String(b.created_at || "").localeCompare(String(a.created_at || ""))
         || String(a.id || "").localeCompare(String(b.id || ""));
     };
   }
